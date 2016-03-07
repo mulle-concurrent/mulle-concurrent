@@ -34,7 +34,6 @@
 #include "mulle_concurrent_hashmap.h"
 
 #include "mulle_concurrent_types.h"
-#include <mulle_aba/mulle_aba.h>
 #include <assert.h>
 #include <errno.h>
 #include <stdint.h>
@@ -72,7 +71,7 @@ static struct mulle_concurrent_hashmapstorage *
    if( n < 8)
       n = 8;
    
-   p = allocator->calloc( 1, sizeof( struct _mulle_concurrent_hashvaluepair) * (n - 1) +
+   p = _mulle_allocator_calloc( allocator, 1, sizeof( struct _mulle_concurrent_hashvaluepair) * (n - 1) +
                              sizeof( struct mulle_concurrent_hashmapstorage));
    if( ! p)
       return( p);
@@ -314,8 +313,8 @@ static void   _mulle_concurrent_hashmapstorage_copy( struct mulle_concurrent_has
 {
    struct _mulle_concurrent_hashvaluepair   *p;
    struct _mulle_concurrent_hashvaluepair   *p_last;
-   void                                   *actual;
-   void                                   *value;
+   void                                     *actual;
+   void                                     *value;
    
    p      = src->entries;
    p_last = &src->entries[ src->mask];
@@ -352,16 +351,21 @@ static void   _mulle_concurrent_hashmapstorage_copy( struct mulle_concurrent_has
 
 int  _mulle_concurrent_hashmap_init( struct mulle_concurrent_hashmap *map,
                                      unsigned int size,
-                                     struct mulle_allocator *allocator,
-                                     struct mulle_aba *aba)
+                                     struct mulle_allocator *allocator)
 {
    if( ! allocator)
       allocator = &mulle_default_allocator;
-   if( ! aba)
-      aba = mulle_aba_get_global();
+   
+   if( ! allocator->mode)
+   {
+      errno = ENXIO;
+      return( -1);
+   }
+
+   // use a smart mode allocator that supports ABA free. Preferably use
+   // mulle_aba_as_allocator()
    
    map->allocator    = allocator;
-   map->aba          = aba;
    map->storage      = _mulle_concurrent_alloc_hashmapstorage( size, allocator);
    map->next_storage = map->storage;
    
@@ -374,11 +378,12 @@ int  _mulle_concurrent_hashmap_init( struct mulle_concurrent_hashmap *map,
 //
 // this is called when you know, no other threads are accessing it anymore
 //
-void  _mulle_concurrent_hashmap_free( struct mulle_concurrent_hashmap *map)
+void  _mulle_concurrent_hashmap_done( struct mulle_concurrent_hashmap *map)
 {
-   _mulle_aba_free( map->aba, map->allocator->free, map->storage);
+   // ABA!
+   _mulle_allocator_free( map->allocator, map->storage);
    if( map->storage != map->next_storage)
-      _mulle_aba_free( map->aba, map->allocator->free, map->next_storage);
+      _mulle_allocator_free( map->allocator, map->next_storage);
 }
 
 
@@ -402,7 +407,7 @@ static int  _mulle_concurrent_hashmap_migrate_storage( struct mulle_concurrent_h
    if( q != p)
    {
       // someone else produced a next world, use that and get rid of 'alloced'
-      _mulle_aba_free( map->aba, map->allocator->free, alloced);
+      _mulle_allocator_free( map->allocator, alloced);  // ABA!!
       alloced = NULL;
    }
    else
@@ -415,9 +420,9 @@ static int  _mulle_concurrent_hashmap_migrate_storage( struct mulle_concurrent_h
    previous = __mulle_atomic_pointer_compare_and_swap( &map->storage, q, p);
 
    // ok, if we succeed free old, if we fail alloced is
-   // already gone
+   // already gone. this must be an ABA free (use mulle_aba as allocator)
    if( previous == p)
-      _mulle_aba_free( map->aba, map->allocator->free, previous);
+      _mulle_allocator_free( map->allocator, previous); // ABA!!
    
    return( 0);
 }
@@ -617,5 +622,3 @@ int  _mulle_concurrent_hashmapenumerator_next( struct mulle_concurrent_hashmapen
 
    return( 1);
 }
-
-

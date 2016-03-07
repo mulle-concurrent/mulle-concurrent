@@ -34,15 +34,9 @@
 #include "mulle_concurrent_pointerarray.h"
 
 #include "mulle_concurrent_types.h"
-#include <mulle_aba/mulle_aba.h>
 #include <assert.h>
 #include <errno.h>
 #include <stdint.h>
-
-
-#if MULLE_ABA_VERSION < ((1 << 20) | (0 << 8) | 0)
-# error "mulle_aba is too old"
-#endif
 
 
 struct mulle_concurrent_pointerarraystorage
@@ -70,14 +64,14 @@ struct mulle_concurrent_pointerarraystorage
 // n must be a power of 2
 static struct mulle_concurrent_pointerarraystorage *
    _mulle_concurrent_alloc_pointerarraystorage( unsigned int n,
-                                          struct mulle_allocator *allocator)
+                                                struct mulle_allocator *allocator)
 {
    struct mulle_concurrent_pointerarraystorage  *p;
    
    if( n < 8)
       n = 8;
    
-   p = allocator->calloc( 1, sizeof( void *) * (n - 1) +
+   p = _mulle_allocator_calloc( allocator, 1, sizeof( void *) * (n - 1) +
                              sizeof( struct mulle_concurrent_pointerarraystorage));
    if( ! p)
       return( p);
@@ -174,17 +168,19 @@ static void   _mulle_concurrent_pointerarraystorage_copy( struct mulle_concurren
 #pragma mark _mulle_concurrent_pointerarray
 
 int  _mulle_concurrent_pointerarray_init( struct mulle_concurrent_pointerarray *map,
-                                    unsigned int size,
-                                    struct mulle_allocator *allocator,
-                                    struct mulle_aba *aba)
+                                          unsigned int size,
+                                          struct mulle_allocator *allocator)
 {
    if( ! allocator)
       allocator = &mulle_default_allocator;
-   if( ! aba)
-      aba = mulle_aba_get_global();
+
+   if( ! allocator->mode)
+   {
+      errno = ENXIO;
+      return( -1);
+   }
    
    map->allocator    = allocator;
-   map->aba          = aba;
    map->storage      = _mulle_concurrent_alloc_pointerarraystorage( size, allocator);
    map->next_storage = map->storage;
    
@@ -197,11 +193,11 @@ int  _mulle_concurrent_pointerarray_init( struct mulle_concurrent_pointerarray *
 //
 // this is called when you know, no other threads are accessing it anymore
 //
-void  _mulle_concurrent_pointerarray_free( struct mulle_concurrent_pointerarray *map)
+void  _mulle_concurrent_pointerarray_done( struct mulle_concurrent_pointerarray *map)
 {
-   _mulle_aba_free( map->aba, map->allocator->free, map->storage);
+   _mulle_allocator_free( map->allocator, map->storage);
    if( map->storage != map->next_storage)
-      _mulle_aba_free( map->aba, map->allocator->free, map->next_storage);
+      _mulle_allocator_free( map->allocator, map->next_storage);
 }
 
 
@@ -225,7 +221,7 @@ static int  _mulle_concurrent_pointerarray_migrate_storage( struct mulle_concurr
    if( q != p)
    {
       // someone else produced a next world, use that and get rid of 'alloced'
-      _mulle_aba_free( map->aba, map->allocator->free, alloced);
+      _mulle_allocator_free( map->allocator, alloced);
       alloced = NULL;
    }
    else
@@ -240,7 +236,7 @@ static int  _mulle_concurrent_pointerarray_migrate_storage( struct mulle_concurr
    // ok, if we succeed free old, if we fail alloced is
    // already gone
    if( previous == p)
-      _mulle_aba_free( map->aba, map->allocator->free, previous);
+      _mulle_allocator_free( map->allocator, previous);
    
    return( 0);
 }
@@ -357,7 +353,7 @@ int  _mulle_concurrent_pointerarrayreverseenumerator_next( struct mulle_concurre
 
 
 
-int   _mulle_concurrent_pointerarray_search( struct mulle_concurrent_pointerarray *map,
+int   _mulle_concurrent_pointerarray_find( struct mulle_concurrent_pointerarray *map,
                                        void *search)
 {
    struct mulle_concurrent_pointerarrayenumerator   rover;

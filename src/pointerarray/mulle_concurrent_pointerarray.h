@@ -45,24 +45,22 @@ struct mulle_concurrent_pointerarray
    mulle_atomic_pointer_t   storage;
    mulle_atomic_pointer_t   next_storage;
    struct mulle_allocator   *allocator;
-   struct mulle_aba         *aba;
 };
 
 int  _mulle_concurrent_pointerarray_init( struct mulle_concurrent_pointerarray *map,
-                                    unsigned int size,
-                                    struct mulle_allocator *allocator,
-                                    struct mulle_aba *aba);
-void  _mulle_concurrent_pointerarray_free( struct mulle_concurrent_pointerarray *map);
+                                          unsigned int size,
+                                          struct mulle_allocator *allocator);
+void  _mulle_concurrent_pointerarray_done( struct mulle_concurrent_pointerarray *map);
 
 
 int  _mulle_concurrent_pointerarray_add( struct mulle_concurrent_pointerarray *map,
-                                   void *value);
+                                         void *value);
 
 void  *_mulle_concurrent_pointerarray_get( struct mulle_concurrent_pointerarray *map,
-                                   unsigned int n);
+                                           unsigned int n);
 
-int  _mulle_concurrent_pointerarray_search( struct mulle_concurrent_pointerarray *map,
-                                       void *value);
+int  _mulle_concurrent_pointerarray_find( struct mulle_concurrent_pointerarray *map,
+                                            void *value);
 
 
 unsigned int  _mulle_concurrent_pointerarray_get_size( struct mulle_concurrent_pointerarray *map);
@@ -110,7 +108,6 @@ static inline struct mulle_concurrent_pointerarrayreverseenumerator
    
    return( rover);
 }
-
 
 
 //  1 : OK
