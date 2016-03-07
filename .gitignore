@@ -1,0 +1,13 @@
+.DS_Store
+*~.*
+*[Bb]uild/
+.idea/
+mulle_mintomic/
+.repos/
+xcuserdata/
+project.xcworkspace/
+mulle-configuration/
+.bootstrap.auto/
+.bootstrap.local/
+dependencies/
+cityhash/
