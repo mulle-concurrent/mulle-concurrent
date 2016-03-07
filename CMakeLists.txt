@@ -12,7 +12,7 @@ include_directories( SYSTEM
 dependencies/include
 )
 
-#set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -g -DDEBUG -DMULLE_ABA_TRACE_LIST -DMULLE_ABA_TRACE_SWAP")
+#set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -g -DDEBUG ")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -g -DNDEBUG")
 
 set( HEADERS
@@ -20,7 +20,7 @@ src/pointerarray/mulle_concurrent_pointerarray.h
 src/hashmap/mulle_concurrent_hashmap.h
 )
 
-add_library( mulle_container
+add_library( mulle_concurrent
 src/pointerarray/mulle_concurrent_pointerarray.c
 src/hashmap/mulle_concurrent_hashmap.c
 )

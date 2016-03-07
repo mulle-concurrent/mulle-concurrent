@@ -5,7 +5,32 @@
 //  Created by Nat! on 04.03.16.
 //  Copyright © 2016 Mulle kybernetiK. All rights reserved.
 //
-
+//  Redistribution and use in source and binary forms, with or without
+//  modification, are permitted provided that the following conditions are met:
+//
+//  Redistributions of source code must retain the above copyright notice, this
+//  list of conditions and the following disclaimer.
+//
+//  Redistributions in binary form must reproduce the above copyright notice,
+//  this list of conditions and the following disclaimer in the documentation
+//  and/or other materials provided with the distribution.
+//
+//  Neither the name of Mulle kybernetiK nor the names of its contributors
+//  may be used to endorse or promote products derived from this software
+//  without specific prior written permission.
+//
+//  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+//  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+//  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+//  ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+//  LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+//  CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+//  SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+//  INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+//  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+//  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+//  POSSIBILITY OF SUCH DAMAGE.
+//
 #include <mulle_standalone_concurrent/mulle_standalone_concurrent.h>
 
 #include <mulle_test_allocator/mulle_test_allocator.h>
@@ -144,8 +169,9 @@ static void  multi_threaded_test( unsigned int n_threads)
    assert( n_threads <= 32);
 
    mulle_aba_init( &mulle_test_allocator);
+   mulle_allocator_set_aba( &mulle_test_allocator, mulle_aba_get_global(), (void *) _mulle_aba_free);
 
-   _mulle_concurrent_hashmap_init( &map, 0, mulle_aba_as_allocator());
+   _mulle_concurrent_hashmap_init( &map, 0, &mulle_test_allocator);
 
    {
       for( i = 0; i < n_threads; i++)
@@ -165,6 +191,7 @@ static void  multi_threaded_test( unsigned int n_threads)
    _mulle_concurrent_hashmap_done( &map);
    mulle_aba_unregister();
 
+   mulle_allocator_set_aba( &mulle_test_allocator, NULL, NULL);
    mulle_aba_done();
 }
 
@@ -178,9 +205,12 @@ static void  single_threaded_test( void)
    void                                        *value;
 
    mulle_aba_init( &mulle_test_allocator);
+
+   mulle_allocator_set_aba( &mulle_test_allocator,  mulle_aba_get_global(), (void *) _mulle_aba_free);
+   
    mulle_aba_register();
 
-   _mulle_concurrent_hashmap_init( &map, 0, mulle_aba_as_allocator());
+   _mulle_concurrent_hashmap_init( &map, 0, &mulle_test_allocator);
    {
       for( i = 1; i <= 100; i++)
       {
@@ -227,6 +257,9 @@ static void  single_threaded_test( void)
    _mulle_concurrent_hashmap_done( &map);
 
    mulle_aba_unregister();
+   
+   mulle_allocator_set_aba( &mulle_test_allocator, NULL, NULL);
+   
    mulle_aba_done();
 }
 

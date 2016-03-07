@@ -37,6 +37,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 
 struct _mulle_concurrent_hashvaluepair
@@ -46,7 +47,7 @@ struct _mulle_concurrent_hashvaluepair
 };
 
 
-struct mulle_concurrent_hashmapstorage
+struct _mulle_concurrent_hashmapstorage
 {
    mulle_atomic_pointer_t   n_hashs;  // with possibly empty values
    unsigned int             mask;
@@ -62,17 +63,17 @@ struct mulle_concurrent_hashmapstorage
 
 
 // n must be a power of 2
-static struct mulle_concurrent_hashmapstorage *
+static struct _mulle_concurrent_hashmapstorage *
    _mulle_concurrent_alloc_hashmapstorage( unsigned int n,
                                            struct mulle_allocator *allocator)
 {
-   struct mulle_concurrent_hashmapstorage  *p;
+   struct _mulle_concurrent_hashmapstorage  *p;
    
    if( n < 8)
       n = 8;
    
    p = _mulle_allocator_calloc( allocator, 1, sizeof( struct _mulle_concurrent_hashvaluepair) * (n - 1) +
-                             sizeof( struct mulle_concurrent_hashmapstorage));
+                             sizeof( struct _mulle_concurrent_hashmapstorage));
    if( ! p)
       return( p);
    
@@ -102,7 +103,7 @@ static struct mulle_concurrent_hashmapstorage *
 
 
 static unsigned int
-   _mulle_concurrent_hashmapstorage_get_max_n_hashs( struct mulle_concurrent_hashmapstorage *p)
+   _mulle_concurrent_hashmapstorage_get_max_n_hashs( struct _mulle_concurrent_hashmapstorage *p)
 {
    unsigned int   size;
    unsigned int   max;
@@ -113,7 +114,7 @@ static unsigned int
 }
 
 
-static void   *_mulle_concurrent_hashmapstorage_lookup( struct mulle_concurrent_hashmapstorage *p,
+static void   *_mulle_concurrent_hashmapstorage_lookup( struct _mulle_concurrent_hashmapstorage *p,
                                                         intptr_t hash)
 {
    struct _mulle_concurrent_hashvaluepair   *entry;
@@ -140,7 +141,7 @@ static void   *_mulle_concurrent_hashmapstorage_lookup( struct mulle_concurrent_
 
 
 static struct _mulle_concurrent_hashvaluepair  *
-    _mulle_concurrent_hashmapstorage_next_pair( struct mulle_concurrent_hashmapstorage *p,
+    _mulle_concurrent_hashmapstorage_next_pair( struct _mulle_concurrent_hashmapstorage *p,
                                                 unsigned int *index)
 {
    struct _mulle_concurrent_hashvaluepair   *entry;
@@ -171,7 +172,7 @@ static struct _mulle_concurrent_hashvaluepair  *
 //  EEXIST : key already exists (can't replace currently)
 //  EBUSY  : this storage can't be written to
 //
-static int   _mulle_concurrent_hashmapstorage_insert( struct mulle_concurrent_hashmapstorage *p,
+static int   _mulle_concurrent_hashmapstorage_insert( struct _mulle_concurrent_hashmapstorage *p,
                                                       intptr_t hash,
                                                       void *value)
 {
@@ -215,7 +216,7 @@ static int   _mulle_concurrent_hashmapstorage_insert( struct mulle_concurrent_ha
 }
 
 
-static int   _mulle_concurrent_hashmapstorage_put( struct mulle_concurrent_hashmapstorage *p,
+static int   _mulle_concurrent_hashmapstorage_put( struct _mulle_concurrent_hashmapstorage *p,
                                                    intptr_t hash,
                                                    void *value)
 {
@@ -270,7 +271,7 @@ static int   _mulle_concurrent_hashmapstorage_put( struct mulle_concurrent_hashm
 }
 
 
-static int   _mulle_concurrent_hashmapstorage_remove( struct mulle_concurrent_hashmapstorage *p,
+static int   _mulle_concurrent_hashmapstorage_remove( struct _mulle_concurrent_hashmapstorage *p,
                                                       intptr_t hash,
                                                       void *value)
 {
@@ -308,8 +309,8 @@ static int   _mulle_concurrent_hashmapstorage_remove( struct mulle_concurrent_ha
 }
 
 
-static void   _mulle_concurrent_hashmapstorage_copy( struct mulle_concurrent_hashmapstorage *dst,
-                                                     struct mulle_concurrent_hashmapstorage *src)
+static void   _mulle_concurrent_hashmapstorage_copy( struct _mulle_concurrent_hashmapstorage *dst,
+                                                     struct _mulle_concurrent_hashmapstorage *src)
 {
    struct _mulle_concurrent_hashvaluepair   *p;
    struct _mulle_concurrent_hashvaluepair   *p_last;
@@ -356,7 +357,8 @@ int  _mulle_concurrent_hashmap_init( struct mulle_concurrent_hashmap *map,
    if( ! allocator)
       allocator = &mulle_default_allocator;
    
-   if( ! allocator->mode)
+   assert( allocator->abafree && allocator->abafree != (void *) abort);
+   if( ! allocator->abafree || allocator->abafree == (void *) abort)
    {
       errno = ENXIO;
       return( -1);
@@ -381,19 +383,19 @@ int  _mulle_concurrent_hashmap_init( struct mulle_concurrent_hashmap *map,
 void  _mulle_concurrent_hashmap_done( struct mulle_concurrent_hashmap *map)
 {
    // ABA!
-   _mulle_allocator_free( map->allocator, map->storage);
+   _mulle_allocator_abafree( map->allocator, map->storage);
    if( map->storage != map->next_storage)
-      _mulle_allocator_free( map->allocator, map->next_storage);
+      _mulle_allocator_abafree( map->allocator, map->next_storage);
 }
 
 
 static int  _mulle_concurrent_hashmap_migrate_storage( struct mulle_concurrent_hashmap *map,
-                                                       struct mulle_concurrent_hashmapstorage *p)
+                                                       struct _mulle_concurrent_hashmapstorage *p)
 {
 
-   struct mulle_concurrent_hashmapstorage   *q;
-   struct mulle_concurrent_hashmapstorage   *alloced;
-   struct mulle_concurrent_hashmapstorage   *previous;
+   struct _mulle_concurrent_hashmapstorage   *q;
+   struct _mulle_concurrent_hashmapstorage   *alloced;
+   struct _mulle_concurrent_hashmapstorage   *previous;
 
    assert( p);
 
@@ -412,7 +414,7 @@ static int  _mulle_concurrent_hashmap_migrate_storage( struct mulle_concurrent_h
       if( q != p)
       {
          // someone else produced a next world, use that and get rid of 'alloced'
-         _mulle_allocator_free( map->allocator, alloced);  // ABA!!
+         _mulle_allocator_abafree( map->allocator, alloced);  // ABA!!
          alloced = NULL;
       }
       else
@@ -428,7 +430,7 @@ static int  _mulle_concurrent_hashmap_migrate_storage( struct mulle_concurrent_h
    // ok, if we succeed free old, if we fail alloced is
    // already gone. this must be an ABA free (use mulle_aba as allocator)
    if( previous == p)
-      _mulle_allocator_free( map->allocator, previous); // ABA!!
+      _mulle_allocator_abafree( map->allocator, previous); // ABA!!
    
    return( 0);
 }
@@ -437,7 +439,7 @@ static int  _mulle_concurrent_hashmap_migrate_storage( struct mulle_concurrent_h
 void  *_mulle_concurrent_hashmap_lookup( struct mulle_concurrent_hashmap *map,
                                          intptr_t hash)
 {
-   struct mulle_concurrent_hashmapstorage   *p;
+   struct _mulle_concurrent_hashmapstorage   *p;
    void                                    *value;
    
 retry:
@@ -459,7 +461,7 @@ static int   _mulle_concurrent_hashmap_search_next( struct mulle_concurrent_hash
                                                     intptr_t *p_hash,
                                                     void **p_value)
 {
-   struct mulle_concurrent_hashmapstorage   *p;
+   struct _mulle_concurrent_hashmapstorage   *p;
    struct _mulle_concurrent_hashvaluepair   *entry;
    void                                     *value;
    
@@ -505,7 +507,7 @@ int  _mulle_concurrent_hashmap_insert( struct mulle_concurrent_hashmap *map,
                                        intptr_t hash,
                                        void *value)
 {
-   struct mulle_concurrent_hashmapstorage   *p;
+   struct _mulle_concurrent_hashmapstorage   *p;
    unsigned int                              n;
    unsigned int                              max;
 
@@ -547,7 +549,7 @@ int  _mulle_concurrent_hashmap_remove( struct mulle_concurrent_hashmap *map,
                                        intptr_t hash,
                                        void *value)
 {
-   struct mulle_concurrent_hashmapstorage   *p;
+   struct _mulle_concurrent_hashmapstorage   *p;
    
 retry:
    p = _mulle_atomic_pointer_read( &map->storage);
@@ -564,7 +566,7 @@ retry:
 
 unsigned int  _mulle_concurrent_hashmap_get_size( struct mulle_concurrent_hashmap *map)
 {
-   struct mulle_concurrent_hashmapstorage   *p;
+   struct _mulle_concurrent_hashmapstorage   *p;
    
    p = _mulle_atomic_pointer_read( &map->storage);
    return( p->mask + 1);
