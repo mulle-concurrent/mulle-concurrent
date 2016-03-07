@@ -47,24 +47,24 @@ struct mulle_concurrent_pointerarray
    struct mulle_allocator   *allocator;
 };
 
-int  _mulle_concurrent_pointerarray_init( struct mulle_concurrent_pointerarray *map,
+int  _mulle_concurrent_pointerarray_init( struct mulle_concurrent_pointerarray *array,
                                           unsigned int size,
                                           struct mulle_allocator *allocator);
-void  _mulle_concurrent_pointerarray_done( struct mulle_concurrent_pointerarray *map);
+void  _mulle_concurrent_pointerarray_done( struct mulle_concurrent_pointerarray *array);
 
 
-int  _mulle_concurrent_pointerarray_add( struct mulle_concurrent_pointerarray *map,
+int  _mulle_concurrent_pointerarray_add( struct mulle_concurrent_pointerarray *array,
                                          void *value);
 
-void  *_mulle_concurrent_pointerarray_get( struct mulle_concurrent_pointerarray *map,
+void  *_mulle_concurrent_pointerarray_get( struct mulle_concurrent_pointerarray *array,
                                            unsigned int n);
 
-int  _mulle_concurrent_pointerarray_find( struct mulle_concurrent_pointerarray *map,
+int  _mulle_concurrent_pointerarray_find( struct mulle_concurrent_pointerarray *array,
                                             void *value);
 
 
-unsigned int  _mulle_concurrent_pointerarray_get_size( struct mulle_concurrent_pointerarray *map);
-unsigned int  mulle_concurrent_pointerarray_get_count( struct mulle_concurrent_pointerarray *map);
+unsigned int  _mulle_concurrent_pointerarray_get_size( struct mulle_concurrent_pointerarray *array);
+unsigned int  mulle_concurrent_pointerarray_get_count( struct mulle_concurrent_pointerarray *array);
 
 
 #pragma mark -
@@ -72,38 +72,38 @@ unsigned int  mulle_concurrent_pointerarray_get_count( struct mulle_concurrent_p
 
 struct mulle_concurrent_pointerarrayenumerator
 {
-   struct mulle_concurrent_pointerarray   *map;
+   struct mulle_concurrent_pointerarray   *array;
    unsigned int                            index;
 };
 
 struct mulle_concurrent_pointerarrayreverseenumerator
 {
-   struct mulle_concurrent_pointerarray   *map;
+   struct mulle_concurrent_pointerarray   *array;
    unsigned int                           index;
 };
 
 //
 // the specific retuned enumerator is only useable for the calling thread
-// if you remove stuff from the map, the enumerator will be unhappy and
-// stop (but will tell you). If the map grows, the rover is equally unhappy.
+// if you remove stuff from the array, the enumerator will be unhappy and
+// stop (but will tell you). If the array grows, the rover is equally unhappy.
 //
 static inline struct mulle_concurrent_pointerarrayenumerator
-   mulle_concurrent_pointerarray_enumerate( struct mulle_concurrent_pointerarray *map)
+   mulle_concurrent_pointerarray_enumerate( struct mulle_concurrent_pointerarray *array)
 {
    struct mulle_concurrent_pointerarrayenumerator   rover;
    
-   rover.map   = map;
-   rover.index = map ? 0 : (unsigned int) -1;
+   rover.array   = array;
+   rover.index = array ? 0 : (unsigned int) -1;
    
    return( rover);
 }
 
 static inline struct mulle_concurrent_pointerarrayreverseenumerator
-   _mulle_concurrent_pointerarray_reverseenumerate( struct mulle_concurrent_pointerarray *map, unsigned int n)
+   _mulle_concurrent_pointerarray_reverseenumerate( struct mulle_concurrent_pointerarray *array, unsigned int n)
 {
    struct mulle_concurrent_pointerarrayreverseenumerator   rover;
    
-   rover.map   = map;
+   rover.array   = array;
    rover.index = n;
    
    return( rover);
