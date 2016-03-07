@@ -122,9 +122,9 @@ static void  multi_threaded_test( unsigned int n_threads)
 
    assert( n_threads <= 32);
 
-   mulle_aba_init( &mulle_default_allocator);
+   mulle_aba_init( &mulle_test_allocator);
 
-   _mulle_concurrent_pointerarray_init( &map, 0, &mulle_test_allocator, mulle_aba_get_global());
+   _mulle_concurrent_pointerarray_init( &map, 0, mulle_aba_as_allocator());
 
    {
       for( i = 0; i < n_threads; i++)
@@ -141,7 +141,7 @@ static void  multi_threaded_test( unsigned int n_threads)
    }
 
    mulle_aba_register();
-   _mulle_concurrent_pointerarray_free( &map);
+   _mulle_concurrent_pointerarray_done( &map);
    mulle_aba_unregister();
 
    mulle_aba_done();
@@ -155,10 +155,10 @@ static void  single_threaded_test( void)
    unsigned int                                i;
    void                                        *value;
 
-   mulle_aba_init( &mulle_default_allocator);
+   mulle_aba_init( &mulle_test_allocator);
    mulle_aba_register();
 
-   _mulle_concurrent_pointerarray_init( &map, 0, &mulle_test_allocator, mulle_aba_get_global());
+   _mulle_concurrent_pointerarray_init( &map, 0, mulle_aba_as_allocator());
    {
       for( i = 1; i <= 100; i++)
       {
@@ -185,7 +185,7 @@ static void  single_threaded_test( void)
       _mulle_concurrent_pointerarrayenumerator_done( &rover);
       assert( i == 101);
    }
-   _mulle_concurrent_pointerarray_free( &map);
+   _mulle_concurrent_pointerarray_done( &map);
 
    mulle_aba_unregister();
    mulle_aba_done();

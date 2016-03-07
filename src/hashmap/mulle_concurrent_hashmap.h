@@ -38,26 +38,21 @@
 #include <mulle_allocator/mulle_allocator.h>
 
 
-struct mulle_aba;
-
-
 //
 // basically does: http://preshing.com/20160222/a-resizable-concurrent-map/
-// but is truely concurrent :)
+// but is wait-free
 //
 struct mulle_concurrent_hashmap
 {
    mulle_atomic_pointer_t   storage;
    mulle_atomic_pointer_t   next_storage;
    struct mulle_allocator   *allocator;
-   struct mulle_aba         *aba;
 };
 
 int  _mulle_concurrent_hashmap_init( struct mulle_concurrent_hashmap *map,
                                      unsigned int size,
-                                     struct mulle_allocator *allocator,
-                                     struct mulle_aba *aba);
-void  _mulle_concurrent_hashmap_free( struct mulle_concurrent_hashmap *map);
+                                     struct mulle_allocator *allocator);
+void  _mulle_concurrent_hashmap_done( struct mulle_concurrent_hashmap *map);
 
 
 int  _mulle_concurrent_hashmap_insert( struct mulle_concurrent_hashmap *map,
@@ -85,6 +80,7 @@ struct mulle_concurrent_hashmapenumerator
    unsigned int                      index;
    unsigned int                      mask;
 };
+
 
 //
 // the specific retuned enumerator is only useable for the calling thread

@@ -22,8 +22,9 @@
 /* End PBXAggregateTarget section */
 
 /* Begin PBXBuildFile section */
+		4184C47A1C8DCA56004CED2F /* libmulle_aba.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 41CAEAD31C8D95D4003C2C7B /* libmulle_aba.a */; };
+		4184C47B1C8DCA5A004CED2F /* libmulle_aba.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 41CAEAD31C8D95D4003C2C7B /* libmulle_aba.a */; };
 		41CAEAD21C8D95BB003C2C7B /* libmulle_concurrent.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 41F14FE61B68F098002189F1 /* libmulle_concurrent.a */; };
-		41CAEAD61C8D95D4003C2C7B /* libmulle_aba.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 41CAEAD31C8D95D4003C2C7B /* libmulle_aba.a */; };
 		41CAEAD81C8D95D4003C2C7B /* libmulle_allocator.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 41CAEAD51C8D95D4003C2C7B /* libmulle_allocator.a */; };
 		41CAEADA1C8D95ED003C2C7B /* mulle_concurrent.h in Headers */ = {isa = PBXBuildFile; fileRef = 41CAEAD91C8D95ED003C2C7B /* mulle_concurrent.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		41CAEADC1C8D9601003C2C7B /* mulle_standalone_concurrent.h in Headers */ = {isa = PBXBuildFile; fileRef = 41CAEADB1C8D9601003C2C7B /* mulle_standalone_concurrent.h */; settings = {ATTRIBUTES = (Public, ); }; };
@@ -102,6 +103,7 @@
 		41CAEB031C8DA251003C2C7B /* pointerarray.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = pointerarray.c; sourceTree = "<group>"; };
 		41CAEB051C8DA326003C2C7B /* libmulle_test_allocator.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libmulle_test_allocator.a; path = dependencies/lib/Debug/libmulle_test_allocator.a; sourceTree = "<group>"; };
 		41CAEB091C8DB97F003C2C7B /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
+		41D04AB71C8DD69000CC8F11 /* RELEASENOTES.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = RELEASENOTES.md; sourceTree = "<group>"; };
 		41D8BA7D1C8D92DE00186ECE /* mulle_concurrent_hashmap.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = mulle_concurrent_hashmap.c; sourceTree = "<group>"; };
 		41D8BA7E1C8D92DE00186ECE /* mulle_concurrent_hashmap.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = mulle_concurrent_hashmap.h; sourceTree = "<group>"; };
 		41D8BA801C8D92DE00186ECE /* mulle_concurrent_pointerarray.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = mulle_concurrent_pointerarray.c; sourceTree = "<group>"; };
@@ -114,7 +116,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				41CAEAD61C8D95D4003C2C7B /* libmulle_aba.a in Frameworks */,
 				41CAEAD81C8D95D4003C2C7B /* libmulle_allocator.a in Frameworks */,
 				41CAEB061C8DA326003C2C7B /* libmulle_test_allocator.a in Frameworks */,
 				41CAEAD21C8D95BB003C2C7B /* libmulle_concurrent.a in Frameworks */,
@@ -125,8 +126,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				41CAEB071C8DA518003C2C7B /* libmulle_test_allocator.a in Frameworks */,
 				41CAEAF21C8DA09C003C2C7B /* libmulle_standalone_concurrent.dylib in Frameworks */,
+				4184C47A1C8DCA56004CED2F /* libmulle_aba.a in Frameworks */,
+				41CAEB071C8DA518003C2C7B /* libmulle_test_allocator.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -136,6 +138,7 @@
 			files = (
 				41CAEB001C8DA224003C2C7B /* libmulle_standalone_concurrent.dylib in Frameworks */,
 				41CAEB081C8DA51E003C2C7B /* libmulle_test_allocator.a in Frameworks */,
+				4184C47B1C8DCA5A004CED2F /* libmulle_aba.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -153,6 +156,7 @@
 			isa = PBXGroup;
 			children = (
 				41CAEB091C8DB97F003C2C7B /* README.md */,
+				41D04AB71C8DD69000CC8F11 /* RELEASENOTES.md */,
 				411A28C11BCD446E00D39FF7 /* CMakeLists.txt */,
 				417C02631BD8404E005A3751 /* mulle-configuration */,
 				4147852E1ABAF290002DBAE4 /* src */,
@@ -457,6 +461,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 417C02651BD8404E005A3751 /* Debug.xcconfig */;
 			buildSettings = {
+				CURRENT_PROJECT_VERSION = 0.1;
 			};
 			name = Debug;
 		};
@@ -464,6 +469,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 417C02681BD8404E005A3751 /* Release.xcconfig */;
 			buildSettings = {
+				CURRENT_PROJECT_VERSION = 0.1;
 			};
 			name = Release;
 		};
@@ -504,14 +510,12 @@
 		41CAEACA1C8D95A6003C2C7B /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Debug;
 		};
 		41CAEACB1C8D95A6003C2C7B /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Release;
 		};
@@ -592,6 +596,7 @@
 				41CAEAC71C8D9599003C2C7B /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 		41CAEAC91C8D95A6003C2C7B /* Build configuration list for PBXAggregateTarget "Libraries" */ = {
 			isa = XCConfigurationList;
@@ -600,6 +605,7 @@
 				41CAEACB1C8D95A6003C2C7B /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 		41CAEAEB1C8D9FF4003C2C7B /* Build configuration list for PBXNativeTarget "test-hashmap" */ = {
 			isa = XCConfigurationList;
@@ -608,6 +614,7 @@
 				41CAEAED1C8D9FF4003C2C7B /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 		41CAEAFB1C8DA20F003C2C7B /* Build configuration list for PBXNativeTarget "test-pointerarray" */ = {
 			isa = XCConfigurationList;
@@ -616,6 +623,7 @@
 				41CAEAFD1C8DA20F003C2C7B /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 		41F14FE71B68F098002189F1 /* Build configuration list for PBXNativeTarget "mulle_concurrent" */ = {
 			isa = XCConfigurationList;
