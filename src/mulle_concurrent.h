@@ -35,7 +35,7 @@
 #define mulle_concurrent_h__
 
 
-#define MULLE_CONCURRENT_VERSION  ((0 << 20) | (1 << 8) | 0)
+#define MULLE_CONCURRENT_VERSION  ((0 << 20) | (2 << 8) | 0)
 
 
 #include "mulle_concurrent_hashmap.h"

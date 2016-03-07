@@ -7,6 +7,18 @@
 	objects = {
 
 /* Begin PBXAggregateTarget section */
+		41AD75F51C8E33E600B18C35 /* Tests */ = {
+			isa = PBXAggregateTarget;
+			buildConfigurationList = 41AD75F81C8E33E600B18C35 /* Build configuration list for PBXAggregateTarget "Tests" */;
+			buildPhases = (
+			);
+			dependencies = (
+				41AD75FA1C8E33F700B18C35 /* PBXTargetDependency */,
+				41AD75FC1C8E33F700B18C35 /* PBXTargetDependency */,
+			);
+			name = Tests;
+			productName = Tests;
+		};
 		41CAEAC81C8D95A6003C2C7B /* Libraries */ = {
 			isa = PBXAggregateTarget;
 			buildConfigurationList = 41CAEAC91C8D95A6003C2C7B /* Build configuration list for PBXAggregateTarget "Libraries" */;
@@ -44,6 +56,20 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		41AD75F91C8E33F700B18C35 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 414785241ABAF290002DBAE4 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 41CAEAE61C8D9FF4003C2C7B;
+			remoteInfo = "test-hashmap";
+		};
+		41AD75FB1C8E33F700B18C35 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 414785241ABAF290002DBAE4 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 41CAEAF61C8DA20F003C2C7B;
+			remoteInfo = "test-pointerarray";
+		};
 		41CAEACC1C8D95B0003C2C7B /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 414785241ABAF290002DBAE4 /* Project object */;
@@ -353,6 +379,9 @@
 				LastUpgradeCheck = 0640;
 				ORGANIZATIONNAME = "Mulle kybernetiK";
 				TargetAttributes = {
+					41AD75F51C8E33E600B18C35 = {
+						CreatedOnToolsVersion = 7.2.1;
+					};
 					41CAEAC31C8D9599003C2C7B = {
 						CreatedOnToolsVersion = 7.2.1;
 					};
@@ -386,6 +415,7 @@
 				41CAEAC81C8D95A6003C2C7B /* Libraries */,
 				41F14FE51B68F098002189F1 /* mulle_concurrent */,
 				41CAEAC31C8D9599003C2C7B /* mulle_standalone_concurrent */,
+				41AD75F51C8E33E600B18C35 /* Tests */,
 				41CAEAE61C8D9FF4003C2C7B /* test-hashmap */,
 				41CAEAF61C8DA20F003C2C7B /* test-pointerarray */,
 			);
@@ -429,6 +459,16 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		41AD75FA1C8E33F700B18C35 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 41CAEAE61C8D9FF4003C2C7B /* test-hashmap */;
+			targetProxy = 41AD75F91C8E33F700B18C35 /* PBXContainerItemProxy */;
+		};
+		41AD75FC1C8E33F700B18C35 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 41CAEAF61C8DA20F003C2C7B /* test-pointerarray */;
+			targetProxy = 41AD75FB1C8E33F700B18C35 /* PBXContainerItemProxy */;
+		};
 		41CAEACD1C8D95B0003C2C7B /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 41F14FE51B68F098002189F1 /* mulle_concurrent */;
@@ -461,7 +501,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 417C02651BD8404E005A3751 /* Debug.xcconfig */;
 			buildSettings = {
-				CURRENT_PROJECT_VERSION = 0.1;
+				CURRENT_PROJECT_VERSION = 0.2;
 			};
 			name = Debug;
 		};
@@ -469,7 +509,21 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 417C02681BD8404E005A3751 /* Release.xcconfig */;
 			buildSettings = {
-				CURRENT_PROJECT_VERSION = 0.1;
+				CURRENT_PROJECT_VERSION = 0.2;
+			};
+			name = Release;
+		};
+		41AD75F61C8E33E600B18C35 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		41AD75F71C8E33E600B18C35 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Release;
 		};
@@ -484,6 +538,8 @@
 				OTHER_LDFLAGS = (
 					"-force_load",
 					"$(DEPENDENCIES_DIR)/lib/$(CONFIGURATION)/libmulle_test_allocator.a",
+					"-force_load",
+					"$(DEPENDENCIES_DIR)/lib/$(CONFIGURATION)/libmulle_aba.a",
 					"-force_load",
 					"$(CONFIGURATION_BUILD_DIR)/libmulle_concurrent.a",
 				);
@@ -501,6 +557,8 @@
 				OTHER_LDFLAGS = (
 					"-force_load",
 					"$(DEPENDENCIES_DIR)/lib/$(CONFIGURATION)/libmulle_test_allocator.a",
+					"-force_load",
+					"$(DEPENDENCIES_DIR)/lib/$(CONFIGURATION)/libmulle_aba.a",
 					"-force_load",
 					"$(CONFIGURATION_BUILD_DIR)/libmulle_concurrent.a",
 				);
@@ -585,6 +643,15 @@
 			buildConfigurations = (
 				414785311ABAF290002DBAE4 /* Debug */,
 				414785321ABAF290002DBAE4 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		41AD75F81C8E33E600B18C35 /* Build configuration list for PBXAggregateTarget "Tests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				41AD75F61C8E33E600B18C35 /* Debug */,
+				41AD75F71C8E33E600B18C35 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

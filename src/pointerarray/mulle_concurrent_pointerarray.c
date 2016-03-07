@@ -37,9 +37,10 @@
 #include <assert.h>
 #include <errno.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 
-struct mulle_concurrent_pointerarraystorage
+struct _mulle_concurrent_pointerarraystorage
 {
    mulle_atomic_pointer_t   n;
    unsigned int             size;
@@ -62,17 +63,17 @@ struct mulle_concurrent_pointerarraystorage
 
 
 // n must be a power of 2
-static struct mulle_concurrent_pointerarraystorage *
+static struct _mulle_concurrent_pointerarraystorage *
    _mulle_concurrent_alloc_pointerarraystorage( unsigned int n,
                                                 struct mulle_allocator *allocator)
 {
-   struct mulle_concurrent_pointerarraystorage  *p;
+   struct _mulle_concurrent_pointerarraystorage  *p;
    
    if( n < 8)
       n = 8;
    
    p = _mulle_allocator_calloc( allocator, 1, sizeof( void *) * (n - 1) +
-                             sizeof( struct mulle_concurrent_pointerarraystorage));
+                             sizeof( struct _mulle_concurrent_pointerarraystorage));
    if( ! p)
       return( p);
    p->size = n;
@@ -99,7 +100,7 @@ static struct mulle_concurrent_pointerarraystorage *
 }
 
 
-static void   *_mulle_concurrent_pointerarraystorage_get( struct mulle_concurrent_pointerarraystorage *p,
+static void   *_mulle_concurrent_pointerarraystorage_get( struct _mulle_concurrent_pointerarraystorage *p,
                                                     unsigned int i)
 {
    assert( i < (unsigned int) (uintptr_t) _mulle_atomic_pointer_read( &p->n));
@@ -114,7 +115,7 @@ static void   *_mulle_concurrent_pointerarraystorage_get( struct mulle_concurren
 //  EBUSY  : this storage can't be written to
 //  ENOSPC : storage is full
 //
-static int   _mulle_concurrent_pointerarraystorage_add( struct mulle_concurrent_pointerarraystorage *p,
+static int   _mulle_concurrent_pointerarraystorage_add( struct _mulle_concurrent_pointerarraystorage *p,
                                                   void *value)
 {
    void           *found;
@@ -142,8 +143,8 @@ static int   _mulle_concurrent_pointerarraystorage_add( struct mulle_concurrent_
 }
 
 
-static void   _mulle_concurrent_pointerarraystorage_copy( struct mulle_concurrent_pointerarraystorage *dst,
-                                                    struct mulle_concurrent_pointerarraystorage *src)
+static void   _mulle_concurrent_pointerarraystorage_copy( struct _mulle_concurrent_pointerarraystorage *dst,
+                                                    struct _mulle_concurrent_pointerarraystorage *src)
 {
    mulle_atomic_pointer_t   *p;
    mulle_atomic_pointer_t   *p_last;
@@ -174,7 +175,9 @@ int  _mulle_concurrent_pointerarray_init( struct mulle_concurrent_pointerarray *
    if( ! allocator)
       allocator = &mulle_default_allocator;
 
-   if( ! allocator->mode)
+   assert( allocator->abafree && allocator->abafree != (void *) abort);
+   
+   if( ! allocator->abafree || allocator->abafree == (void *) abort)
    {
       errno = ENXIO;
       return( -1);
@@ -195,25 +198,28 @@ int  _mulle_concurrent_pointerarray_init( struct mulle_concurrent_pointerarray *
 //
 void  _mulle_concurrent_pointerarray_done( struct mulle_concurrent_pointerarray *array)
 {
-   _mulle_allocator_free( array->allocator, array->storage);
+   _mulle_allocator_abafree( array->allocator, array->storage);
    if( array->storage != array->next_storage)
-      _mulle_allocator_free( array->allocator, array->next_storage);
+      _mulle_allocator_abafree( array->allocator, array->next_storage);
 }
 
 
 static int  _mulle_concurrent_pointerarray_migrate_storage( struct mulle_concurrent_pointerarray *array,
-                                                      struct mulle_concurrent_pointerarraystorage *p)
+                                                      struct _mulle_concurrent_pointerarraystorage *p)
 {
 
-   struct mulle_concurrent_pointerarraystorage   *q;
-   struct mulle_concurrent_pointerarraystorage   *alloced;
-   struct mulle_concurrent_pointerarraystorage   *previous;
+   struct _mulle_concurrent_pointerarraystorage   *q;
+   struct _mulle_concurrent_pointerarraystorage   *alloced;
+   struct _mulle_concurrent_pointerarraystorage   *previous;
 
    assert( p);
    
    // acquire new storage
    alloced = NULL;
    q       = _mulle_atomic_pointer_read( &array->next_storage);
+
+   assert( q);
+   
    if( q == p)
    {
       alloced = _mulle_concurrent_alloc_pointerarraystorage( p->size * 2, array->allocator);
@@ -225,7 +231,7 @@ static int  _mulle_concurrent_pointerarray_migrate_storage( struct mulle_concurr
       if( q != p)
       {
          // someone else produced a next world, use that and get rid of 'alloced'
-         _mulle_allocator_free( array->allocator, alloced);
+         _mulle_allocator_abafree( array->allocator, alloced);
          alloced = NULL;
       }
       else
@@ -241,7 +247,7 @@ static int  _mulle_concurrent_pointerarray_migrate_storage( struct mulle_concurr
    // ok, if we succeed free old, if we fail alloced is
    // already gone
    if( previous == p)
-      _mulle_allocator_free( array->allocator, previous);
+      _mulle_allocator_abafree( array->allocator, previous);
    
    return( 0);
 }
@@ -250,7 +256,7 @@ static int  _mulle_concurrent_pointerarray_migrate_storage( struct mulle_concurr
 void  *_mulle_concurrent_pointerarray_get( struct mulle_concurrent_pointerarray *array,
                                            unsigned int index)
 {
-   struct mulle_concurrent_pointerarraystorage   *p;
+   struct _mulle_concurrent_pointerarraystorage   *p;
    void                                     *value;
    
 retry:
@@ -269,7 +275,7 @@ retry:
 int  _mulle_concurrent_pointerarray_add( struct mulle_concurrent_pointerarray *array,
                                          void *value)
 {
-   struct mulle_concurrent_pointerarraystorage   *p;
+   struct _mulle_concurrent_pointerarraystorage   *p;
 
    assert( value);
    assert( value != REDIRECT_VALUE);
@@ -291,7 +297,7 @@ retry:
 
 unsigned int  _mulle_concurrent_pointerarray_get_size( struct mulle_concurrent_pointerarray *array)
 {
-   struct mulle_concurrent_pointerarraystorage   *p;
+   struct _mulle_concurrent_pointerarraystorage   *p;
    
    p = _mulle_atomic_pointer_read( &array->storage);
    return( p->size);
@@ -303,7 +309,7 @@ unsigned int  _mulle_concurrent_pointerarray_get_size( struct mulle_concurrent_p
 //
 unsigned int  mulle_concurrent_pointerarray_get_count( struct mulle_concurrent_pointerarray *array)
 {
-   struct mulle_concurrent_pointerarraystorage   *p;
+   struct _mulle_concurrent_pointerarraystorage   *p;
    
    if( ! array)
       return( 0);

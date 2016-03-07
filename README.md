@@ -1,8 +1,9 @@
 ## `mulle_concurrent_pointerlist`
 
-> Taking the definitions here from [concurrencyfreaks.blogspot.de](http://concurrencyfreaks.blogspot.de/2013/05/lock-free-and-wait-free-definition-and.html)
+> Most of the ideas are taken from [Preshing on Programming](http://preshing.com/20160222/a-resizable-concurrent-map/). 
+> The definition of concurrent and wait-free are from [concurrencyfreaks.blogspot.de](http://concurrencyfreaks.blogspot.de/2013/05/lock-free-and-wait-free-definition-and.html)
 
-A growing array of pointers, that is wait-free. 
+A growing array of pointers, that is **wait-free**. 
 
 Here is a simple usage example:
 ```
@@ -16,7 +17,7 @@ static void   test( void)
    unsigned int                                     i;
    void                                             *value;
 
-   _mulle_concurrent_pointerarray_init( &map, 0, mulle_aba_as_allocator());
+   _mulle_concurrent_pointerarray_init( &map, 0, NULL);
 
    value = (void *) 0x1848;
 
@@ -31,7 +32,7 @@ static void   test( void)
    }
    _mulle_concurrent_pointerarrayenumerator_done( &rover);
 
-   _mulle_concurrent_pointerarray_free( &map);
+   _mulle_concurrent_pointerarray_done( &map);
 }
 
 
@@ -51,7 +52,7 @@ int   main( void)
 
 ## `mulle_concurrent_hashmap`
 
-A mutable map of pointers, indexed by a hash, that is wait-free.
+A mutable map of pointers, indexed by a hash, that is **wait-free**.
 
 Here is a also a simple usage example:
 
@@ -60,13 +61,13 @@ Here is a also a simple usage example:
 
 static void  test( void)
 {
-   intptr_t                                     hash;
+   intptr_t                                    hash;
    struct mulle_concurrent_hashmap             map;
    struct mulle_concurrent_hashmapenumerator   rover;
    unsigned int                                i;
    void                                        *value;
-
-   _mulle_concurrent_hashmap_init( &map, 0, mulle_aba_as_allocator());
+   
+   _mulle_concurrent_hashmap_init( &map, 0, NULL);
    {
       _mulle_concurrent_hashmap_insert( &map, 100000, (void *) 0x1848);
       value =  _mulle_concurrent_hashmap_lookup( &map, 100000);
@@ -88,13 +89,13 @@ static void  test( void)
       value =  _mulle_concurrent_hashmap_lookup( &map, 100000);
       printf( "%s\n", value == (void *) 0x1848 ? "unexpected" : "expected");
    }
-   _mulle_concurrent_hashmap_free( &map);
+   _mulle_concurrent_hashmap_done( &map);
 }
 
 
 int   main( void)
 {
-   mulle_aba_init( &mulle_default_allocator);
+   mulle_aba_init( NULL);
    mulle_aba_register();
 
    test();
@@ -108,53 +109,11 @@ int   main( void)
 
 ## ABA
 
-This library assumes that the allocator you give it is smart enough to solve
-the ABA problem when freeing memory.
+This library assumes that the allocator you give it, has a vector installed
+for 'abafree', that is smart enough to solve the ABA problem when freeing memory.
 
-If you use `mulle_aba` you can ask it to act as an allocator (call 
-`mulle_aba_as_allocator()`). If you don't want to use `mulle_aba`, create an 
-allocator like this for your own scheme:
+> Hint : Use [mulle-aba](https://www.mulle-kybernetik.com/weblog/2015/mulle_aba_release.html) for that.
 
-
-```
-struct my_aba_allocator
-{
-   struct mulle_allocator  allocator;
-   void                    *my_aba;
-};
-
-
-static void  *my_calloc( struct mulle_allocator *allocator,
-                         size_t  n,
-                         size_t  size)
-{
-   return( calloc( n, size));
-}
-
-
-static void  *my_realloc( struct mulle_allocator *allocator,
-                          void  *block,
-                          size_t  size)
-{
-   return( realloc( block, size));
-}
-
-
-static void  my_free( struct mulle_allocator *allocator,
-                      void *pointer)
-{
-   struct my_aba_allocator   *p;
-   
-   p = (struct my_aba_allocator *) allocator;
-   clever_free( p->my_aba, pointer);
-}
-
-struct my_aba_allocator    my_aba_allocator = 
-{
-   { my_calloc, my_realloc, my_free, 1 }, &clever_struct
-};
-
-```
 
 ## Dependencies
 

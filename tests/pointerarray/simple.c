@@ -8,7 +8,7 @@ static void   test( void)
    unsigned int                                     i;
    void                                             *value;
 
-   _mulle_concurrent_pointerarray_init( &map, 0, NULL, NULL);
+   _mulle_concurrent_pointerarray_init( &map, 0, NULL);
    {
       value = (void *) 0x1848;
 
@@ -23,13 +23,13 @@ static void   test( void)
       }
       _mulle_concurrent_pointerarrayenumerator_done( &rover);
    }
-   _mulle_concurrent_pointerarray_free( &map);
+   _mulle_concurrent_pointerarray_done( &map);
 }
 
 
 int   main( void)
 {
-   mulle_aba_init( &mulle_default_allocator);
+   mulle_aba_init( NULL);
    mulle_aba_register();
 
    test();
