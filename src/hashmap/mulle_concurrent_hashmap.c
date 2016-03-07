@@ -396,22 +396,28 @@ static int  _mulle_concurrent_hashmap_migrate_storage( struct mulle_concurrent_h
    struct mulle_concurrent_hashmapstorage   *previous;
 
    assert( p);
-   
-   // acquire new storage
-   alloced = _mulle_concurrent_alloc_hashmapstorage( (p->mask + 1) * 2, map->allocator);
-   if( ! alloced)
-      return( -1);
 
-   // make this the next world, assume that's still set to 'p' (SIC)
-   q = __mulle_atomic_pointer_compare_and_swap( &map->next_storage, alloced, p);
-   if( q != p)
+   // check if we have a chance to succeed
+   alloced = NULL;
+   q       = _mulle_atomic_pointer_read( &map->next_storage);
+   if( q == p)
    {
-      // someone else produced a next world, use that and get rid of 'alloced'
-      _mulle_allocator_free( map->allocator, alloced);  // ABA!!
-      alloced = NULL;
+      // acquire new storage
+      alloced = _mulle_concurrent_alloc_hashmapstorage( (p->mask + 1) * 2, map->allocator);
+      if( ! alloced)
+         return( -1);
+      
+      // make this the next world, assume that's still set to 'p' (SIC)
+      q = __mulle_atomic_pointer_compare_and_swap( &map->next_storage, alloced, p);
+      if( q != p)
+      {
+         // someone else produced a next world, use that and get rid of 'alloced'
+         _mulle_allocator_free( map->allocator, alloced);  // ABA!!
+         alloced = NULL;
+      }
+      else
+         q = alloced;
    }
-   else
-      q = alloced;
    
    // this thread can partake in copying
    _mulle_concurrent_hashmapstorage_copy( q, p);
