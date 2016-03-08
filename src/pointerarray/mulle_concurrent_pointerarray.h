@@ -38,8 +38,6 @@
 #include <mulle_allocator/mulle_allocator.h>
 
 
-struct mulle_aba;
-
 struct mulle_concurrent_pointerarray
 {
    mulle_atomic_pointer_t   storage;
@@ -92,7 +90,7 @@ static inline struct mulle_concurrent_pointerarrayenumerator
 {
    struct mulle_concurrent_pointerarrayenumerator   rover;
    
-   rover.array   = array;
+   rover.array = array;
    rover.index = array ? 0 : (unsigned int) -1;
    
    return( rover);
@@ -103,7 +101,7 @@ static inline struct mulle_concurrent_pointerarrayreverseenumerator
 {
    struct mulle_concurrent_pointerarrayreverseenumerator   rover;
    
-   rover.array   = array;
+   rover.array = array;
    rover.index = n;
    
    return( rover);
