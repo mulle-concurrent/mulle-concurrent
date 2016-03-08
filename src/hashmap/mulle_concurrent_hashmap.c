@@ -93,7 +93,7 @@ static struct _mulle_concurrent_hashmapstorage *
       while( q <= sentinel)
       {
          q->hash  = MULLE_CONCURRENT_NO_HASH;
-         q->value = MULLE_CONCURRENT_NO_POINTER;
+         _mulle_atomic_pointer_nonatomic_write( &q->value, MULLE_CONCURRENT_NO_POINTER);
          ++q;
       }
    }
@@ -354,24 +354,25 @@ int  _mulle_concurrent_hashmap_init( struct mulle_concurrent_hashmap *map,
                                      unsigned int size,
                                      struct mulle_allocator *allocator)
 {
+   struct _mulle_concurrent_hashmapstorage   *storage;
+   
    if( ! allocator)
       allocator = &mulle_default_allocator;
    
    assert( allocator->abafree && allocator->abafree != (void *) abort);
    if( ! allocator->abafree || allocator->abafree == (void *) abort)
    {
-      errno = ENXIO;
+      errno = EINVAL;
       return( -1);
    }
 
-   // use a smart mode allocator that supports ABA free. Preferably use
-   // mulle_aba_as_allocator()
+   map->allocator = allocator;
+   storage        = _mulle_concurrent_alloc_hashmapstorage( size, allocator);
+
+   _mulle_atomic_pointer_nonatomic_write( &map->storage, storage);
+   _mulle_atomic_pointer_nonatomic_write( &map->next_storage, storage);
    
-   map->allocator    = allocator;
-   map->storage      = _mulle_concurrent_alloc_hashmapstorage( size, allocator);
-   map->next_storage = map->storage;
-   
-   if( ! map->storage)
+   if( ! storage)
       return( -1);
    return( 0);
 }
@@ -382,10 +383,16 @@ int  _mulle_concurrent_hashmap_init( struct mulle_concurrent_hashmap *map,
 //
 void  _mulle_concurrent_hashmap_done( struct mulle_concurrent_hashmap *map)
 {
+   struct _mulle_concurrent_hashmapstorage   *storage;
+   struct _mulle_concurrent_hashmapstorage   *next_storage;
    // ABA!
-   _mulle_allocator_abafree( map->allocator, map->storage);
-   if( map->storage != map->next_storage)
-      _mulle_allocator_abafree( map->allocator, map->next_storage);
+
+   storage      = _mulle_atomic_pointer_nonatomic_read( &map->storage);
+   next_storage = _mulle_atomic_pointer_nonatomic_read( &map->next_storage);
+
+   _mulle_allocator_abafree( map->allocator, storage);
+   if( storage != next_storage)
+      _mulle_allocator_abafree( map->allocator, next_storage);
 }
 
 
@@ -428,7 +435,7 @@ static int  _mulle_concurrent_hashmap_migrate_storage( struct mulle_concurrent_h
    previous = __mulle_atomic_pointer_compare_and_swap( &map->storage, q, p);
 
    // ok, if we succeed free old, if we fail alloced is
-   // already gone. this must be an ABA free (use mulle_aba as allocator)
+   // already gone. this must be an ABA free 
    if( previous == p)
       _mulle_allocator_abafree( map->allocator, previous); // ABA!!
    

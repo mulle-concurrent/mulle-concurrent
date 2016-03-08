@@ -172,6 +172,8 @@ int  _mulle_concurrent_pointerarray_init( struct mulle_concurrent_pointerarray *
                                           unsigned int size,
                                           struct mulle_allocator *allocator)
 {
+   struct _mulle_concurrent_pointerarraystorage   *storage;
+   
    if( ! allocator)
       allocator = &mulle_default_allocator;
 
@@ -179,15 +181,17 @@ int  _mulle_concurrent_pointerarray_init( struct mulle_concurrent_pointerarray *
    
    if( ! allocator->abafree || allocator->abafree == (void *) abort)
    {
-      errno = ENXIO;
+      errno = EINVAL;
       return( -1);
    }
    
-   array->allocator    = allocator;
-   array->storage      = _mulle_concurrent_alloc_pointerarraystorage( size, allocator);
-   array->next_storage = array->storage;
+   array->allocator = allocator;
+   storage          = _mulle_concurrent_alloc_pointerarraystorage( size, allocator);
    
-   if( ! array->storage)
+   _mulle_atomic_pointer_nonatomic_write( &array->storage, storage);
+   _mulle_atomic_pointer_nonatomic_write( &array->next_storage, storage);
+   
+   if( ! storage)
       return( -1);
    return( 0);
 }
@@ -198,9 +202,15 @@ int  _mulle_concurrent_pointerarray_init( struct mulle_concurrent_pointerarray *
 //
 void  _mulle_concurrent_pointerarray_done( struct mulle_concurrent_pointerarray *array)
 {
-   _mulle_allocator_abafree( array->allocator, array->storage);
-   if( array->storage != array->next_storage)
-      _mulle_allocator_abafree( array->allocator, array->next_storage);
+   struct _mulle_concurrent_pointerarraystorage   *storage;
+   struct _mulle_concurrent_pointerarraystorage   *next_storage;
+   
+   storage      = _mulle_atomic_pointer_nonatomic_read( &array->storage);
+   next_storage = _mulle_atomic_pointer_nonatomic_read( &array->next_storage);
+   
+   _mulle_allocator_abafree( array->allocator, storage);
+   if( storage != next_storage)
+      _mulle_allocator_abafree( array->allocator, next_storage);
 }
 
 

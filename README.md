@@ -117,25 +117,25 @@ for 'abafree', that is smart enough to solve the ABA problem when freeing memory
 
 ## Dependencies
 
-* mulle_allocator
-* mulle_thread
-* mulle_aba (for testing)
+* [mulle-thread](//www.mulle-kybernetik.com/repositories/mulle-thread)
+* [mulle-allocator](//www.mulle-kybernetik.com/repositories/mulle-allocator)
+* [mulle-aba](//www.mulle-kybernetik.com/repositories/mulle-aba) (for testing)
+* [mulle-bootstrap](//www.mulle-kybernetik.com/repositories/mulle-bootstrap) (optional)
+* xcodebuild for OS X
+* cmake 3.0 for other Unixes
+
 
 ## How to build on OS X
 
-Get the newest version of `mulle-bootstrap`
+Get the newest version of `mulle-bootstrap` (at least 0.19)
 
 ```
 brew tap mulle-kybernetik/software
 brew install mulle-bootstrap
 ```
 
-Download this repository
+Download and build this repository, with dependent libraries:
 
 ```
-git clone https://www.mulle-kybernetik.com/repositories/mulle-concurrent
-
-# download and build dependencies
-cd mulle-concurrent
-mulle-bootstrap
+mulle-bootstrap clone https://www.mulle-kybernetik.com/repositories/mulle-concurrent
 ```

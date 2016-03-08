@@ -35,11 +35,13 @@
 #define mulle_concurrent_h__
 
 
-#define MULLE_CONCURRENT_VERSION  ((0 << 20) | (2 << 8) | 0)
+#define MULLE_CONCURRENT_VERSION  ((0 << 20) | (3 << 8) | 0)
 
 
+#include "mulle_concurrent_types.h"
 #include "mulle_concurrent_hashmap.h"
 #include "mulle_concurrent_pointerarray.h"
+
 
 #if MULLE_ALLOCATOR_VERSION < ((1 << 20) | (0 << 8) | 0)
 # error "mulle_allocator is too old"
