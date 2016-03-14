@@ -169,13 +169,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		41F14FE31B68F098002189F1 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -359,9 +352,9 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 41F14FE71B68F098002189F1 /* Build configuration list for PBXNativeTarget "mulle_concurrent" */;
 			buildPhases = (
+				411432171C96CEF8002F9F26 /* ShellScript */,
 				41F14FE21B68F098002189F1 /* Sources */,
 				4105ABF01BCB088A00D45AA8 /* Headers */,
-				41F14FE31B68F098002189F1 /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -423,6 +416,22 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		411432171C96CEF8002F9F26 /* ShellScript */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "echo \"${DEPENDENCY_SUBDIR}\"";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		41CAEAC01C8D9599003C2C7B /* Sources */ = {
@@ -533,10 +542,6 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 41CAEADD1C8D982D003C2C7B /* DynamicLibraryOSX.xcconfig */;
 			buildSettings = {
-				LIBRARY_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(PROJECT_DIR)/dependencies/lib/Debug",
-				);
 				OTHER_LDFLAGS = (
 					"-force_load",
 					"$(DEPENDENCIES_DIR)/lib/$(CONFIGURATION)/libmulle_test_allocator.a",
@@ -552,10 +557,6 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 41CAEADD1C8D982D003C2C7B /* DynamicLibraryOSX.xcconfig */;
 			buildSettings = {
-				LIBRARY_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(PROJECT_DIR)/dependencies/lib/Debug",
-				);
 				OTHER_LDFLAGS = (
 					"-force_load",
 					"$(DEPENDENCIES_DIR)/lib/$(CONFIGURATION)/libmulle_test_allocator.a",
