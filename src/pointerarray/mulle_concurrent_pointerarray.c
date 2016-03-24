@@ -396,3 +396,25 @@ int   _mulle_concurrent_pointerarray_find( struct mulle_concurrent_pointerarray 
    return( found);
 }
 
+
+int   mulle_concurrent_pointerarray_map( struct mulle_concurrent_pointerarray *list,
+                                                void (*f)( void *, void *),
+                                                void *userinfo)
+{
+   struct mulle_concurrent_pointerarrayenumerator  rover;
+   void                                            *value;
+   
+   rover = mulle_concurrent_pointerarray_enumerate( list);
+   for(;;)
+   {
+      switch( _mulle_concurrent_pointerarrayenumerator_next( &rover, &value))
+      {
+      case -1 : return( -1);
+      case  1 : (*f)( value, userinfo); continue;
+      }
+      break;
+   }
+   _mulle_concurrent_pointerarrayenumerator_done( &rover);
+   return( 0);
+}
+

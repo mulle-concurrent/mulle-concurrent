@@ -66,7 +66,6 @@ int  _mulle_concurrent_hashmap_remove( struct mulle_concurrent_hashmap *map,
 void  *_mulle_concurrent_hashmap_lookup( struct mulle_concurrent_hashmap *map,
                                          intptr_t hash);
 
-
 unsigned int  _mulle_concurrent_hashmap_get_size( struct mulle_concurrent_hashmap *map);
 unsigned int  mulle_concurrent_hashmap_get_count( struct mulle_concurrent_hashmap *map);
 
@@ -110,5 +109,9 @@ int  _mulle_concurrent_hashmapenumerator_next( struct mulle_concurrent_hashmapen
 static inline void  _mulle_concurrent_hashmapenumerator_done( struct mulle_concurrent_hashmapenumerator *rover)
 {
 }
+
+// convenience using the enumerator
+
+void  *_mulle_concurrent_hashmap_lookup_any( struct mulle_concurrent_hashmap *map);
 
 #endif /* mulle_concurrent_hashmap_h */
