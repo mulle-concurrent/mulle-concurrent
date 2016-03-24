@@ -126,4 +126,10 @@ static inline void  _mulle_concurrent_pointerarrayreverseenumerator_done( struct
 {
 }
 
+
+// convenience using the enumrator
+int   mulle_concurrent_pointerarray_map( struct mulle_concurrent_pointerarray *list,
+                                        void (*f)( void *, void *),
+                                        void *userinfo);
+
 #endif /* mulle_concurrent_pointerarray_h */

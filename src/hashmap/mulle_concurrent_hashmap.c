@@ -462,6 +462,8 @@ retry:
 }
 
 
+
+
 static int   _mulle_concurrent_hashmap_search_next( struct mulle_concurrent_hashmap *map,
                                                     unsigned int  *expect_mask,
                                                     unsigned int  *index,
@@ -636,4 +638,19 @@ int  _mulle_concurrent_hashmapenumerator_next( struct mulle_concurrent_hashmapen
       *p_value = value;
 
    return( 1);
+}
+
+
+void  *_mulle_concurrent_hashmap_lookup_any( struct mulle_concurrent_hashmap *map)
+{
+   struct mulle_concurrent_hashmapenumerator  rover;
+   void  *any;
+   
+   any   = NULL;
+   
+   rover = mulle_concurrent_hashmap_enumerate( map);
+   _mulle_concurrent_hashmapenumerator_next( &rover, NULL, &any);
+   _mulle_concurrent_hashmapenumerator_done( &rover);
+   
+   return( any);
 }
