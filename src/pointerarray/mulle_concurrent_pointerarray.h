@@ -38,11 +38,21 @@
 #include <mulle_allocator/mulle_allocator.h>
 
 
+struct _mulle_concurrent_pointerarraystorage;
+
+
+union mulle_concurrent_atomicpointerarraystorage_t
+{
+   struct _mulle_concurrent_pointerarraystorage  *storage;
+   mulle_atomic_pointer_t                        pointer;
+};
+
+
 struct mulle_concurrent_pointerarray
 {
-   mulle_atomic_pointer_t   storage;
-   mulle_atomic_pointer_t   next_storage;
-   struct mulle_allocator   *allocator;
+   union mulle_concurrent_atomicpointerarraystorage_t   storage;
+   union mulle_concurrent_atomicpointerarraystorage_t   next_storage;
+   struct mulle_allocator                               *allocator;
 };
 
 int  _mulle_concurrent_pointerarray_init( struct mulle_concurrent_pointerarray *array,
