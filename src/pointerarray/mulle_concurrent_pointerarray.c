@@ -188,8 +188,8 @@ int  _mulle_concurrent_pointerarray_init( struct mulle_concurrent_pointerarray *
    array->allocator = allocator;
    storage          = _mulle_concurrent_alloc_pointerarraystorage( size, allocator);
    
-   _mulle_atomic_pointer_nonatomic_write( &array->storage, storage);
-   _mulle_atomic_pointer_nonatomic_write( &array->next_storage, storage);
+   _mulle_atomic_pointer_nonatomic_write( &array->storage.pointer, storage);
+   _mulle_atomic_pointer_nonatomic_write( &array->next_storage.pointer, storage);
    
    if( ! storage)
       return( -1);
@@ -205,8 +205,8 @@ void  _mulle_concurrent_pointerarray_done( struct mulle_concurrent_pointerarray 
    struct _mulle_concurrent_pointerarraystorage   *storage;
    struct _mulle_concurrent_pointerarraystorage   *next_storage;
    
-   storage      = _mulle_atomic_pointer_nonatomic_read( &array->storage);
-   next_storage = _mulle_atomic_pointer_nonatomic_read( &array->next_storage);
+   storage      = _mulle_atomic_pointer_nonatomic_read( &array->storage.pointer);
+   next_storage = _mulle_atomic_pointer_nonatomic_read( &array->next_storage.pointer);
    
    _mulle_allocator_abafree( array->allocator, storage);
    if( storage != next_storage)
@@ -226,7 +226,7 @@ static int  _mulle_concurrent_pointerarray_migrate_storage( struct mulle_concurr
    
    // acquire new storage
    alloced = NULL;
-   q       = _mulle_atomic_pointer_read( &array->next_storage);
+   q       = _mulle_atomic_pointer_read( &array->next_storage.pointer);
 
    assert( q);
    
@@ -237,7 +237,7 @@ static int  _mulle_concurrent_pointerarray_migrate_storage( struct mulle_concurr
          return( -1);
 
       // make this the next world, assume that's still set to 'p' (SIC)
-      q = __mulle_atomic_pointer_compare_and_swap( &array->next_storage, alloced, p);
+      q = __mulle_atomic_pointer_compare_and_swap( &array->next_storage.pointer, alloced, p);
       if( q != p)
       {
          // someone else produced a next world, use that and get rid of 'alloced'
@@ -252,7 +252,7 @@ static int  _mulle_concurrent_pointerarray_migrate_storage( struct mulle_concurr
    _mulle_concurrent_pointerarraystorage_copy( q, p);
    
    // now update world, giving it the same value as 'next_world'
-   previous = __mulle_atomic_pointer_compare_and_swap( &array->storage, q, p);
+   previous = __mulle_atomic_pointer_compare_and_swap( &array->storage.pointer, q, p);
 
    // ok, if we succeed free old, if we fail alloced is
    // already gone
@@ -270,7 +270,7 @@ void  *_mulle_concurrent_pointerarray_get( struct mulle_concurrent_pointerarray 
    void                                     *value;
    
 retry:
-   p     = _mulle_atomic_pointer_read( &array->storage);
+   p     = _mulle_atomic_pointer_read( &array->storage.pointer);
    value = _mulle_concurrent_pointerarraystorage_get( p, index);
    if( value == REDIRECT_VALUE)
    {
@@ -291,7 +291,7 @@ int  _mulle_concurrent_pointerarray_add( struct mulle_concurrent_pointerarray *a
    assert( value != REDIRECT_VALUE);
    
 retry:
-   p = _mulle_atomic_pointer_read( &array->storage);
+   p = _mulle_atomic_pointer_read( &array->storage.pointer);
    switch( _mulle_concurrent_pointerarraystorage_add( p, value))
    {
    case EBUSY   :
@@ -309,7 +309,7 @@ unsigned int  _mulle_concurrent_pointerarray_get_size( struct mulle_concurrent_p
 {
    struct _mulle_concurrent_pointerarraystorage   *p;
    
-   p = _mulle_atomic_pointer_read( &array->storage);
+   p = _mulle_atomic_pointer_read( &array->storage.pointer);
    return( p->size);
 }
 
@@ -324,7 +324,7 @@ unsigned int  mulle_concurrent_pointerarray_get_count( struct mulle_concurrent_p
    if( ! array)
       return( 0);
    
-   p = _mulle_atomic_pointer_read( &array->storage);
+   p = _mulle_atomic_pointer_read( &array->storage.pointer);
    return( (unsigned int) (uintptr_t) _mulle_atomic_pointer_read( &p->n));
 }
 

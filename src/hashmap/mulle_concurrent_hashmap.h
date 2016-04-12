@@ -38,15 +38,24 @@
 #include <mulle_allocator/mulle_allocator.h>
 
 
+struct _mulle_concurrent_hashmapstorage;
+
+
+union mulle_concurrent_atomichashmapstorage_t
+{
+   struct _mulle_concurrent_hashmapstorage  *storage;
+   mulle_atomic_pointer_t                   pointer;
+};
+
 //
 // basically does: http://preshing.com/20160222/a-resizable-concurrent-map/
 // but is wait-free
 //
 struct mulle_concurrent_hashmap
 {
-   mulle_atomic_pointer_t   storage;
-   mulle_atomic_pointer_t   next_storage;
-   struct mulle_allocator   *allocator;
+   union mulle_concurrent_atomichashmapstorage_t   storage;
+   union mulle_concurrent_atomichashmapstorage_t   next_storage;
+   struct mulle_allocator                          *allocator;
 };
 
 int  _mulle_concurrent_hashmap_init( struct mulle_concurrent_hashmap *map,

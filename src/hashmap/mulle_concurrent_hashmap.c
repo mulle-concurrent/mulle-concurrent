@@ -369,8 +369,8 @@ int  _mulle_concurrent_hashmap_init( struct mulle_concurrent_hashmap *map,
    map->allocator = allocator;
    storage        = _mulle_concurrent_alloc_hashmapstorage( size, allocator);
 
-   _mulle_atomic_pointer_nonatomic_write( &map->storage, storage);
-   _mulle_atomic_pointer_nonatomic_write( &map->next_storage, storage);
+   _mulle_atomic_pointer_nonatomic_write( &map->storage.pointer, storage);
+   _mulle_atomic_pointer_nonatomic_write( &map->next_storage.pointer, storage);
    
    if( ! storage)
       return( -1);
@@ -387,8 +387,8 @@ void  _mulle_concurrent_hashmap_done( struct mulle_concurrent_hashmap *map)
    struct _mulle_concurrent_hashmapstorage   *next_storage;
    // ABA!
 
-   storage      = _mulle_atomic_pointer_nonatomic_read( &map->storage);
-   next_storage = _mulle_atomic_pointer_nonatomic_read( &map->next_storage);
+   storage      = _mulle_atomic_pointer_nonatomic_read( &map->storage.pointer);
+   next_storage = _mulle_atomic_pointer_nonatomic_read( &map->next_storage.pointer);
 
    _mulle_allocator_abafree( map->allocator, storage);
    if( storage != next_storage)
@@ -408,7 +408,7 @@ static int  _mulle_concurrent_hashmap_migrate_storage( struct mulle_concurrent_h
 
    // check if we have a chance to succeed
    alloced = NULL;
-   q       = _mulle_atomic_pointer_read( &map->next_storage);
+   q       = _mulle_atomic_pointer_read( &map->next_storage.pointer);
    if( q == p)
    {
       // acquire new storage
@@ -417,7 +417,7 @@ static int  _mulle_concurrent_hashmap_migrate_storage( struct mulle_concurrent_h
          return( -1);
       
       // make this the next world, assume that's still set to 'p' (SIC)
-      q = __mulle_atomic_pointer_compare_and_swap( &map->next_storage, alloced, p);
+      q = __mulle_atomic_pointer_compare_and_swap( &map->next_storage.pointer, alloced, p);
       if( q != p)
       {
          // someone else produced a next world, use that and get rid of 'alloced'
@@ -432,7 +432,7 @@ static int  _mulle_concurrent_hashmap_migrate_storage( struct mulle_concurrent_h
    _mulle_concurrent_hashmapstorage_copy( q, p);
    
    // now update world, giving it the same value as 'next_world'
-   previous = __mulle_atomic_pointer_compare_and_swap( &map->storage, q, p);
+   previous = __mulle_atomic_pointer_compare_and_swap( &map->storage.pointer, q, p);
 
    // ok, if we succeed free old, if we fail alloced is
    // already gone. this must be an ABA free 
@@ -450,7 +450,7 @@ void  *_mulle_concurrent_hashmap_lookup( struct mulle_concurrent_hashmap *map,
    void                                    *value;
    
 retry:
-   p     = _mulle_atomic_pointer_read( &map->storage);
+   p     = _mulle_atomic_pointer_read( &map->storage.pointer);
    value = _mulle_concurrent_hashmapstorage_lookup( p, hash);
    if( value == REDIRECT_VALUE)
    {
@@ -475,7 +475,7 @@ static int   _mulle_concurrent_hashmap_search_next( struct mulle_concurrent_hash
    void                                     *value;
    
 retry:
-   p = _mulle_atomic_pointer_read( &map->storage);
+   p = _mulle_atomic_pointer_read( &map->storage.pointer);
    if( *expect_mask && p->mask != *expect_mask)
    {
       errno = ECANCELED;
@@ -525,7 +525,7 @@ int  _mulle_concurrent_hashmap_insert( struct mulle_concurrent_hashmap *map,
    assert( value != MULLE_CONCURRENT_NO_POINTER && value != MULLE_CONCURRENT_INVALID_POINTER);
    
 retry:
-   p = _mulle_atomic_pointer_read( &map->storage);
+   p = _mulle_atomic_pointer_read( &map->storage.pointer);
    assert( p);
 
    max = _mulle_concurrent_hashmapstorage_get_max_n_hashs( p);
@@ -561,7 +561,7 @@ int  _mulle_concurrent_hashmap_remove( struct mulle_concurrent_hashmap *map,
    struct _mulle_concurrent_hashmapstorage   *p;
    
 retry:
-   p = _mulle_atomic_pointer_read( &map->storage);
+   p = _mulle_atomic_pointer_read( &map->storage.pointer);
    switch( _mulle_concurrent_hashmapstorage_remove( p, hash, value))
    {
    case EBUSY  :
@@ -577,7 +577,7 @@ unsigned int  _mulle_concurrent_hashmap_get_size( struct mulle_concurrent_hashma
 {
    struct _mulle_concurrent_hashmapstorage   *p;
    
-   p = _mulle_atomic_pointer_read( &map->storage);
+   p = _mulle_atomic_pointer_read( &map->storage.pointer);
    return( p->mask + 1);
 }
 
