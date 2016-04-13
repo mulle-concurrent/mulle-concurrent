@@ -447,7 +447,7 @@ void  *_mulle_concurrent_hashmap_lookup( struct mulle_concurrent_hashmap *map,
                                          intptr_t hash)
 {
    struct _mulle_concurrent_hashmapstorage   *p;
-   void                                    *value;
+   void                                      *value;
    
 retry:
    p     = _mulle_atomic_pointer_read( &map->storage.pointer);
