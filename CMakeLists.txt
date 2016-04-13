@@ -2,20 +2,23 @@ cmake_minimum_required (VERSION 3.0)
 
 project (mulle-concurrent)
 
+set( CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/mulle-configuration)
+message(STATUS "CMAKE_MODULE_PATH is ${CMAKE_MODULE_PATH}")
+message(STATUS "CMAKE_BUILD_TYPE is ${CMAKE_BUILD_TYPE}")
+if( "${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
+  include( Debug)
+else()
+  include( Release)
+endif()
 
 # using include_directories is a little bit shitty
 include_directories( src
 src/hash
 )
 
-include_directories( SYSTEM
-dependencies/include
-)
-
-#set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -g -DDEBUG ")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -g -DNDEBUG")
-
 set( HEADERS
+src/mulle_concurrent.h
+src/mulle_concurrent_types.h
 src/pointerarray/mulle_concurrent_pointerarray.h
 src/hashmap/mulle_concurrent_hashmap.h
 )

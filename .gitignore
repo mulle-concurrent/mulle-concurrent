@@ -11,3 +11,7 @@ mulle-configuration/
 .bootstrap.local/
 dependencies/
 cityhash/
+old/
+tmp/
+*.dSYM/
+*.exe
