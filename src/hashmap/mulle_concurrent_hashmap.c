@@ -69,8 +69,10 @@ static struct _mulle_concurrent_hashmapstorage *
 {
    struct _mulle_concurrent_hashmapstorage  *p;
    
-   if( n < 8)
-      n = 8;
+   assert( (~(n - 1) & n) == n);
+   
+   if( n < 4)
+      n = 4;
    
    p = _mulle_allocator_calloc( allocator, 1, sizeof( struct _mulle_concurrent_hashvaluepair) * (n - 1) +
                              sizeof( struct _mulle_concurrent_hashmapstorage));
@@ -301,7 +303,7 @@ static int   _mulle_concurrent_hashmapstorage_remove( struct _mulle_concurrent_h
       }
       
       if( entry->hash == MULLE_CONCURRENT_NO_HASH)
-         return( 0);
+         return( ENOENT);
       
       ++index;
       assert( index != sentinel);  // can't happen we always leave space
@@ -361,19 +363,17 @@ int  _mulle_concurrent_hashmap_init( struct mulle_concurrent_hashmap *map,
    
    assert( allocator->abafree && allocator->abafree != (void *) abort);
    if( ! allocator->abafree || allocator->abafree == (void *) abort)
-   {
-      errno = EINVAL;
-      return( -1);
-   }
+      return( EINVAL);
 
    map->allocator = allocator;
    storage        = _mulle_concurrent_alloc_hashmapstorage( size, allocator);
 
+   if( ! storage)
+      return( ENOMEM);
+
    _mulle_atomic_pointer_nonatomic_write( &map->storage.pointer, storage);
    _mulle_atomic_pointer_nonatomic_write( &map->next_storage.pointer, storage);
    
-   if( ! storage)
-      return( -1);
    return( 0);
 }
 
@@ -477,10 +477,7 @@ static int   _mulle_concurrent_hashmap_search_next( struct mulle_concurrent_hash
 retry:
    p = _mulle_atomic_pointer_read( &map->storage.pointer);
    if( *expect_mask && p->mask != *expect_mask)
-   {
-      errno = ECANCELED;
-      return( -1);
-   }
+      return( -ECANCELED);
    
    for(;;)
    {
@@ -495,7 +492,7 @@ retry:
       if( value == REDIRECT_VALUE)
       {
          if( _mulle_concurrent_hashmap_migrate_storage( map, p))
-            return( -1);
+            return( -ENOMEM);
          goto retry;
       }
    }
@@ -534,19 +531,18 @@ retry:
    if( n >= max)
    {
       if( _mulle_concurrent_hashmap_migrate_storage( map, p))
-         return( -1);
+         return( ENOMEM);
       goto retry;
    }
    
    switch( _mulle_concurrent_hashmapstorage_insert( p, hash, value))
    {
    case EEXIST :
-      errno = EEXIST;
-      return( -1);
+      return( EEXIST);
 
    case EBUSY  :
       if( _mulle_concurrent_hashmap_migrate_storage( map, p))
-         return( -1);
+         return( ENOMEM);
       goto retry;
    }
 
@@ -564,9 +560,12 @@ retry:
    p = _mulle_atomic_pointer_read( &map->storage.pointer);
    switch( _mulle_concurrent_hashmapstorage_remove( p, hash, value))
    {
+   case ENOENT :
+     return( ENOENT);
+         
    case EBUSY  :
       if( _mulle_concurrent_hashmap_migrate_storage( map, p))
-         return( -1);
+         return( ENOMEM);
       goto retry;
    }
    return( 0);
@@ -600,7 +599,7 @@ retry:
       rval = _mulle_concurrent_hashmapenumerator_next( &rover, NULL, NULL);
       if( ! rval)
          break;
-      if( rval == -1)
+      if( rval < 0)
       {
          _mulle_concurrent_hashmapenumerator_done( &rover);
          goto retry;
@@ -625,12 +624,9 @@ int  _mulle_concurrent_hashmapenumerator_next( struct mulle_concurrent_hashmapen
    intptr_t   hash;
    
    rval = _mulle_concurrent_hashmap_search_next( rover->map, &rover->mask, &rover->index, &hash, &value);
-   switch( rval)
-   {
-   case 0 :
-   case -1:
+   
+   if( rval <= 0)
       return( rval);
-   }
    
    if( p_hash)
       *p_hash = hash;

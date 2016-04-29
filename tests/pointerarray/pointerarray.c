@@ -51,15 +51,14 @@ static void  insert_something( struct mulle_concurrent_pointerarray *map)
    while( ! value);
 
    rval = _mulle_concurrent_pointerarray_add( map, value);
-   if( rval == 0)
-      return;
 
-   switch( errno)
+   switch( rval)
    {
    default :
       perror( "_mulle_concurrentpointerarray_add");
       abort();
 
+   case 0 :
    case EEXIST :
       return;
    }

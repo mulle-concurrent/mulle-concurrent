@@ -64,10 +64,17 @@ int  _mulle_concurrent_hashmap_init( struct mulle_concurrent_hashmap *map,
 void  _mulle_concurrent_hashmap_done( struct mulle_concurrent_hashmap *map);
 
 
+// if rval == 0, inserted
+// rval == EEXIST, detected duplicate
+// rval == ENOMEM, must be out of memory
 int  _mulle_concurrent_hashmap_insert( struct mulle_concurrent_hashmap *map,
                                        intptr_t hash,
                                        void *value);
 
+// if rval == 0, removed
+// rval == ENOENT, not found
+// rval == ENOMEM, must be out of memory
+//
 int  _mulle_concurrent_hashmap_remove( struct mulle_concurrent_hashmap *map,
                                        intptr_t hash,
                                        void *value);
@@ -109,8 +116,8 @@ static inline struct mulle_concurrent_hashmapenumerator  mulle_concurrent_hashma
 
 //  1 : OK
 //  0 : nothing left
-// -1 : failed to enumerate further
-//
+// -ECANCELLED: mutation alert
+// -ENOMEM    : out of memory
 int  _mulle_concurrent_hashmapenumerator_next( struct mulle_concurrent_hashmapenumerator *rover,
                                                intptr_t *hash,
                                                void **value);

@@ -1,3 +1,8 @@
+# v0.4
+
+* does not use `errno` directly anymore, but instead returns the errno codes
+  as the return value (sometimes as negative numbers)
+
 # v0.3
 
 * change init error code to EINVAL, because that's what the other code uses.
