@@ -51,15 +51,14 @@ static void  insert_something( struct mulle_concurrent_hashmap *map)
    value    = (void *) (hash * 10);
 
    rval = _mulle_concurrent_hashmap_insert( map, hash, value);
-   if( rval == 0)
-      return;
 
-   switch( errno)
+   switch( rval)
    {
    default :
       perror( "mulle_concurrent_hashmap_insert");
       abort();
 
+   case 0 :
    case EEXIST :
       return;
    }
@@ -76,7 +75,7 @@ static void  delete_something( struct mulle_concurrent_hashmap *map)
    value    = (void *) (hash * 10);
 
    rval = _mulle_concurrent_hashmap_remove( map, hash, value);
-   if( rval)
+   if( rval == ENOMEM)
    {
       perror( "mulle_concurrent_hashmap_remove");
       abort();
@@ -112,7 +111,7 @@ retry:
       rval = _mulle_concurrent_hashmapenumerator_next( &rover, &hash, &value);
       if( ! rval)
          break;
-      if( rval == -1)
+      if( rval < 0)
       {
          _mulle_concurrent_hashmapenumerator_done( &rover);
          goto retry;

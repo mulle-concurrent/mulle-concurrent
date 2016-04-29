@@ -180,19 +180,17 @@ int  _mulle_concurrent_pointerarray_init( struct mulle_concurrent_pointerarray *
    assert( allocator->abafree && allocator->abafree != (void *) abort);
    
    if( ! allocator->abafree || allocator->abafree == (void *) abort)
-   {
-      errno = EINVAL;
-      return( -1);
-   }
+      return( EINVAL);
    
    array->allocator = allocator;
    storage          = _mulle_concurrent_alloc_pointerarraystorage( size, allocator);
-   
+
+   if( ! storage)
+      return( ENOMEM);
+
    _mulle_atomic_pointer_nonatomic_write( &array->storage.pointer, storage);
    _mulle_atomic_pointer_nonatomic_write( &array->next_storage.pointer, storage);
    
-   if( ! storage)
-      return( -1);
    return( 0);
 }
 
