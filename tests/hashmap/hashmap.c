@@ -35,6 +35,7 @@
 
 #include <mulle_test_allocator/mulle_test_allocator.h>
 #include <mulle_aba/mulle_aba.h>
+#include <assert.h>
 #include <errno.h>
 
 

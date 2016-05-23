@@ -526,7 +526,7 @@ retry:
    assert( p);
 
    max = _mulle_concurrent_hashmapstorage_get_max_n_hashs( p);
-   n   = (unsigned int) _mulle_atomic_pointer_read( &p->n_hashs);
+   n   = (unsigned int) (uintptr_t) _mulle_atomic_pointer_read( &p->n_hashs);
    
    if( n >= max)
    {
