@@ -1,9 +1,9 @@
 ## `mulle_concurrent_pointerlist`
 
-> Most of the ideas are taken from [Preshing on Programming](http://preshing.com/20160222/a-resizable-concurrent-map/). 
+> Most of the ideas are taken from [Preshing on Programming](http://preshing.com/20160222/a-resizable-concurrent-map/).
 > The definition of concurrent and wait-free are from [concurrencyfreaks.blogspot.de](http://concurrencyfreaks.blogspot.de/2013/05/lock-free-and-wait-free-definition-and.html)
 
-A growing array of pointers, that is **wait-free**. 
+A growing array of pointers, that is **wait-free**.
 
 Here is a simple usage example:
 ```
@@ -66,7 +66,7 @@ static void  test( void)
    struct mulle_concurrent_hashmapenumerator   rover;
    unsigned int                                i;
    void                                        *value;
-   
+
    _mulle_concurrent_hashmap_init( &map, 0, NULL);
    {
       _mulle_concurrent_hashmap_insert( &map, 100000, (void *) 0x1848);
