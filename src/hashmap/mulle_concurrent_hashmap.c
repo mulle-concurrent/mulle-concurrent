@@ -50,7 +50,7 @@ struct _mulle_concurrent_hashvaluepair
 struct _mulle_concurrent_hashmapstorage
 {
    mulle_atomic_pointer_t   n_hashs;  // with possibly empty values
-   unsigned int             mask;
+   uintptr_t                mask;     // easier to read from debugger if void * size
    
    struct _mulle_concurrent_hashvaluepair  entries[ 1];
 };

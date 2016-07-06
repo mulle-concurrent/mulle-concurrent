@@ -109,7 +109,6 @@
 
 /* Begin PBXFileReference section */
 		411A28C11BCD446E00D39FF7 /* CMakeLists.txt */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = CMakeLists.txt; sourceTree = "<group>"; };
-		414A61D41C8F1B2E0011AA7E /* build.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = build.sh; sourceTree = "<group>"; };
 		417C02651BD8404E005A3751 /* Debug.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
 		417C02681BD8404E005A3751 /* Release.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
 		417C026A1BD8404E005A3751 /* StaticLibraryIOS.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; path = StaticLibraryIOS.xcconfig; sourceTree = "<group>"; };
@@ -175,7 +174,6 @@
 		414785231ABAF290002DBAE4 = {
 			isa = PBXGroup;
 			children = (
-				414A61D41C8F1B2E0011AA7E /* build.sh */,
 				41CAEB091C8DB97F003C2C7B /* README.md */,
 				41D04AB71C8DD69000CC8F11 /* RELEASENOTES.md */,
 				411A28C11BCD446E00D39FF7 /* CMakeLists.txt */,
@@ -512,7 +510,8 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 417C02651BD8404E005A3751 /* Debug.xcconfig */;
 			buildSettings = {
-				CURRENT_PROJECT_VERSION = 0.4;
+				CURRENT_PROJECT_VERSION = 0.5;
+				GCC_WARN_PEDANTIC = YES;
 			};
 			name = Debug;
 		};
@@ -520,7 +519,8 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 417C02681BD8404E005A3751 /* Release.xcconfig */;
 			buildSettings = {
-				CURRENT_PROJECT_VERSION = 0.4;
+				CURRENT_PROJECT_VERSION = 0.5;
+				GCC_WARN_PEDANTIC = YES;
 			};
 			name = Release;
 		};
@@ -544,9 +544,9 @@
 			buildSettings = {
 				OTHER_LDFLAGS = (
 					"-force_load",
-					"$(DEPENDENCIES_DIR)/lib/$(CONFIGURATION)/libmulle_test_allocator.a",
+					"$(DEPENDENCIES_DIR)/lib/libmulle_test_allocator.a",
 					"-force_load",
-					"$(DEPENDENCIES_DIR)/lib/$(CONFIGURATION)/libmulle_aba.a",
+					"$(DEPENDENCIES_DIR)/lib/libmulle_aba.a",
 					"-force_load",
 					"$(CONFIGURATION_BUILD_DIR)/libmulle_concurrent.a",
 				);
@@ -584,10 +584,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 417C026C1BD8404E005A3751 /* ToolOSX.xcconfig */;
 			buildSettings = {
-				LIBRARY_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(PROJECT_DIR)/dependencies/lib/Debug",
-				);
+				LIBRARY_SEARCH_PATHS = "$(inherited)";
 			};
 			name = Debug;
 		};
@@ -595,10 +592,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 417C026C1BD8404E005A3751 /* ToolOSX.xcconfig */;
 			buildSettings = {
-				LIBRARY_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(PROJECT_DIR)/dependencies/lib/Debug",
-				);
+				LIBRARY_SEARCH_PATHS = "$(inherited)";
 			};
 			name = Release;
 		};
@@ -608,7 +602,7 @@
 			buildSettings = {
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
-					"$(PROJECT_DIR)/dependencies/lib/Debug",
+					"$(PROJECT_DIR)/dependencies/lib",
 				);
 			};
 			name = Debug;
@@ -619,7 +613,7 @@
 			buildSettings = {
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
-					"$(PROJECT_DIR)/dependencies/lib/Debug",
+					"$(PROJECT_DIR)/dependencies/lib",
 				);
 			};
 			name = Release;
