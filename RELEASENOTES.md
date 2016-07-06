@@ -1,3 +1,8 @@
+# v0.5
+
+* changed internal representation of mask from unsigned int to uintptr_t,
+  because it's easier to read by the debugger
+  
 # v0.4
 
 * does not use `errno` directly anymore, but instead returns the errno codes

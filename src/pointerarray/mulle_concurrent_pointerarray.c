@@ -43,7 +43,7 @@
 struct _mulle_concurrent_pointerarraystorage
 {
    mulle_atomic_pointer_t   n;
-   unsigned int             size;
+   uintptr_t                size;
    
    mulle_atomic_pointer_t   entries[ 1];
 };
