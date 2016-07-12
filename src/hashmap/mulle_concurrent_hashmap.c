@@ -91,7 +91,7 @@ static struct _mulle_concurrent_hashmapstorage *
       struct _mulle_concurrent_hashvaluepair   *sentinel;
       
       q        = p->entries;
-      sentinel = &p->entries[ p->mask];
+      sentinel = &p->entries[ (unsigned int) p->mask];
       while( q <= sentinel)
       {
          q->hash  = MULLE_CONCURRENT_NO_HASH;
@@ -110,7 +110,7 @@ static unsigned int
    unsigned int   size;
    unsigned int   max;
    
-   size = p->mask + 1;
+   size = (unsigned int) p->mask + 1;
    max  = size - (size >> 1);
    return( max);
 }
@@ -124,11 +124,11 @@ static void   *_mulle_concurrent_hashmapstorage_lookup( struct _mulle_concurrent
    unsigned int                             sentinel;
    
    index    = (unsigned int) hash;
-   sentinel = (unsigned int) (index + p->mask + 1);
+   sentinel = index + (unsigned int) p->mask + 1;
 
    for(;;)
    {
-      entry = &p->entries[ index & p->mask];
+      entry = &p->entries[ index & (unsigned int) p->mask];
 
       if( entry->hash == MULLE_CONCURRENT_NO_HASH)
          return( MULLE_CONCURRENT_NO_POINTER);
@@ -150,7 +150,7 @@ static struct _mulle_concurrent_hashvaluepair  *
    struct _mulle_concurrent_hashvaluepair   *sentinel;
    
    entry    = &p->entries[ *index];
-   sentinel = &p->entries[ p->mask + 1];
+   sentinel = &p->entries[ (unsigned int) p->mask + 1];
 
    while( entry < sentinel)
    {
@@ -187,11 +187,11 @@ static int   _mulle_concurrent_hashmapstorage_insert( struct _mulle_concurrent_h
    assert( value != MULLE_CONCURRENT_NO_POINTER && value != MULLE_CONCURRENT_INVALID_POINTER);
 
    index    = (unsigned int) hash;
-   sentinel = (unsigned int) (index + p->mask + 1);
+   sentinel = (unsigned int) (index + (unsigned int) p->mask + 1);
    
    for(;;)
    {
-      entry = &p->entries[ index & p->mask];
+      entry = &p->entries[ index & (unsigned int) p->mask];
 
       if( entry->hash == MULLE_CONCURRENT_NO_HASH || entry->hash == hash)
       {
@@ -231,11 +231,11 @@ static int   _mulle_concurrent_hashmapstorage_put( struct _mulle_concurrent_hash
    assert( value);
 
    index    = (unsigned int) hash;
-   sentinel = (unsigned int) (index + p->mask + 1);
+   sentinel = (unsigned int) (index + (unsigned int) p->mask + 1);
    
    for(;;)
    {
-      entry = &p->entries[ index & p->mask];
+      entry = &p->entries[ index & (unsigned int) p->mask];
 
       if( entry->hash == hash)
       {
@@ -283,10 +283,10 @@ static int   _mulle_concurrent_hashmapstorage_remove( struct _mulle_concurrent_h
    unsigned int                             sentinel;
    
    index    = (unsigned int) hash;
-   sentinel = (unsigned int) (hash + p->mask + 1);
+   sentinel = index + (unsigned int) p->mask + 1;
    for(;;)
    {
-      entry  = &p->entries[ index & p->mask];
+      entry  = &p->entries[ index & (unsigned int) p->mask];
 
       if( entry->hash == hash)
       {
@@ -412,7 +412,7 @@ static int  _mulle_concurrent_hashmap_migrate_storage( struct mulle_concurrent_h
    if( q == p)
    {
       // acquire new storage
-      alloced = _mulle_concurrent_alloc_hashmapstorage( (p->mask + 1) * 2, map->allocator);
+      alloced = _mulle_concurrent_alloc_hashmapstorage( ((unsigned int) p->mask + 1) * 2, map->allocator);
       if( ! alloced)
          return( -1);
       
@@ -476,7 +476,7 @@ static int   _mulle_concurrent_hashmap_search_next( struct mulle_concurrent_hash
    
 retry:
    p = _mulle_atomic_pointer_read( &map->storage.pointer);
-   if( *expect_mask && p->mask != *expect_mask)
+   if( *expect_mask && (unsigned int) p->mask != *expect_mask)
       return( -ECANCELED);
    
    for(;;)
@@ -503,7 +503,7 @@ retry:
       *p_value = value;
    
    if( ! *expect_mask)
-      *expect_mask = p->mask;
+      *expect_mask = (unsigned int) p->mask;
    
    return( 1);
 }
@@ -577,7 +577,7 @@ unsigned int  _mulle_concurrent_hashmap_get_size( struct mulle_concurrent_hashma
    struct _mulle_concurrent_hashmapstorage   *p;
    
    p = _mulle_atomic_pointer_read( &map->storage.pointer);
-   return( p->mask + 1);
+   return( (unsigned int) p->mask + 1);
 }
 
 
