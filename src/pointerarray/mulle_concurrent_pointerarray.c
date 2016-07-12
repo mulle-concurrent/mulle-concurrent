@@ -88,7 +88,7 @@ static struct _mulle_concurrent_pointerarraystorage *
       mulle_atomic_pointer_t   *sentinel;
       
       q        = p->entries;
-      sentinel = &p->entries[ p->size];
+      sentinel = &p->entries[ (unsigned int) p->size];
       while( q < sentinel)
       {
          _mulle_atomic_pointer_nonatomic_write( q, MULLE_CONCURRENT_NO_POINTER);
@@ -127,7 +127,7 @@ static int   _mulle_concurrent_pointerarraystorage_add( struct _mulle_concurrent
    for(;;)
    {
       i = (unsigned int) (uintptr_t) _mulle_atomic_pointer_read( &p->n);
-      if( i >= p->size)
+      if( i >= (unsigned int) p->size)
          return( ENOSPC);
 
       found = __mulle_atomic_pointer_compare_and_swap( &p->entries[ i], value, MULLE_CONCURRENT_NO_POINTER);
@@ -230,7 +230,7 @@ static int  _mulle_concurrent_pointerarray_migrate_storage( struct mulle_concurr
    
    if( q == p)
    {
-      alloced = _mulle_concurrent_alloc_pointerarraystorage( p->size * 2, array->allocator);
+      alloced = _mulle_concurrent_alloc_pointerarraystorage( (unsigned int) p->size * 2, array->allocator);
       if( ! alloced)
          return( -1);
 
@@ -308,7 +308,7 @@ unsigned int  _mulle_concurrent_pointerarray_get_size( struct mulle_concurrent_p
    struct _mulle_concurrent_pointerarraystorage   *p;
    
    p = _mulle_atomic_pointer_read( &array->storage.pointer);
-   return( p->size);
+   return( (unsigned int) p->size);
 }
 
 
