@@ -1,5 +1,5 @@
 //
-//  mulle_standalone_concurrent.h
+//  mulle_standalone_concurrent.c
 //  mulle-concurrent
 //
 //  Created by Nat! on 07.03.16.
@@ -31,9 +31,8 @@
 //  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 //  POSSIBILITY OF SUCH DAMAGE.
 //
-#ifndef mulle_standalone_concurrent_h__
-#define mulle_standalone_concurrent_h__
+#include "mulle_concurrent.h"
+#include <stdint.h>
 
-#include <mulle_concurrent/mulle_concurrent.h>
 
-#endif /* mulle_standalone_concurrent_h */
+uint32_t  mulle_concurrent_standalone_version = MULLE_CONCURRENT_VERSION;

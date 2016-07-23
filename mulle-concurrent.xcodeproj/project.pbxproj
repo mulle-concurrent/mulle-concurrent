@@ -39,8 +39,7 @@
 		41CAEAD21C8D95BB003C2C7B /* libmulle_concurrent.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 41F14FE61B68F098002189F1 /* libmulle_concurrent.a */; };
 		41CAEAD81C8D95D4003C2C7B /* libmulle_allocator.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 41CAEAD51C8D95D4003C2C7B /* libmulle_allocator.a */; };
 		41CAEADA1C8D95ED003C2C7B /* mulle_concurrent.h in Headers */ = {isa = PBXBuildFile; fileRef = 41CAEAD91C8D95ED003C2C7B /* mulle_concurrent.h */; settings = {ATTRIBUTES = (Public, ); }; };
-		41CAEADC1C8D9601003C2C7B /* mulle_standalone_concurrent.h in Headers */ = {isa = PBXBuildFile; fileRef = 41CAEADB1C8D9601003C2C7B /* mulle_standalone_concurrent.h */; settings = {ATTRIBUTES = (Public, ); }; };
-		41CAEADF1C8D98F0003C2C7B /* mulle_standalone_concurrent.c in Sources */ = {isa = PBXBuildFile; fileRef = 41CAEADE1C8D98F0003C2C7B /* mulle_standalone_concurrent.c */; };
+		41CAEADF1C8D98F0003C2C7B /* mulle_concurrent_standalone.c in Sources */ = {isa = PBXBuildFile; fileRef = 41CAEADE1C8D98F0003C2C7B /* mulle_concurrent_standalone.c */; };
 		41CAEAE11C8D9D98003C2C7B /* mulle_concurrent_types.h in Headers */ = {isa = PBXBuildFile; fileRef = 41CAEAE01C8D9D98003C2C7B /* mulle_concurrent_types.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		41CAEAEF1C8DA00F003C2C7B /* hashmap.c in Sources */ = {isa = PBXBuildFile; fileRef = 41CAEAEE1C8DA00F003C2C7B /* hashmap.c */; };
 		41CAEAF21C8DA09C003C2C7B /* libmulle_standalone_concurrent.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 41CAEAC41C8D9599003C2C7B /* libmulle_standalone_concurrent.dylib */; };
@@ -119,9 +118,8 @@
 		41CAEAD41C8D95D4003C2C7B /* libmulle_thread.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libmulle_thread.a; path = dependencies/lib/Debug/libmulle_thread.a; sourceTree = "<group>"; };
 		41CAEAD51C8D95D4003C2C7B /* libmulle_allocator.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libmulle_allocator.a; path = dependencies/lib/Debug/libmulle_allocator.a; sourceTree = "<group>"; };
 		41CAEAD91C8D95ED003C2C7B /* mulle_concurrent.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = mulle_concurrent.h; sourceTree = "<group>"; };
-		41CAEADB1C8D9601003C2C7B /* mulle_standalone_concurrent.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = mulle_standalone_concurrent.h; sourceTree = "<group>"; };
 		41CAEADD1C8D982D003C2C7B /* DynamicLibraryOSX.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = DynamicLibraryOSX.xcconfig; sourceTree = "<group>"; };
-		41CAEADE1C8D98F0003C2C7B /* mulle_standalone_concurrent.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = mulle_standalone_concurrent.c; sourceTree = "<group>"; };
+		41CAEADE1C8D98F0003C2C7B /* mulle_concurrent_standalone.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = mulle_concurrent_standalone.c; sourceTree = "<group>"; };
 		41CAEAE01C8D9D98003C2C7B /* mulle_concurrent_types.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = mulle_concurrent_types.h; sourceTree = "<group>"; };
 		41CAEAE71C8D9FF4003C2C7B /* test-hashmap */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "test-hashmap"; sourceTree = BUILT_PRODUCTS_DIR; };
 		41CAEAEE1C8DA00F003C2C7B /* hashmap.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = hashmap.c; path = tests/hashmap/hashmap.c; sourceTree = SOURCE_ROOT; };
@@ -174,9 +172,9 @@
 		414785231ABAF290002DBAE4 = {
 			isa = PBXGroup;
 			children = (
+				411A28C11BCD446E00D39FF7 /* CMakeLists.txt */,
 				41CAEB091C8DB97F003C2C7B /* README.md */,
 				41D04AB71C8DD69000CC8F11 /* RELEASENOTES.md */,
-				411A28C11BCD446E00D39FF7 /* CMakeLists.txt */,
 				417C02631BD8404E005A3751 /* mulle-configuration */,
 				4147852E1ABAF290002DBAE4 /* src */,
 				41CAEAE21C8D9F23003C2C7B /* Libraries */,
@@ -202,8 +200,7 @@
 			children = (
 				41CAEAD91C8D95ED003C2C7B /* mulle_concurrent.h */,
 				41CAEAE01C8D9D98003C2C7B /* mulle_concurrent_types.h */,
-				41CAEADB1C8D9601003C2C7B /* mulle_standalone_concurrent.h */,
-				41CAEADE1C8D98F0003C2C7B /* mulle_standalone_concurrent.c */,
+				41CAEADE1C8D98F0003C2C7B /* mulle_concurrent_standalone.c */,
 				41D8BA7C1C8D92DE00186ECE /* hashmap */,
 				41D8BA7F1C8D92DE00186ECE /* pointerarray */,
 			);
@@ -287,7 +284,6 @@
 			isa = PBXHeadersBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				41CAEADC1C8D9601003C2C7B /* mulle_standalone_concurrent.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -436,7 +432,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				41CAEADF1C8D98F0003C2C7B /* mulle_standalone_concurrent.c in Sources */,
+				41CAEADF1C8D98F0003C2C7B /* mulle_concurrent_standalone.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

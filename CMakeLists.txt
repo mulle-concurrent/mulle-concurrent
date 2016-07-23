@@ -13,7 +13,8 @@ endif()
 
 # using include_directories is a little bit shitty
 include_directories( src
-src/hash
+src/hashmap
+src/pointerarray
 )
 
 set( HEADERS
@@ -28,7 +29,24 @@ src/pointerarray/mulle_concurrent_pointerarray.c
 src/hashmap/mulle_concurrent_hashmap.c
 )
 
-INSTALL( TARGETS mulle_concurrent DESTINATION "lib")
+add_library( mulle_concurrent_standalone SHARED
+src/mulle_concurrent_standalone.c
+)
+
+add_dependencies( mulle_concurrent_standalone mulle_concurrent)
+
+TARGET_LINK_LIBRARIES( mulle_concurrent_standalone
+${BEGIN_ALL_LOAD}
+mulle_concurrent
+mulle_aba
+mulle_allocator
+mulle_test_allocator
+${END_ALL_LOAD}
+)
+
+
+
+INSTALL( TARGETS mulle_concurrent_standalone mulle_concurrent DESTINATION "lib")
 INSTALL( FILES ${HEADERS} DESTINATION "include/mulle_concurrent")
 
 

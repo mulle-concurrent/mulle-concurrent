@@ -31,8 +31,7 @@
 //  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 //  POSSIBILITY OF SUCH DAMAGE.
 //
-#include <mulle_standalone_concurrent/mulle_standalone_concurrent.h>
-
+#include <mulle_concurrent/mulle_concurrent.h>
 #include <mulle_test_allocator/mulle_test_allocator.h>
 #include <mulle_aba/mulle_aba.h>
 #include <assert.h>
@@ -148,7 +147,7 @@ static void  multi_threaded_test( unsigned int n_threads)
 
    mulle_aba_init( &mulle_test_allocator);
    mulle_allocator_set_aba( &mulle_test_allocator, mulle_aba_get_global(), (void *) _mulle_aba_free);
-   
+
    _mulle_concurrent_pointerarray_init( &map, 0, &mulle_test_allocator);
 
    {
@@ -183,9 +182,9 @@ static void  single_threaded_test( void)
    void                                             *value;
 
    mulle_aba_init( &mulle_test_allocator);
-   
+
    mulle_allocator_set_aba( &mulle_test_allocator,  mulle_aba_get_global(), (void *) _mulle_aba_free);
-   
+
    mulle_aba_register();
 
    _mulle_concurrent_pointerarray_init( &map, 0, &mulle_test_allocator);
@@ -218,7 +217,7 @@ static void  single_threaded_test( void)
    _mulle_concurrent_pointerarray_done( &map);
 
    mulle_aba_unregister();
-   
+
    mulle_allocator_set_aba( &mulle_test_allocator, NULL, NULL);
 
    mulle_aba_done();

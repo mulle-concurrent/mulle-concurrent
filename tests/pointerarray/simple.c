@@ -1,4 +1,4 @@
-#include <mulle_standalone_concurrent/mulle_standalone_concurrent.h>
+#include <mulle_concurrent/mulle_concurrent.h>
 
 
 static void   test( void)
