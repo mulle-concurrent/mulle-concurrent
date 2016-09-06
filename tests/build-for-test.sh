@@ -1,1 +1,0 @@
-../mulle-tests/build-for-test.sh
