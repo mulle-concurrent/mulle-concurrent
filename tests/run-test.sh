@@ -10,5 +10,6 @@
 
 LIBRARY_SHORTNAME="mulle_concurrent"
 
-. "../mulle-tests/run-test-c-common.sh"
+. "../mulle-tests/test-c-common.sh"
+. "../mulle-tests/test-tools-common.sh"
 . "../mulle-tests/run-test-common.sh"
