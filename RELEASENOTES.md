@@ -1,3 +1,10 @@
+# v1.0
+
+* renamed `_mulle_concurrent_hashmap_lookup_any` to `mulle_concurrent_hashmap_lookup_any` since its safe to pass NULL.
+* renamed `_mulle_concurrent_hashmap_get_count` to `mulle_concurrent_hashmap_count`,
+since it's safe to pass NULL and it's not a get operation.'
+* improved the documentation
+
 # v0.5
 
 * changed internal representation of mask from unsigned int to uintptr_t,

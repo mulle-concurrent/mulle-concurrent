@@ -55,6 +55,7 @@ struct mulle_concurrent_pointerarray
    struct mulle_allocator                               *allocator;
 };
 
+
 int  _mulle_concurrent_pointerarray_init( struct mulle_concurrent_pointerarray *array,
                                           unsigned int size,
                                           struct mulle_allocator *allocator);
@@ -65,10 +66,10 @@ int  _mulle_concurrent_pointerarray_add( struct mulle_concurrent_pointerarray *a
                                          void *value);
 
 void  *_mulle_concurrent_pointerarray_get( struct mulle_concurrent_pointerarray *array,
-                                           unsigned int n);
+                                           unsigned int i);
 
 int  _mulle_concurrent_pointerarray_find( struct mulle_concurrent_pointerarray *array,
-                                            void *value);
+                                          void *value);
 
 
 unsigned int  _mulle_concurrent_pointerarray_get_size( struct mulle_concurrent_pointerarray *array);
@@ -92,8 +93,8 @@ struct mulle_concurrent_pointerarrayreverseenumerator
 
 //
 // the specific retuned enumerator is only useable for the calling thread
-// if you remove stuff from the array, the enumerator will be unhappy and
-// stop (but will tell you). If the array grows, the rover is equally unhappy.
+// if you add stuff to the array, the enumerator will be unhappy and
+// stop (but will tell you).
 //
 static inline struct mulle_concurrent_pointerarrayenumerator
    mulle_concurrent_pointerarray_enumerate( struct mulle_concurrent_pointerarray *array)

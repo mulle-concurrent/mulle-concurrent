@@ -396,6 +396,15 @@ void  _mulle_concurrent_hashmap_done( struct mulle_concurrent_hashmap *map)
 }
 
 
+unsigned int  _mulle_concurrent_hashmap_get_size( struct mulle_concurrent_hashmap *map)
+{
+   struct _mulle_concurrent_hashmapstorage   *p;
+   
+   p = _mulle_atomic_pointer_read( &map->storage.pointer);
+   return( (unsigned int) p->mask + 1);
+}
+
+
 static int  _mulle_concurrent_hashmap_migrate_storage( struct mulle_concurrent_hashmap *map,
                                                        struct _mulle_concurrent_hashmapstorage *p)
 {
@@ -461,9 +470,6 @@ retry:
    return( value);
 }
 
-
-
-
 static int   _mulle_concurrent_hashmap_search_next( struct mulle_concurrent_hashmap *map,
                                                     unsigned int  *expect_mask,
                                                     unsigned int  *index,
@@ -471,8 +477,8 @@ static int   _mulle_concurrent_hashmap_search_next( struct mulle_concurrent_hash
                                                     void **p_value)
 {
    struct _mulle_concurrent_hashmapstorage   *p;
-   struct _mulle_concurrent_hashvaluepair   *entry;
-   void                                     *value;
+   struct _mulle_concurrent_hashvaluepair    *entry;
+   void                                      *value;
    
 retry:
    p = _mulle_atomic_pointer_read( &map->storage.pointer);
@@ -572,45 +578,6 @@ retry:
 }
 
 
-unsigned int  _mulle_concurrent_hashmap_get_size( struct mulle_concurrent_hashmap *map)
-{
-   struct _mulle_concurrent_hashmapstorage   *p;
-   
-   p = _mulle_atomic_pointer_read( &map->storage.pointer);
-   return( (unsigned int) p->mask + 1);
-}
-
-
-//
-// obviously just a snapshot at some recent point in time
-//
-unsigned int  mulle_concurrent_hashmap_get_count( struct mulle_concurrent_hashmap *map)
-{
-   unsigned int                                count;
-   int                                         rval;
-   struct mulle_concurrent_hashmapenumerator   rover;
-   
-retry:
-   count = 0;
-
-   rover = mulle_concurrent_hashmap_enumerate( map);
-   for(;;)
-   {
-      rval = _mulle_concurrent_hashmapenumerator_next( &rover, NULL, NULL);
-      if( ! rval)
-         break;
-      if( rval < 0)
-      {
-         _mulle_concurrent_hashmapenumerator_done( &rover);
-         goto retry;
-      }
-      ++count;
-   }
-
-   _mulle_concurrent_hashmapenumerator_done( &rover);
-   return( count);
-}
-
 
 #pragma mark -
 #pragma mark not so concurrent enumerator
@@ -637,7 +604,41 @@ int  _mulle_concurrent_hashmapenumerator_next( struct mulle_concurrent_hashmapen
 }
 
 
-void  *_mulle_concurrent_hashmap_lookup_any( struct mulle_concurrent_hashmap *map)
+#pragma mark -
+#pragma mark enumerator based code
+
+//
+// obviously just a snapshot at some recent point in time
+//
+unsigned int  mulle_concurrent_hashmap_count( struct mulle_concurrent_hashmap *map)
+{
+   unsigned int                                count;
+   int                                         rval;
+   struct mulle_concurrent_hashmapenumerator   rover;
+   
+retry:
+   count = 0;
+   
+   rover = mulle_concurrent_hashmap_enumerate( map);
+   for(;;)
+   {
+      rval = _mulle_concurrent_hashmapenumerator_next( &rover, NULL, NULL);
+      if( ! rval)
+         break;
+      if( rval < 0)
+      {
+         _mulle_concurrent_hashmapenumerator_done( &rover);
+         goto retry;
+      }
+      ++count;
+   }
+   
+   _mulle_concurrent_hashmapenumerator_done( &rover);
+   return( count);
+}
+
+
+void  *mulle_concurrent_hashmap_lookup_any( struct mulle_concurrent_hashmap *map)
 {
    struct mulle_concurrent_hashmapenumerator  rover;
    void  *any;
