@@ -315,7 +315,7 @@ unsigned int  _mulle_concurrent_pointerarray_get_size( struct mulle_concurrent_p
 //
 // obviously just a snapshot at some recent point in time
 //
-unsigned int  mulle_concurrent_pointerarray_get_count( struct mulle_concurrent_pointerarray *array)
+unsigned int   mulle_concurrent_pointerarray_get_count( struct mulle_concurrent_pointerarray *array)
 {
    struct _mulle_concurrent_pointerarraystorage   *p;
    
@@ -371,7 +371,6 @@ int  _mulle_concurrent_pointerarrayreverseenumerator_next( struct mulle_concurre
 }
 
 
-
 int   _mulle_concurrent_pointerarray_find( struct mulle_concurrent_pointerarray *array,
                                        void *search)
 {
@@ -415,4 +414,3 @@ int   mulle_concurrent_pointerarray_map( struct mulle_concurrent_pointerarray *l
    _mulle_concurrent_pointerarrayenumerator_done( &rover);
    return( 0);
 }
-

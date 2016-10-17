@@ -16,5 +16,14 @@ tmp/
 *.dSYM/
 *.exe
 mulle-tests/
-/include
-/lib
+/include/
+/lib/
+/addictions/
+/bin/mulle-homebrew/
+/addictions/
+/tests/include/
+/tests/lib/
+/tests/pointerarray/pointerarray
+/tests/pointerarray/simple
+/tests/hashmap/hashmap
+/tests/hashmap/othersimple

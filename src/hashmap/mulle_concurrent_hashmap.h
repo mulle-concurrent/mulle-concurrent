@@ -58,11 +58,18 @@ struct mulle_concurrent_hashmap
    struct mulle_allocator                          *allocator;
 };
 
+#pragma mark -
+#pragma mark single-threaded
+
 int  _mulle_concurrent_hashmap_init( struct mulle_concurrent_hashmap *map,
                                      unsigned int size,
                                      struct mulle_allocator *allocator);
 void  _mulle_concurrent_hashmap_done( struct mulle_concurrent_hashmap *map);
 
+unsigned int  _mulle_concurrent_hashmap_get_size( struct mulle_concurrent_hashmap *map);
+
+#pragma mark -
+#pragma mark multi-threaded
 
 // if rval == 0, inserted
 // rval == EEXIST, detected duplicate
@@ -82,12 +89,8 @@ int  _mulle_concurrent_hashmap_remove( struct mulle_concurrent_hashmap *map,
 void  *_mulle_concurrent_hashmap_lookup( struct mulle_concurrent_hashmap *map,
                                          intptr_t hash);
 
-unsigned int  _mulle_concurrent_hashmap_get_size( struct mulle_concurrent_hashmap *map);
-unsigned int  mulle_concurrent_hashmap_get_count( struct mulle_concurrent_hashmap *map);
-
-
 #pragma mark -
-#pragma mark not so concurrent enumerator
+#pragma mark limited multi-threaded
 
 struct mulle_concurrent_hashmapenumerator
 {
@@ -126,8 +129,9 @@ static inline void  _mulle_concurrent_hashmapenumerator_done( struct mulle_concu
 {
 }
 
-// convenience using the enumerator
+// conveniences using the enumerator
 
-void  *_mulle_concurrent_hashmap_lookup_any( struct mulle_concurrent_hashmap *map);
+void   *mulle_concurrent_hashmap_lookup_any( struct mulle_concurrent_hashmap *map);
+unsigned int  mulle_concurrent_hashmap_count( struct mulle_concurrent_hashmap *map);
 
 #endif /* mulle_concurrent_hashmap_h */
