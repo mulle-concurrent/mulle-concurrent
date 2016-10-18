@@ -4,6 +4,9 @@
 * renamed `_mulle_concurrent_hashmap_get_count` to `mulle_concurrent_hashmap_count`,
 since it's safe to pass NULL and it's not a get operation.'
 * improved the documentation
+* added  some more "safe API" routines for release
+* improved the headers for readability
+* clarified return codes of `mulle_concurrent_hashmap_remove`.
 
 # v0.5
 
@@ -31,4 +34,4 @@ since it's safe to pass NULL and it's not a get operation.'
 
 # v0.0
 
-* Merycful Release
+* Merciful Release

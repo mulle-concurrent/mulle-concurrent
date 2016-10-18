@@ -124,7 +124,7 @@
 		41CAEAE71C8D9FF4003C2C7B /* test-hashmap */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "test-hashmap"; sourceTree = BUILT_PRODUCTS_DIR; };
 		41CAEAEE1C8DA00F003C2C7B /* hashmap.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = hashmap.c; path = tests/hashmap/hashmap.c; sourceTree = SOURCE_ROOT; };
 		41CAEAF71C8DA20F003C2C7B /* test-pointerarray */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "test-pointerarray"; sourceTree = BUILT_PRODUCTS_DIR; };
-		41CAEB031C8DA251003C2C7B /* pointerarray.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = pointerarray.c; sourceTree = "<group>"; };
+		41CAEB031C8DA251003C2C7B /* pointerarray.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = pointerarray.c; path = ../array/pointerarray.c; sourceTree = "<group>"; };
 		41CAEB051C8DA326003C2C7B /* libmulle_test_allocator.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libmulle_test_allocator.a; path = dependencies/lib/Debug/libmulle_test_allocator.a; sourceTree = "<group>"; };
 		41CAEB091C8DB97F003C2C7B /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		41D04AB71C8DD69000CC8F11 /* RELEASENOTES.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = RELEASENOTES.md; sourceTree = "<group>"; };

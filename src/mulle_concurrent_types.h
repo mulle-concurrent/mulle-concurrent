@@ -3,7 +3,9 @@
 //  mulle-concurrent
 //
 //  Created by Nat! on 07.03.16.
-//  Copyright © 2016 Mulle kybernetiK. All rights reserved.
+//  Copyright © 2016 Nat! for Mulle kybernetiK.
+//  Copyright © 2016 Codeon GmbH.
+//  All rights reserved.
 //
 //  Redistribution and use in source and binary forms, with or without
 //  modification, are permitted provided that the following conditions are met:
@@ -38,6 +40,7 @@
 
 //
 // if you don't like those values, you 'should' be able to redefine those
+// this file is not exposed (yet)
 //
 #define MULLE_CONCURRENT_NO_HASH           0
 

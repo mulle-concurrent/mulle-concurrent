@@ -1,5 +1,11 @@
 #include <mulle_concurrent/mulle_concurrent.h>
 
+#include <mulle_test_allocator/mulle_test_allocator.h>
+#include <mulle_aba/mulle_aba.h>
+#include <assert.h>
+#include <stdlib.h>
+#include <errno.h>
+
 
 static void   test( void)
 {
@@ -8,27 +14,28 @@ static void   test( void)
    unsigned int                                     i;
    void                                             *value;
 
-   _mulle_concurrent_pointerarray_init( &map, 0, NULL);
+   mulle_concurrent_pointerarray_init( &map, 0, NULL);
    {
       value = (void *) 0x1848;
 
-      _mulle_concurrent_pointerarray_add( &map, value);
-      value = _mulle_concurrent_pointerarray_get( &map, 0);
+      mulle_concurrent_pointerarray_add( &map, value);
+      value = mulle_concurrent_pointerarray_get( &map, 0);
       printf( "%p\n", value);
 
       rover = mulle_concurrent_pointerarray_enumerate( &map);
-      while( _mulle_concurrent_pointerarrayenumerator_next( &rover, &value) == 1)
-      {
+      while( value = mulle_concurrent_pointerarrayenumerator_next( &rover))
          printf( "%p\n", value);
-      }
-      _mulle_concurrent_pointerarrayenumerator_done( &rover);
+      mulle_concurrent_pointerarrayenumerator_done( &rover);
    }
-   _mulle_concurrent_pointerarray_done( &map);
+   mulle_concurrent_pointerarray_done( &map);
 }
 
 
 int   main( void)
 {
+   mulle_test_allocator_initialize();
+   mulle_default_allocator = mulle_test_allocator;
+
    mulle_aba_init( NULL);
    mulle_aba_register();
 
@@ -36,6 +43,8 @@ int   main( void)
 
    mulle_aba_unregister();
    mulle_aba_done();
+
+   mulle_test_allocator_reset();
 
    return( 0);
 }

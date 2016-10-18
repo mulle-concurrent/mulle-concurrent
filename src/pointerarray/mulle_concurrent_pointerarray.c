@@ -3,7 +3,9 @@
 //  mulle-concurrent
 //
 //  Created by Nat! on 06.03.16.
-//  Copyright © 2016 Mulle kybernetiK. All rights reserved.
+//  Copyright © 2016 Nat! for Mulle kybernetiK.
+//  Copyright © 2016 Codeon GmbH.
+//  All rights reserved.
 //
 //  Redistribution and use in source and binary forms, with or without
 //  modification, are permitted provided that the following conditions are met:
@@ -44,7 +46,7 @@ struct _mulle_concurrent_pointerarraystorage
 {
    mulle_atomic_pointer_t   n;
    uintptr_t                size;
-   
+
    mulle_atomic_pointer_t   entries[ 1];
 };
 
@@ -68,16 +70,16 @@ static struct _mulle_concurrent_pointerarraystorage *
                                                 struct mulle_allocator *allocator)
 {
    struct _mulle_concurrent_pointerarraystorage  *p;
-   
+
    if( n < 8)
       n = 8;
-   
+
    p = _mulle_allocator_calloc( allocator, 1, sizeof( void *) * (n - 1) +
                              sizeof( struct _mulle_concurrent_pointerarraystorage));
    if( ! p)
       return( p);
    p->size = n;
-   
+
    /*
     * in theory, one should be able to use different values for NO_POINTER and
     * INVALID_POINTER
@@ -86,7 +88,7 @@ static struct _mulle_concurrent_pointerarraystorage *
    {
       mulle_atomic_pointer_t   *q;
       mulle_atomic_pointer_t   *sentinel;
-      
+
       q        = p->entries;
       sentinel = &p->entries[ (unsigned int) p->size];
       while( q < sentinel)
@@ -95,7 +97,7 @@ static struct _mulle_concurrent_pointerarraystorage *
          ++q;
       }
    }
-   
+
    return( p);
 }
 
@@ -120,9 +122,10 @@ static int   _mulle_concurrent_pointerarraystorage_add( struct _mulle_concurrent
 {
    void           *found;
    unsigned int   i;
-   
+
    assert( p);
-   assert( value != MULLE_CONCURRENT_NO_POINTER && value != MULLE_CONCURRENT_INVALID_POINTER);
+   assert( value != MULLE_CONCURRENT_NO_POINTER);
+   assert( value != MULLE_CONCURRENT_INVALID_POINTER);
 
    for(;;)
    {
@@ -136,7 +139,7 @@ static int   _mulle_concurrent_pointerarraystorage_add( struct _mulle_concurrent
          _mulle_atomic_pointer_increment( &p->n);
          return( 0);
       }
-      
+
       if( found == REDIRECT_VALUE)
          return( EBUSY);
    }
@@ -151,7 +154,7 @@ static void   _mulle_concurrent_pointerarraystorage_copy( struct _mulle_concurre
    void                     *value;
    unsigned int             i;
    unsigned int             n;
-   
+
    n      = (unsigned int) (uintptr_t) _mulle_atomic_pointer_read( &dst->n);
    p      = &src->entries[ n];
    p_last = &src->entries[ src->size];
@@ -173,15 +176,15 @@ int  _mulle_concurrent_pointerarray_init( struct mulle_concurrent_pointerarray *
                                           struct mulle_allocator *allocator)
 {
    struct _mulle_concurrent_pointerarraystorage   *storage;
-   
+
    if( ! allocator)
       allocator = &mulle_default_allocator;
 
-   assert( allocator->abafree && allocator->abafree != (void *) abort);
-   
-   if( ! allocator->abafree || allocator->abafree == (void *) abort)
+   assert( allocator->abafree && allocator->abafree != (int (*)()) abort);
+
+   if( ! allocator->abafree)
       return( EINVAL);
-   
+
    array->allocator = allocator;
    storage          = _mulle_concurrent_alloc_pointerarraystorage( size, allocator);
 
@@ -190,7 +193,7 @@ int  _mulle_concurrent_pointerarray_init( struct mulle_concurrent_pointerarray *
 
    _mulle_atomic_pointer_nonatomic_write( &array->storage.pointer, storage);
    _mulle_atomic_pointer_nonatomic_write( &array->next_storage.pointer, storage);
-   
+
    return( 0);
 }
 
@@ -202,15 +205,39 @@ void  _mulle_concurrent_pointerarray_done( struct mulle_concurrent_pointerarray 
 {
    struct _mulle_concurrent_pointerarraystorage   *storage;
    struct _mulle_concurrent_pointerarraystorage   *next_storage;
-   
+
    storage      = _mulle_atomic_pointer_nonatomic_read( &array->storage.pointer);
    next_storage = _mulle_atomic_pointer_nonatomic_read( &array->next_storage.pointer);
-   
+
    _mulle_allocator_abafree( array->allocator, storage);
    if( storage != next_storage)
       _mulle_allocator_abafree( array->allocator, next_storage);
 }
 
+
+unsigned int  _mulle_concurrent_pointerarray_get_size( struct mulle_concurrent_pointerarray *array)
+{
+   struct _mulle_concurrent_pointerarraystorage   *p;
+
+   p = _mulle_atomic_pointer_read( &array->storage.pointer);
+   return( (unsigned int) p->size);
+}
+
+
+//
+// obviously just a snapshot at some recent point in time
+//
+unsigned int   _mulle_concurrent_pointerarray_get_count( struct mulle_concurrent_pointerarray *array)
+{
+   struct _mulle_concurrent_pointerarraystorage   *p;
+
+   p = _mulle_atomic_pointer_read( &array->storage.pointer);
+   return( (unsigned int) (uintptr_t) _mulle_atomic_pointer_read( &p->n));
+}
+
+
+# pragma mark -
+# pragma mark multi-threaded
 
 static int  _mulle_concurrent_pointerarray_migrate_storage( struct mulle_concurrent_pointerarray *array,
                                                       struct _mulle_concurrent_pointerarraystorage *p)
@@ -221,18 +248,18 @@ static int  _mulle_concurrent_pointerarray_migrate_storage( struct mulle_concurr
    struct _mulle_concurrent_pointerarraystorage   *previous;
 
    assert( p);
-   
+
    // acquire new storage
    alloced = NULL;
    q       = _mulle_atomic_pointer_read( &array->next_storage.pointer);
 
    assert( q);
-   
+
    if( q == p)
    {
       alloced = _mulle_concurrent_alloc_pointerarraystorage( (unsigned int) p->size * 2, array->allocator);
       if( ! alloced)
-         return( -1);
+         return( ENOMEM);
 
       // make this the next world, assume that's still set to 'p' (SIC)
       q = __mulle_atomic_pointer_compare_and_swap( &array->next_storage.pointer, alloced, p);
@@ -245,10 +272,10 @@ static int  _mulle_concurrent_pointerarray_migrate_storage( struct mulle_concurr
       else
          q = alloced;
    }
-   
+
    // this thread can partake in copying
    _mulle_concurrent_pointerarraystorage_copy( q, p);
-   
+
    // now update world, giving it the same value as 'next_world'
    previous = __mulle_atomic_pointer_compare_and_swap( &array->storage.pointer, q, p);
 
@@ -256,7 +283,7 @@ static int  _mulle_concurrent_pointerarray_migrate_storage( struct mulle_concurr
    // already gone
    if( previous == p)
       _mulle_allocator_abafree( array->allocator, previous);
-   
+
    return( 0);
 }
 
@@ -266,7 +293,7 @@ void  *_mulle_concurrent_pointerarray_get( struct mulle_concurrent_pointerarray 
 {
    struct _mulle_concurrent_pointerarraystorage   *p;
    void                                     *value;
-   
+
 retry:
    p     = _mulle_atomic_pointer_read( &array->storage.pointer);
    value = _mulle_concurrent_pointerarraystorage_get( p, index);
@@ -285,9 +312,9 @@ int  _mulle_concurrent_pointerarray_add( struct mulle_concurrent_pointerarray *a
 {
    struct _mulle_concurrent_pointerarraystorage   *p;
 
-   assert( value);
+   assert( value != MULLE_CONCURRENT_NO_POINTER);
    assert( value != REDIRECT_VALUE);
-   
+
 retry:
    p = _mulle_atomic_pointer_read( &array->storage.pointer);
    switch( _mulle_concurrent_pointerarraystorage_add( p, value))
@@ -295,7 +322,7 @@ retry:
    case EBUSY   :
    case ENOSPC  :
       if( _mulle_concurrent_pointerarray_migrate_storage( array, p))
-         return( -1);
+         return( ENOMEM);
       goto retry;
    }
 
@@ -303,114 +330,104 @@ retry:
 }
 
 
-unsigned int  _mulle_concurrent_pointerarray_get_size( struct mulle_concurrent_pointerarray *array)
+int  mulle_concurrent_pointerarray_add( struct mulle_concurrent_pointerarray *array,
+                                        void *value)
 {
-   struct _mulle_concurrent_pointerarraystorage   *p;
-   
-   p = _mulle_atomic_pointer_read( &array->storage.pointer);
-   return( (unsigned int) p->size);
+   if( ! array)
+      return( EINVAL);
+   if( value == MULLE_CONCURRENT_NO_POINTER || value == MULLE_CONCURRENT_INVALID_POINTER)
+      return( EINVAL);
+   return( _mulle_concurrent_pointerarray_add( array, value));
 }
 
 
-//
-// obviously just a snapshot at some recent point in time
-//
-unsigned int   mulle_concurrent_pointerarray_get_count( struct mulle_concurrent_pointerarray *array)
+void  *mulle_concurrent_pointerarray_get( struct mulle_concurrent_pointerarray *array,
+                                          unsigned int i)
 {
-   struct _mulle_concurrent_pointerarraystorage   *p;
-   
    if( ! array)
-      return( 0);
-   
-   p = _mulle_atomic_pointer_read( &array->storage.pointer);
-   return( (unsigned int) (uintptr_t) _mulle_atomic_pointer_read( &p->n));
+      return( NULL);
+   return( _mulle_concurrent_pointerarray_get( array, i));
+}
+
+
+
+int  mulle_concurrent_pointerarray_find( struct mulle_concurrent_pointerarray *array,
+                                         void *value)
+{
+   if( ! array)
+      return( EINVAL);
+   if( value == MULLE_CONCURRENT_NO_POINTER || value == MULLE_CONCURRENT_INVALID_POINTER)
+      return( EINVAL);
+   return( _mulle_concurrent_pointerarray_find( array, value));
 }
 
 
 #pragma mark -
 #pragma mark not so concurrent enumerator
 
-int  _mulle_concurrent_pointerarrayenumerator_next( struct mulle_concurrent_pointerarrayenumerator *rover,
-                                              void **p_value)
+void  *_mulle_concurrent_pointerarrayenumerator_next( struct mulle_concurrent_pointerarrayenumerator *rover)
 {
    void           *value;
    unsigned int   n;
-   
+
    n = mulle_concurrent_pointerarray_get_count( rover->array);
    if( rover->index >= n)
-      return( 0);
-   
+      return( MULLE_CONCURRENT_NO_POINTER);
+
    value = _mulle_concurrent_pointerarray_get( rover->array, rover->index);
-   if( value == MULLE_CONCURRENT_NO_POINTER)
-      return( -1);
+   assert( value != MULLE_CONCURRENT_NO_POINTER);
 
    ++rover->index;
-   if( p_value)
-      *p_value = value;
-
-   return( 1);
+   return( value);
 }
 
 
-int  _mulle_concurrent_pointerarrayreverseenumerator_next( struct mulle_concurrent_pointerarrayreverseenumerator *rover,
-                                                     void **p_value)
+void   *_mulle_concurrent_pointerarrayreverseenumerator_next( struct mulle_concurrent_pointerarrayreverseenumerator *rover)
 {
    void   *value;
-   
+
    if( ! rover->index)
-      return( 0);
-   
+      return( MULLE_CONCURRENT_NO_POINTER);
+
    value = _mulle_concurrent_pointerarray_get( rover->array, --rover->index);
-   if( value == MULLE_CONCURRENT_NO_POINTER)
-      return( -1);
+   assert( value != MULLE_CONCURRENT_NO_POINTER);
 
-   if( p_value)
-      *p_value = value;
-
-   return( 1);
+   return( value);
 }
 
 
 int   _mulle_concurrent_pointerarray_find( struct mulle_concurrent_pointerarray *array,
-                                       void *search)
+                                           void *search)
 {
    struct mulle_concurrent_pointerarrayenumerator   rover;
    int                                              found;
    void                                             *value;
-   
+
    found = 0;
    rover = mulle_concurrent_pointerarray_enumerate( array);
-   while( _mulle_concurrent_pointerarrayenumerator_next( &rover, (void **) &value) == 1)
-   {
+   while( value = _mulle_concurrent_pointerarrayenumerator_next( &rover))
       if( value == search)
       {
          found = 1;
          break;
       }
-   }
-   _mulle_concurrent_pointerarrayenumerator_done( &rover);
-   
+   mulle_concurrent_pointerarrayenumerator_done( &rover);
+
    return( found);
 }
 
 
 int   mulle_concurrent_pointerarray_map( struct mulle_concurrent_pointerarray *list,
-                                                void (*f)( void *, void *),
-                                                void *userinfo)
+                                         void (*f)( void *, void *),
+                                         void *userinfo)
 {
    struct mulle_concurrent_pointerarrayenumerator  rover;
    void                                            *value;
-   
+
    rover = mulle_concurrent_pointerarray_enumerate( list);
-   for(;;)
-   {
-      switch( _mulle_concurrent_pointerarrayenumerator_next( &rover, &value))
-      {
-      case -1 : return( -1);
-      case  1 : (*f)( value, userinfo); continue;
-      }
-      break;
-   }
-   _mulle_concurrent_pointerarrayenumerator_done( &rover);
+   while( value = _mulle_concurrent_pointerarrayenumerator_next( &rover))
+      (*f)( value, userinfo);
+   mulle_concurrent_pointerarrayenumerator_done( &rover);
+
    return( 0);
 }

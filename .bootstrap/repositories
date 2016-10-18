@@ -1,3 +1,8 @@
-https://www.mulle-kybernetik.com/repositories/mulle-thread
-https://www.mulle-kybernetik.com/repositories/mulle-allocator
-https://www.mulle-kybernetik.com/repositories/mulle-aba
+#
+# MULLE_REPOSITORIES is defined in mulle-bootstrap 2.3
+# overide the branches with e.g.
+# `echo "master" > .bootstrap.local/MULLE_THREAD_BRANCH`
+
+${MULLE_REPOSITORIES}mulle-thread;;${MULLE_THREAD_BRANCH:-release}
+${MULLE_REPOSITORIES}mulle-allocator;;${MULLE_ALLOCATOR_BRANCH:-release}
+${MULLE_REPOSITORIES}mulle-aba;;${MULLE_ABA_BRANCH:-release}

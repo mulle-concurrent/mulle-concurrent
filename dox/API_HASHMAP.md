@@ -8,71 +8,66 @@ in time.
 
 The following operations should be executed in single-threaded fashion:
 
-* `_mulle_concurrent_hashmap_init`
-* `_mulle_concurrent_hashmap_done`
-* `_mulle_concurrent_hashmap_get_size`
+* `mulle_concurrent_hashmap_init`
+* `mulle_concurrent_hashmap_done`
+* `mulle_concurrent_hashmap_get_size`
 
 The following operations are fine in multi-threaded environments:
 
-* `_mulle_concurrent_hashmap_insert`
-* `_mulle_concurrent_hashmap_remove`
-* `_mulle_concurrent_hashmap_lookup`
+* `mulle_concurrent_hashmap_insert`
+* `mulle_concurrent_hashmap_remove`
+* `mulle_concurrent_hashmap_lookup`
 
-
-The following operations work in multi-threaded environments, but should be approached with caution:
+The following operations work in multi-threaded environments, but should be
+approached with caution:
 
 * `mulle_concurrent_hashmap_enumerate`
-* `_mulle_concurrent_hashmapenumerator_next`
-* `_mulle_concurrent_hashmapenumerator_done`
+* `mulle_concurrent_hashmapenumerator_next`
+* `mulle_concurrent_hashmapenumerator_done`
 * `mulle_concurrent_hashmap_lookup_any`
 * `mulle_concurrent_hashmap_count`
+
 
 ## single-threaded
 
 
-### `_mulle_concurrent_hashmap_init`
+### `mulle_concurrent_hashmap_init`
 
 ```
-void   _mulle_concurrent_hashmap_init( struct mulle_concurrent_hashmap *map,
-                                       unsigned int size,
-                                       struct mulle_allocator *allocator)
+int   mulle_concurrent_hashmap_init( struct mulle_concurrent_hashmap *map,
+                                     unsigned int size,
+                                     struct mulle_allocator *allocator)
 ```
 
 Initialize `map`, with a starting `size` of elements. `allocator` will be
 used to allocate and free memory during the lifetime of `map`.  You can pass in
 for `allocator` to use the default. Call this in single-threaded fashion.
 
+Return Values:
+   0      : OK
+   EINVAL : invalid argument
+   ENOMEM : out of memory
 
-### `void  _mulle_concurrent_hashmap_done( struct mulle_concurrent_hashmap *map)`
+
+### `void  mulle_concurrent_hashmap_done`
 
 ```
-void  _mulle_concurrent_hashmap_done( struct mulle_concurrent_hashmap *map)
+void  mulle_concurrent_hashmap_done( struct mulle_concurrent_hashmap *map)
 ```
 
 This will free all allocated resources `map`. It will not **free** `map` itself
 though. `map` must be a valid pointer. Call this in single-threaded fashion.
 
 
-### `_mulle_concurrent_hashmap_get_size`
-
-```
-unsigned int   mulle_concurrent_hashmap_get_count( struct mulle_concurrent_hashmap *map);
-```
-
-This gives you the current number of hash/value entries of `map`. The returned
-number is close to meaningless, when the map is accessed in multi-threaded
-fashion. Call this in single-threaded fashion.
-
-
 ## multi-threaded
 
 
-### `_mulle_concurrent_hashmap_insert`
+### `mulle_concurrent_hashmap_insert`
 
 ```
-int  _mulle_concurrent_hashmap_insert( struct mulle_concurrent_hashmap *map,
-                                       intptr_t hash,
-                                       void *value)
+int  mulle_concurrent_hashmap_insert( struct mulle_concurrent_hashmap *map,
+                                      intptr_t hash,
+                                      void *value)
 ```
 
 Insert a `hash`, `value` pair.
@@ -102,16 +97,16 @@ Return Values:
    ENOMEM : out of memory
 
 
-### `_mulle_concurrent_hashmap_remove` - remove a hash/value pair
+### `mulle_concurrent_hashmap_remove`
 
 ```
-int  _mulle_concurrent_hashmap_remove( struct mulle_concurrent_hashmap *map,
+int  mulle_concurrent_hashmap_remove( struct mulle_concurrent_hashmap *map,
                                        intptr_t hash,
                                        void *value)
 ```
 
 Remove a `hash`, `value` pair. Read the description of
-`_mulle_concurrent_hashmap_insert` for information about restrictions
+`mulle_concurrent_hashmap_insert` for information about restrictions
 pertaining to both.
 
 Return Values:
@@ -120,10 +115,10 @@ Return Values:
    ENOMEM : out of memory
 
 
-### `_mulle_concurrent_hashmap_lookup` - search for a value by hash
+### `mulle_concurrent_hashmap_lookup`
 
 ```
-void   *_mulle_concurrent_hashmap_lookup( struct mulle_concurrent_hashmap *map,
+void   *mulle_concurrent_hashmap_lookup( struct mulle_concurrent_hashmap *map,
                                           intptr_t hash)
 ```
 
@@ -134,6 +129,18 @@ Return Values:
    otherwise the value for this hash
 
 ---
+
+
+### `mulle_concurrent_hashmap_get_size`
+
+```
+unsigned int   mulle_concurrent_hashmap_get_count( struct mulle_concurrent_hashmap *map);
+```
+
+This gives you the current number of hash/value entries of `map`. The returned
+number is close to meaningless, when the map is accessed in multi-threaded
+fashion.
+
 
 # `mulle_concurrent_hashmapenumerator`
 
@@ -156,17 +163,17 @@ Here is a simple usage example:
    void                                        *value;
 
    rover = mulle_concurrent_hashmap_enumerate( map);
-   while( _mulle_concurrent_hashmapenumerator_next( &rover, &hash, &value) == 1)
+   while( mulle_concurrent_hashmapenumerator_next( &rover, &hash, &value) == 1)
    {
       printf( "%ld %p\n", hash, value);
    }
-   _mulle_concurrent_hashmapenumerator_done( &rover);
+   mulle_concurrent_hashmapenumerator_done( &rover);
 ```
 
-### `_mulle_concurrent_hashmapenumerator_next`
+### `mulle_concurrent_hashmapenumerator_next`
 
 ```
-int  _mulle_concurrent_hashmapenumerator_next( struct mulle_concurrent_hashmapenumerator *rover,
+int  mulle_concurrent_hashmapenumerator_next( struct mulle_concurrent_hashmapenumerator *rover,
                                                intptr_t *hash,
                                                void **value)
 ```
@@ -174,16 +181,16 @@ int  _mulle_concurrent_hashmapenumerator_next( struct mulle_concurrent_hashmapen
 Get the next `hash`, `value` pair from the enumerator.
 
 Return Values:
-   1           : OK
-   0           : nothing left
-   -ECANCELLED : hashtable was mutated (Note: **negative errno value**!)
-   -ENOMEM     : out of memory         (Note: **negative errno value**!)
+   1          : OK
+   0          : nothing left
+   ECANCELLED : hashtable was mutated
+   ENOMEM     : out of memory
 
 
-### `_mulle_concurrent_hashmapenumerator_done`
+### `mulle_concurrent_hashmapenumerator_done`
 
 ```
-void  _mulle_concurrent_hashmapenumerator_done( struct mulle_concurrent_hashmapenumerator *rover)
+void  mulle_concurrent_hashmapenumerator_done( struct mulle_concurrent_hashmapenumerator *rover)
 ```
 
 It's a mere conventional function. It may be left out.
@@ -195,8 +202,10 @@ It's a mere conventional function. It may be left out.
 unsigned int   mulle_concurrent_hashmap_count( struct mulle_concurrent_hashmap *map);
 ```
 
-This gives you the current number of hash/value entries of `map`. It is implemented as an iterator loop, that counts the number of values.
-The returned number is close to meaningless, when the map is accessed in multi-threaded fashion.
+This gives you the current number of hash/value entries of `map`. It is
+implemented as an iterator loop, that counts the number of values.
+The returned number may be close to meaningless, when the map is accessed in
+multi-threaded fashion.
 
 
 ### `mulle_concurrent_hashmap_lookup_any` - get a value from the hashmap

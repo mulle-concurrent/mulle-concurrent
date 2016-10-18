@@ -27,3 +27,12 @@ mulle-tests/
 /tests/pointerarray/simple
 /tests/hashmap/hashmap
 /tests/hashmap/othersimple
+
+/tests/mulle-tests/
+tests/array/example
+tests/array/pointerarray
+tests/array/simple
+tests/hashmap/example
+tests/array/example.debug
+tests/hashmap/example.debug
+tests/hashmap/hashmap.debug

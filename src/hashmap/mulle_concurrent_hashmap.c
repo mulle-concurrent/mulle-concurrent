@@ -3,7 +3,9 @@
 //  mulle-concurrent
 //
 //  Created by Nat! on 04.03.16.
-//  Copyright © 2016 Mulle kybernetiK. All rights reserved.
+//  Copyright © 2016 Nat! for Mulle kybernetiK.
+//  Copyright © 2016 Codeon GmbH.
+//  All rights reserved.
 //
 //  Redistribution and use in source and binary forms, with or without
 //  modification, are permitted provided that the following conditions are met:
@@ -254,7 +256,7 @@ static int   _mulle_concurrent_hashmapstorage_put( struct _mulle_concurrent_hash
       if( entry->hash == MULLE_CONCURRENT_NO_HASH)
       {
          found = __mulle_atomic_pointer_compare_and_swap( &entry->value, value, MULLE_CONCURRENT_NO_POINTER);
-         if( found)
+         if( found != MULLE_CONCURRENT_NO_POINTER)
          {
             if( found == REDIRECT_VALUE)
                return( EBUSY);
@@ -291,15 +293,9 @@ static int   _mulle_concurrent_hashmapstorage_remove( struct _mulle_concurrent_h
       if( entry->hash == hash)
       {
          found = __mulle_atomic_pointer_compare_and_swap( &entry->value, MULLE_CONCURRENT_NO_POINTER, value);
-         if( found != MULLE_CONCURRENT_NO_POINTER)
-         {
-            if( found == REDIRECT_VALUE)
-               return( EBUSY);
-
-            // once a entry->hash it must not be erased (except
-            // during migration)
-         }
-         return( 0);
+         if( found == REDIRECT_VALUE)
+            return( EBUSY);
+         return( found == value ? 0 : ENOENT);
       }
       
       if( entry->hash == MULLE_CONCURRENT_NO_HASH)
@@ -361,8 +357,8 @@ int  _mulle_concurrent_hashmap_init( struct mulle_concurrent_hashmap *map,
    if( ! allocator)
       allocator = &mulle_default_allocator;
    
-   assert( allocator->abafree && allocator->abafree != (void *) abort);
-   if( ! allocator->abafree || allocator->abafree == (void *) abort)
+   assert( allocator->abafree && allocator->abafree != (int (*)()) abort);
+   if( ! allocator->abafree || allocator->abafree == (int (*)()) abort)
       return( EINVAL);
 
    map->allocator = allocator;
@@ -423,7 +419,7 @@ static int  _mulle_concurrent_hashmap_migrate_storage( struct mulle_concurrent_h
       // acquire new storage
       alloced = _mulle_concurrent_alloc_hashmapstorage( ((unsigned int) p->mask + 1) * 2, map->allocator);
       if( ! alloced)
-         return( -1);
+         return( ENOMEM);
       
       // make this the next world, assume that's still set to 'p' (SIC)
       q = __mulle_atomic_pointer_compare_and_swap( &map->next_storage.pointer, alloced, p);
@@ -458,6 +454,7 @@ void  *_mulle_concurrent_hashmap_lookup( struct mulle_concurrent_hashmap *map,
    struct _mulle_concurrent_hashmapstorage   *p;
    void                                      *value;
    
+   // won't find invalid hash anyway
 retry:
    p     = _mulle_atomic_pointer_read( &map->storage.pointer);
    value = _mulle_concurrent_hashmapstorage_lookup( p, hash);
@@ -469,6 +466,7 @@ retry:
    }
    return( value);
 }
+
 
 static int   _mulle_concurrent_hashmap_search_next( struct mulle_concurrent_hashmap *map,
                                                     unsigned int  *expect_mask,
@@ -483,7 +481,7 @@ static int   _mulle_concurrent_hashmap_search_next( struct mulle_concurrent_hash
 retry:
    p = _mulle_atomic_pointer_read( &map->storage.pointer);
    if( *expect_mask && (unsigned int) p->mask != *expect_mask)
-      return( -ECANCELED);
+      return( ECANCELED);
    
    for(;;)
    {
@@ -492,15 +490,15 @@ retry:
          return( 0);
       
       value = _mulle_atomic_pointer_read( &entry->value);
-      if( value != MULLE_CONCURRENT_NO_POINTER)
-         break;
-
       if( value == REDIRECT_VALUE)
       {
          if( _mulle_concurrent_hashmap_migrate_storage( map, p))
-            return( -ENOMEM);
+            return( ENOMEM);
          goto retry;
       }
+
+      if( value != MULLE_CONCURRENT_NO_POINTER)
+         break;
    }
    
    if( p_hash)
@@ -515,6 +513,14 @@ retry:
 }
 
 
+static inline void   assert_hash_value( intptr_t hash, void *value)
+{
+   assert( hash != MULLE_CONCURRENT_NO_HASH);
+   assert( value != MULLE_CONCURRENT_NO_POINTER);
+   assert( value != MULLE_CONCURRENT_INVALID_POINTER);
+}
+
+
 int  _mulle_concurrent_hashmap_insert( struct mulle_concurrent_hashmap *map,
                                        intptr_t hash,
                                        void *value)
@@ -523,9 +529,7 @@ int  _mulle_concurrent_hashmap_insert( struct mulle_concurrent_hashmap *map,
    unsigned int                              n;
    unsigned int                              max;
 
-   assert( hash != MULLE_CONCURRENT_NO_HASH);
-   assert( value);
-   assert( value != MULLE_CONCURRENT_NO_POINTER && value != MULLE_CONCURRENT_INVALID_POINTER);
+   assert_hash_value( hash, value);
    
 retry:
    p = _mulle_atomic_pointer_read( &map->storage.pointer);
@@ -556,11 +560,29 @@ retry:
 }
 
 
+int  mulle_concurrent_hashmap_insert( struct mulle_concurrent_hashmap *map,
+                                      intptr_t hash,
+                                      void *value)
+{
+   if( ! map)
+      return( EINVAL);
+   if( hash == MULLE_CONCURRENT_NO_HASH)
+      return( EINVAL);
+   if( value == MULLE_CONCURRENT_NO_POINTER || value == MULLE_CONCURRENT_INVALID_POINTER)
+      return( EINVAL);
+
+   return( _mulle_concurrent_hashmap_insert( map, hash, value));
+}
+
+
+
 int  _mulle_concurrent_hashmap_remove( struct mulle_concurrent_hashmap *map,
                                        intptr_t hash,
                                        void *value)
 {
    struct _mulle_concurrent_hashmapstorage   *p;
+   
+   assert_hash_value( hash, value);
    
 retry:
    p = _mulle_atomic_pointer_read( &map->storage.pointer);
@@ -578,6 +600,20 @@ retry:
 }
 
 
+int  mulle_concurrent_hashmap_remove( struct mulle_concurrent_hashmap *map,
+                                      intptr_t hash,
+                                      void *value)
+{
+   if( ! map)
+      return( EINVAL);
+   if( hash == MULLE_CONCURRENT_NO_HASH)
+      return( EINVAL);
+   if( value == MULLE_CONCURRENT_NO_POINTER || value == MULLE_CONCURRENT_INVALID_POINTER)
+      return( EINVAL);
+
+   return( _mulle_concurrent_hashmap_remove( map, hash, value));
+}
+
 
 #pragma mark -
 #pragma mark not so concurrent enumerator
@@ -592,7 +628,7 @@ int  _mulle_concurrent_hashmapenumerator_next( struct mulle_concurrent_hashmapen
    
    rval = _mulle_concurrent_hashmap_search_next( rover->map, &rover->mask, &rover->index, &hash, &value);
    
-   if( rval <= 0)
+   if( rval != 1)
       return( rval);
    
    if( p_hash)
@@ -623,17 +659,20 @@ retry:
    for(;;)
    {
       rval = _mulle_concurrent_hashmapenumerator_next( &rover, NULL, NULL);
+      if( rval == 1)
+      {
+         ++count;
+         continue;
+      }
+
       if( ! rval)
          break;
-      if( rval < 0)
-      {
-         _mulle_concurrent_hashmapenumerator_done( &rover);
-         goto retry;
-      }
-      ++count;
+   
+      mulle_concurrent_hashmapenumerator_done( &rover);
+      goto retry;
    }
    
-   _mulle_concurrent_hashmapenumerator_done( &rover);
+   mulle_concurrent_hashmapenumerator_done( &rover);
    return( count);
 }
 
@@ -647,7 +686,7 @@ void  *mulle_concurrent_hashmap_lookup_any( struct mulle_concurrent_hashmap *map
    
    rover = mulle_concurrent_hashmap_enumerate( map);
    _mulle_concurrent_hashmapenumerator_next( &rover, NULL, &any);
-   _mulle_concurrent_hashmapenumerator_done( &rover);
+   mulle_concurrent_hashmapenumerator_done( &rover);
    
    return( any);
 }
