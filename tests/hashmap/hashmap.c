@@ -3,7 +3,9 @@
 //  mulle_concurrent_hashmap
 //
 //  Created by Nat! on 04.03.16.
-//  Copyright © 2016 Mulle kybernetiK. All rights reserved.
+//  Copyright © 2016 Nat! for Mulle kybernetiK.
+//  Copyright © 2016 Codeon GmbH.
+//  All rights reserved.
 //
 //  Redistribution and use in source and binary forms, with or without
 //  modification, are permitted provided that the following conditions are met:
@@ -48,10 +50,9 @@ static void  insert_something( struct mulle_concurrent_hashmap *map)
    void       *value;
    int        rval;
 
-   hash = rand() << 1;  // no uneven ids
-   value    = (void *) (hash * 10);
-
-   rval = _mulle_concurrent_hashmap_insert( map, hash, value);
+   hash  = rand() << 1;  // no uneven ids
+   value = (void *) (hash * 10);
+   rval  = _mulle_concurrent_hashmap_insert( map, hash, value);
 
    switch( rval)
    {
@@ -72,10 +73,9 @@ static void  delete_something( struct mulle_concurrent_hashmap *map)
    void      *value;
    int       rval;
 
-   hash = rand() << 1;  // no uneven ids
-   value    = (void *) (hash * 10);
-
-   rval = _mulle_concurrent_hashmap_remove( map, hash, value);
+   hash  = rand() << 1;  // no uneven ids
+   value = (void *) (hash * 10);
+   rval  = _mulle_concurrent_hashmap_remove( map, hash, value);
    if( rval == ENOMEM)
    {
       perror( "mulle_concurrent_hashmap_remove");
@@ -89,8 +89,8 @@ static void  lookup_something( struct mulle_concurrent_hashmap *map)
    intptr_t   hash;
    void      *value;
 
-   hash = rand();
-   value    = _mulle_concurrent_hashmap_lookup( map, hash);
+   hash  = rand();
+   value = _mulle_concurrent_hashmap_lookup( map, hash);
    if( ! value)
       return;
    assert( ! (hash & 0x1));
@@ -101,24 +101,25 @@ static void  lookup_something( struct mulle_concurrent_hashmap *map)
 static void  enumerate_something( struct mulle_concurrent_hashmap *map)
 {
    struct mulle_concurrent_hashmapenumerator   rover;
-   intptr_t                                     hash;
+   intptr_t                                    hash;
    void                                        *value;
    int                                         rval;
 
 retry:
    rover = mulle_concurrent_hashmap_enumerate( map);
-   for(;;)
+   while( (rval = _mulle_concurrent_hashmapenumerator_next( &rover, &hash, &value)) == 1)
    {
-      rval = _mulle_concurrent_hashmapenumerator_next( &rover, &hash, &value);
-      if( ! rval)
-         break;
-      if( rval < 0)
+      assert( ! (hash & 0x1));
+      if( value != (void *) (hash * 10))
       {
-         _mulle_concurrent_hashmapenumerator_done( &rover);
-         goto retry;
+         fprintf( stderr, "expected %p, got %p\n", (void *) (hash * 10), value);
+         exit( 1);
       }
    }
-   _mulle_concurrent_hashmapenumerator_done( &rover);
+   mulle_concurrent_hashmapenumerator_done( &rover);
+
+   if( rval == EBUSY)
+      goto retry;
 }
 
 
@@ -131,7 +132,7 @@ static void  tester( struct mulle_concurrent_hashmap *map)
 
    mulle_aba_register();
 
-   while( _mulle_concurrent_hashmap_get_size( map) < 1024 * 1024)
+   while( mulle_concurrent_hashmap_get_size( map) < 1024 * 1024)
    {
       todo = rand() % 1000;
       if( todo == 1)   // 1 % chance of enumerate
@@ -169,9 +170,10 @@ static void  multi_threaded_test( unsigned int n_threads)
    assert( n_threads <= 32);
 
    mulle_aba_init( &mulle_test_allocator);
-   mulle_allocator_set_aba( &mulle_test_allocator, mulle_aba_get_global(), (void *) _mulle_aba_free);
+   mulle_allocator_set_aba( &mulle_test_allocator, mulle_aba_get_global(), (void (*)()) _mulle_aba_free);
+   mulle_aba_register();
 
-   _mulle_concurrent_hashmap_init( &map, 0, &mulle_test_allocator);
+   mulle_concurrent_hashmap_init( &map, 0, &mulle_test_allocator);
 
    {
       for( i = 0; i < n_threads; i++)
@@ -187,10 +189,9 @@ static void  multi_threaded_test( unsigned int n_threads)
          mulle_thread_join( threads[ i]);
    }
 
-   mulle_aba_register();
-   _mulle_concurrent_hashmap_done( &map);
-   mulle_aba_unregister();
+   mulle_concurrent_hashmap_done( &map);
 
+   mulle_aba_unregister();
    mulle_allocator_set_aba( &mulle_test_allocator, NULL, NULL);
    mulle_aba_done();
 }
@@ -205,61 +206,57 @@ static void  single_threaded_test( void)
    void                                        *value;
 
    mulle_aba_init( &mulle_test_allocator);
-
-   mulle_allocator_set_aba( &mulle_test_allocator,  mulle_aba_get_global(), (void *) _mulle_aba_free);
-
+   mulle_allocator_set_aba( &mulle_test_allocator, mulle_aba_get_global(), (void (*)()) _mulle_aba_free);
    mulle_aba_register();
 
-   _mulle_concurrent_hashmap_init( &map, 0, &mulle_test_allocator);
+   mulle_concurrent_hashmap_init( &map, 0, &mulle_test_allocator);
    {
       for( i = 1; i <= 100; i++)
       {
          hash = i;
          value    = (void *) (i * 10);
-         if( _mulle_concurrent_hashmap_insert( &map, hash, value))
+         if( mulle_concurrent_hashmap_insert( &map, hash, value))
          {
             perror( "mulle_concurrent_hashmap_insert");
             abort();
          }
-         assert( _mulle_concurrent_hashmap_lookup( &map, i) == (void *) (i * 10));
+         assert( mulle_concurrent_hashmap_lookup( &map, i) == (void *) (i * 10));
       }
 
       for( i = 1; i <= 100; i++)
-         assert( _mulle_concurrent_hashmap_lookup( &map, i) == (void *) (i * 10));
+         assert( mulle_concurrent_hashmap_lookup( &map, i) == (void *) (i * 10));
 
-      assert( ! _mulle_concurrent_hashmap_lookup( &map, 101));
+      assert( ! mulle_concurrent_hashmap_lookup( &map, 101));
 
       i = 0;
       rover = mulle_concurrent_hashmap_enumerate( &map);
-      while( _mulle_concurrent_hashmapenumerator_next( &rover, &hash, &value) == 1)
+      while( mulle_concurrent_hashmapenumerator_next( &rover, &hash, &value) == 1)
       {
          assert( value == (void *) (hash * 10));
          ++i;
          assert( i <= 100);
       }
-      _mulle_concurrent_hashmapenumerator_done( &rover);
+      mulle_concurrent_hashmapenumerator_done( &rover);
       assert( i == 100);
 
-      _mulle_concurrent_hashmap_remove( &map, 50, (void *) (50 * 10));
-      assert( _mulle_concurrent_hashmap_lookup( &map, 50) == NULL);
+      mulle_concurrent_hashmap_remove( &map, 50, (void *) (50 * 10));
+      assert( mulle_concurrent_hashmap_lookup( &map, 50) == NULL);
 
       i = 0;
       rover = mulle_concurrent_hashmap_enumerate( &map);
-      while( _mulle_concurrent_hashmapenumerator_next( &rover, &hash, &value) == 1)
+      while( mulle_concurrent_hashmapenumerator_next( &rover, &hash, &value) == 1)
       {
          assert( value == (void *) (hash * 10));
          ++i;
          assert( i <= 99);
       }
-      _mulle_concurrent_hashmapenumerator_done( &rover);
+      mulle_concurrent_hashmapenumerator_done( &rover);
       assert( i == 99);
    }
-   _mulle_concurrent_hashmap_done( &map);
+   mulle_concurrent_hashmap_done( &map);
 
    mulle_aba_unregister();
-
    mulle_allocator_set_aba( &mulle_test_allocator, NULL, NULL);
-
    mulle_aba_done();
 }
 

@@ -1,3 +1,8 @@
-https://www.mulle-kybernetik.com/repositories/mulle-tests;tests/mulle-tests;${MULLE_TESTS_BRANCH:-release}
-https://www.mulle-kybernetik.com/repositories/mulle-homebrew;bin/mulle-homebrew;${MULLE_HOMEBREW_BRANCH:-release}
-https://www.mulle-kybernetik.com/repositories/mulle-configuration;;${MULLE_CONFIGURATION_BRANCH:-release}
+#
+# MULLE_REPOSITORIES is defined in mulle-bootstrap 2.3
+# overide the branches with e.g.
+# `echo "master" > .bootstrap.local/MULLE_TESTS_BRANCH`
+
+${MULLE_REPOSITORIES}mulle-tests;tests/mulle-tests;${MULLE_TESTS_BRANCH:-release}
+${MULLE_REPOSITORIES}mulle-homebrew;bin/mulle-homebrew;${MULLE_HOMEBREW_BRANCH:-release}
+${MULLE_REPOSITORIES}mulle-configuration;;${MULLE_CONFIGURATION_BRANCH:-release}

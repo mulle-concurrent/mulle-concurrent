@@ -50,7 +50,7 @@ static void  insert_something( struct mulle_concurrent_pointerarray *map)
       value = (void *) (rand() << 1); // no uneven pointer values
    while( ! value);
 
-   rval = _mulle_concurrent_pointerarray_add( map, value);
+   rval = mulle_concurrent_pointerarray_add( map, value);
 
    switch( rval)
    {
@@ -76,7 +76,7 @@ static void  lookup_something( struct mulle_concurrent_pointerarray *map)
       return;
 
    i     = rand() % n;
-   value = _mulle_concurrent_pointerarray_get( map, i);
+   value = mulle_concurrent_pointerarray_get( map, i);
    assert( value);
    assert( ! ((uintptr_t) value & 0x1));
 }
@@ -88,20 +88,11 @@ static void  enumerate_something( struct mulle_concurrent_pointerarray *map)
    void                                             *value;
    int                                              rval;
 
-retry:
    rover = mulle_concurrent_pointerarray_enumerate( map);
-   for(;;)
+   while( value = mulle_concurrent_pointerarrayenumerator_next( &rover))
    {
-      rval = _mulle_concurrent_pointerarrayenumerator_next( &rover, &value);
-      if( ! rval)
-         break;
-      if( rval == -1)
-      {
-         _mulle_concurrent_pointerarrayenumerator_done( &rover);
-         goto retry;
-      }
    }
-   _mulle_concurrent_pointerarrayenumerator_done( &rover);
+   mulle_concurrent_pointerarrayenumerator_done( &rover);
 }
 
 
@@ -114,7 +105,7 @@ static void  tester( struct mulle_concurrent_pointerarray *map)
 
    mulle_aba_register();
 
-   while( _mulle_concurrent_pointerarray_get_size( map) < 1024 * 1024)
+   while( mulle_concurrent_pointerarray_get_size( map) < 1024 * 1024)
    {
       todo = rand() % 1000;
       if( todo == 1)   // 1 % chance of enumerate
@@ -146,14 +137,15 @@ static void  multi_threaded_test( unsigned int n_threads)
    assert( n_threads <= 32);
 
    mulle_aba_init( &mulle_test_allocator);
-   mulle_allocator_set_aba( &mulle_test_allocator, mulle_aba_get_global(), (void *) _mulle_aba_free);
+   mulle_allocator_set_aba( &mulle_test_allocator, mulle_aba_get_global(), (void (*)()) _mulle_aba_free);
+   mulle_aba_register();
 
-   _mulle_concurrent_pointerarray_init( &map, 0, &mulle_test_allocator);
+   mulle_concurrent_pointerarray_init( &map, 0, &mulle_test_allocator);
 
    {
       for( i = 0; i < n_threads; i++)
       {
-         if( mulle_thread_create( (void *) tester, &map, &threads[ i]))
+         if( mulle_thread_create( (void (*)()) tester, &map, &threads[ i]))
          {
             perror( "mulle_thread_create");
             abort();
@@ -164,12 +156,10 @@ static void  multi_threaded_test( unsigned int n_threads)
          mulle_thread_join( threads[ i]);
    }
 
-   mulle_aba_register();
-   _mulle_concurrent_pointerarray_done( &map);
+   mulle_concurrent_pointerarray_done( &map);
+
    mulle_aba_unregister();
-
    mulle_allocator_set_aba( &mulle_test_allocator, NULL, NULL);
-
    mulle_aba_done();
 }
 
@@ -182,12 +172,10 @@ static void  single_threaded_test( void)
    void                                             *value;
 
    mulle_aba_init( &mulle_test_allocator);
-
-   mulle_allocator_set_aba( &mulle_test_allocator,  mulle_aba_get_global(), (void *) _mulle_aba_free);
-
+   mulle_allocator_set_aba( &mulle_test_allocator, mulle_aba_get_global(), (void (*)()) _mulle_aba_free);
    mulle_aba_register();
 
-   _mulle_concurrent_pointerarray_init( &map, 0, &mulle_test_allocator);
+   mulle_concurrent_pointerarray_init( &map, 0, &mulle_test_allocator);
    {
       for( i = 1; i <= 100; i++)
       {
@@ -197,29 +185,27 @@ static void  single_threaded_test( void)
             perror( "_mulle_concurrent_pointerarray_add");
             abort();
          }
-         assert( _mulle_concurrent_pointerarray_get( &map, i - 1) == (void *) (i * 10));
+         assert( mulle_concurrent_pointerarray_get( &map, i - 1) == (void *) (i * 10));
       }
 
       for( i = 1; i <= 100; i++)
-         assert( _mulle_concurrent_pointerarray_get( &map, i - 1) == (void *) (i * 10));
+         assert( mulle_concurrent_pointerarray_get( &map, i - 1) == (void *) (i * 10));
 
       i = 1;
       rover = mulle_concurrent_pointerarray_enumerate( &map);
-      while( _mulle_concurrent_pointerarrayenumerator_next( &rover, &value) == 1)
+      while( value = mulle_concurrent_pointerarrayenumerator_next( &rover))
       {
          assert( value == (void *) (i * 10));
          ++i;
          assert( i <= 101);
       }
-      _mulle_concurrent_pointerarrayenumerator_done( &rover);
+      mulle_concurrent_pointerarrayenumerator_done( &rover);
       assert( i == 101);
    }
-   _mulle_concurrent_pointerarray_done( &map);
+   mulle_concurrent_pointerarray_done( &map);
 
    mulle_aba_unregister();
-
    mulle_allocator_set_aba( &mulle_test_allocator, NULL, NULL);
-
    mulle_aba_done();
 }
 

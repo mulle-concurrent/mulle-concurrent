@@ -1,5 +1,11 @@
 #include <mulle_concurrent/mulle_concurrent.h>
 
+#include <mulle_test_allocator/mulle_test_allocator.h>
+#include <mulle_aba/mulle_aba.h>
+#include <assert.h>
+#include <stdlib.h>
+#include <errno.h>
+
 
 static void   test( void)
 {
@@ -9,34 +15,37 @@ static void   test( void)
    unsigned int                                i;
    void                                        *value;
 
-   _mulle_concurrent_hashmap_init( &map, 0, NULL);
+   mulle_concurrent_hashmap_init( &map, 0, NULL);
    {
-      _mulle_concurrent_hashmap_insert( &map, 100000, (void *) 0x1848);
-      value =  _mulle_concurrent_hashmap_lookup( &map, 100000);
+      mulle_concurrent_hashmap_insert( &map, 100000, (void *) 0x1848);
+      value =  mulle_concurrent_hashmap_lookup( &map, 100000);
       printf( "%p\n", value);
 
-      value =  _mulle_concurrent_hashmap_lookup( &map, 123456);
+      value =  mulle_concurrent_hashmap_lookup( &map, 123456);
       printf( "%s\n", value == (void *) 0x1848 ? "unexpected" : "expected");
 
 
       rover = mulle_concurrent_hashmap_enumerate( &map);
-      while( _mulle_concurrent_hashmapenumerator_next( &rover, &hash, &value) == 1)
+      while( mulle_concurrent_hashmapenumerator_next( &rover, &hash, &value) == 1)
       {
          printf( "%ld %p\n", hash, value);
       }
-      _mulle_concurrent_hashmapenumerator_done( &rover);
+      mulle_concurrent_hashmapenumerator_done( &rover);
 
-      _mulle_concurrent_hashmap_remove( &map, 100000, (void *) 0x1848);
+      mulle_concurrent_hashmap_remove( &map, 100000, (void *) 0x1848);
 
       value = _mulle_concurrent_hashmap_lookup( &map, 100000);
       printf( "%s\n", value == (void *) 0x1848 ? "unexpected" : "expected");
    }
-   _mulle_concurrent_hashmap_done( &map);
+   mulle_concurrent_hashmap_done( &map);
 }
 
 
 int   main( void)
 {
+   mulle_test_allocator_initialize();
+   mulle_default_allocator = mulle_test_allocator;
+
    mulle_aba_init( NULL);
    mulle_aba_register();
 
@@ -44,6 +53,8 @@ int   main( void)
 
    mulle_aba_unregister();
    mulle_aba_done();
+
+   mulle_test_allocator_reset();
 
    return( 0);
 }
