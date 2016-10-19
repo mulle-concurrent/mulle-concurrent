@@ -1,16 +1,19 @@
 # `mulle_concurrent_hashmap`
 
 `mulle_concurrent_hashmap` is a mutable map of pointers, indexed by a hash.
-Such a hashmap is extremely volatile when shared by multiple threads, that are
-inserting and removing entries. As an example: when you get the number of elements
-of a such a map it is just a fleeting glimpse of it at a now fairly distant point
-in time.
+What is it good for ?  It's good for a table, that needs to be accessed quickly
+and often by multiple threads. Rule of thumb, if your process is spending a lot
+of time locking and unlocking a central hashtable, you
+want `mulle_concurrent_hashmap`.
+
+Such a hashmap is extremely volatile when shared with multiple threads, that are
+inserting and removing entries. For example, when you get the number of elements
+of a such a hashmap it is akin to a fleeting glimpse of a distant past.
 
 The following operations should be executed in single-threaded fashion:
 
 * `mulle_concurrent_hashmap_init`
 * `mulle_concurrent_hashmap_done`
-* `mulle_concurrent_hashmap_get_size`
 
 The following operations are fine in multi-threaded environments:
 
@@ -26,6 +29,7 @@ approached with caution:
 * `mulle_concurrent_hashmapenumerator_done`
 * `mulle_concurrent_hashmap_lookup_any`
 * `mulle_concurrent_hashmap_count`
+* `mulle_concurrent_hashmap_get_size`
 
 
 ## single-threaded
@@ -44,9 +48,10 @@ used to allocate and free memory during the lifetime of `map`.  You can pass in
 for `allocator` to use the default. Call this in single-threaded fashion.
 
 Return Values:
-   0      : OK
-   EINVAL : invalid argument
-   ENOMEM : out of memory
+
+*   0      : OK
+*   EINVAL : invalid argument
+*   ENOMEM : out of memory
 
 
 ### `void  mulle_concurrent_hashmap_done`
@@ -92,9 +97,10 @@ not get dereferenced by the hashmap.
 
 
 Return Values:
-   0      : OK
-   EEXIST : duplicate
-   ENOMEM : out of memory
+
+*   0      : OK
+*   EEXIST : duplicate
+*   ENOMEM : out of memory
 
 
 ### `mulle_concurrent_hashmap_remove`
@@ -125,8 +131,9 @@ void   *mulle_concurrent_hashmap_lookup( struct mulle_concurrent_hashmap *map,
 Looks up a value by its hash.
 
 Return Values:
-   NULL  : not found
-   otherwise the value for this hash
+
+*   NULL  : not found
+*   otherwise the value for this hash
 
 ---
 
@@ -134,12 +141,11 @@ Return Values:
 ### `mulle_concurrent_hashmap_get_size`
 
 ```
-unsigned int   mulle_concurrent_hashmap_get_count( struct mulle_concurrent_hashmap *map);
+unsigned int   mulle_concurrent_hashmap_get_size( struct mulle_concurrent_hashmap *map);
 ```
 
-This gives you the current number of hash/value entries of `map`. The returned
-number is close to meaningless, when the map is accessed in multi-threaded
-fashion.
+This gives you the current capacity of hash/value entries of `map`. The returned
+number maybe not as meaningful as one might think, if the map is accessed in multi-threaded fashion.
 
 
 # `mulle_concurrent_hashmapenumerator`
@@ -161,13 +167,18 @@ Here is a simple usage example:
    struct mulle_concurrent_hashmapenumerator   rover;
    intptr_t                                    hash;
    void                                        *value;
+   int                                         rval;
 
+retry:
    rover = mulle_concurrent_hashmap_enumerate( map);
-   while( mulle_concurrent_hashmapenumerator_next( &rover, &hash, &value) == 1)
+   while( (rval = mulle_concurrent_hashmapenumerator_next( &rover, &hash, &value) == 1))
    {
       printf( "%ld %p\n", hash, value);
    }
    mulle_concurrent_hashmapenumerator_done( &rover);
+
+   if( rval == EBUSY)
+      goto retry;  // restart from the beginning
 ```
 
 ### `mulle_concurrent_hashmapenumerator_next`
@@ -181,10 +192,11 @@ int  mulle_concurrent_hashmapenumerator_next( struct mulle_concurrent_hashmapenu
 Get the next `hash`, `value` pair from the enumerator.
 
 Return Values:
-   1          : OK
-   0          : nothing left
-   ECANCELLED : hashtable was mutated
-   ENOMEM     : out of memory
+
+*   1          : OK
+*   0          : nothing left
+*   ECANCELLED : hashtable was mutated
+*   ENOMEM     : out of memory
 
 
 ### `mulle_concurrent_hashmapenumerator_done`

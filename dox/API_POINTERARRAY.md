@@ -1,9 +1,9 @@
-# `mulle_concurrent_pointerlist`
+# `mulle_concurrent_pointerarray`
 
-`mulle_concurrent_pointerlist` is a mutable array of pointers that can only
+`mulle_concurrent_pointerarray` is a mutable array of pointers that can only
 grow. Such an array can be shared with multiple threads, that can access the
-array without locking. It's limitations are it's strength, as it makes its
-handling very simple.
+array without locking. Its limitations are its strength, as it makes the
+API very simple and safe.
 
 
 The following operations should be executed in single-threaded fashion:
@@ -15,10 +15,6 @@ The following operations are fine in multi-threaded environments:
 
 * `mulle_concurrent_pointerarray_add`
 * `mulle_concurrent_pointerarray_get`
-
-The following operations work in multi-threaded environments,
-but should be approached with caution:
-
 * `mulle_concurrent_pointerarray_enumerate`
 * `mulle_concurrent_pointerarrayenumerator_next`
 * `mulle_concurrent_pointerarrayenumerator_done`
@@ -74,9 +70,10 @@ not get dereferenced by the pointerarray.
 
 
 Return Values:
-   0      : OK
-   EINVAL : invalid argument
-   ENOMEM : out of memory
+
+*   0      : OK
+*   EINVAL : invalid argument
+*   ENOMEM : out of memory
 
 
 ### `mulle_concurrent_pointerarray_get`
@@ -89,8 +86,8 @@ void   *mulle_concurrent_pointerarray_get( struct mulle_concurrent_pointerarray 
 Get value at `index` of array.
 
 Return Values:
-   NULL  : not found (invalid argument)
-   otherwise the value
+*   NULL  : not found (invalid argument)
+*   otherwise the value
 
 
 ### `mulle_concurrent_pointerarray_get_size`
@@ -121,7 +118,7 @@ grow this value is useful, but maybe already outdated.
 struct mulle_concurrent_pointerarrayenumerator  mulle_concurrent_pointerarray_enumerate( struct mulle_concurrent_pointerarray *array)
 ```
 
-Enumerate a pointerarray. This works reliably even in multi-threaded
+Enumerate a pointerarray (0 to n-1). This works reliably even in multi-threaded
 environments. The enumerator itself should not be shared with other
 threads though.
 
@@ -150,8 +147,8 @@ void   *mulle_concurrent_pointerarrayenumerator_next( struct mulle_concurrent_po
 Get the next value from the enumerator.
 
 Return Values:
-   NULL  : nothing left
-   otherwis the value
+*   NULL  : nothing left
+*   otherwise the value
 
 
 ### `mulle_concurrent_pointerarrayenumerator_done`
@@ -164,4 +161,39 @@ Mark the end of the enumerator lifetime. It's a mere conventional function.
 It may be left out.
 
 
+## `mulle_concurrent_pointerarrayreverseenumerator`
+
+
+### `mulle_concurrent_pointerarray_reverseenumerate`
+
+```
+struct mulle_concurrent_pointerarrayreverseenumerator  mulle_concurrent_pointerarray_reverseenumerate( struct mulle_concurrent_pointerarray *array)
+```
+
+Reverse enumerate a pointerarray (n-1 to 0). This works reliably even
+in multi-threaded environments. The enumerator itself should not be shared
+with other threads though.
+
+
+### `mulle_concurrent_pointerarrayreverseenumerator_next`
+
+```
+void   *mulle_concurrent_pointerarrayreverseenumerator_next( struct mulle_concurrent_pointerarrayreverseenumerator *rover)
+```
+
+Get the next value from the enumerator.
+
+Return Values:
+*   NULL  : nothing left
+*   otherwise the value
+
+
+### `mulle_concurrent_pointerarrayreverseenumerator_done`
+
+```
+void   mulle_concurrent_pointerarrayreverseenumerator_done( struct mulle_concurrent_pointerarrayreverseenumerator *rover)
+```
+
+Mark the end of the enumerator lifetime. It's a mere conventional function.
+It may be left out.
 
