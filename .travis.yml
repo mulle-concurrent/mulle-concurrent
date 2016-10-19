@@ -1,0 +1,28 @@
+language: c
+
+dist: precise
+sudo: required
+
+addons:
+  apt:
+    sources:
+      - george-edison55-precise-backports # cmake 3.2.3 / doxygen 1.8.3
+    packages:
+      - cmake
+      - cmake-data
+
+before_install:
+   - sudo mkdir -p /home/linuxbrew
+   - sudo chown "$USER" /home/linuxbrew
+   - cd /home/linuxbrew
+   - HOME=/home/linuxbrew
+   - git clone https://github.com/Linuxbrew/brew.git ~/.linuxbrew
+   - PATH="$HOME/.linuxbrew/bin:$PATH"
+   - brew update
+   - brew tap mulle-kybernetik/software
+   - brew install mulle-build
+
+
+script:
+   - mulle-build
+   - mulle-test
