@@ -1,7 +1,8 @@
-1.0.1-1.0.3
+1.0.1-1.0.4
 ===
 
 * fix packaging
+* improve documentation
 
 
 # v1.0
