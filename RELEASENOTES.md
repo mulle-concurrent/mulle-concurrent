@@ -1,3 +1,9 @@
+1.0.1
+===
+
+* fix packaging
+
+
 # v1.0
 
 * renamed `_mulle_concurrent_hashmap_lookup_any` to `mulle_concurrent_hashmap_lookup_any` since its safe to pass NULL.
@@ -12,7 +18,7 @@ since it's safe to pass NULL and it's not a get operation.'
 
 * changed internal representation of mask from unsigned int to uintptr_t,
   because it's easier to read by the debugger
-  
+
 # v0.4
 
 * does not use `errno` directly anymore, but instead returns the errno codes
