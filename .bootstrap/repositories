@@ -1,5 +1,4 @@
 #
-# MULLE_REPOSITORIES is defined in mulle-bootstrap 2.3
 # overide the branches with e.g.
 # `echo "master" > .bootstrap.local/MULLE_THREAD_BRANCH`
 
