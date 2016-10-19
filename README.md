@@ -1,8 +1,15 @@
 # mulle-concurrent
 
+Release on [github](//github.com/mulle-nat/mulle-concurrent): [![Build Status](https://travis-ci.org/mulle-nat/mulle-concurrent.svg?branch=release)](https://travis-ci.org/mulle-nat/mulle-concurrent)
+
+
 **mulle-concurrent** is a library for wait-free data structures. Wait-freeness
 is a desirable property for "hotly" contested data structures in multi-threaded
 environments.
+
+> Many of the ideas are taken from [Preshing on Programming: A Resizable, Concurrent Map](http://preshing.com/20160222/a-resizable-concurrent-map/).
+> The definition of concurrent and wait-free are from [concurrencyfreaks.blogspot.de](http://concurrencyfreaks.blogspot.de/2013/05/lock-free-and-wait-free-definition-and.html)
+
 
 
 ## Data structures
@@ -13,9 +20,6 @@ Name                            | Description                            | Examp
 `mulle_concurrent_pointerarray` | A growing array of pointers            | [Example](tests/array/example.c)
 
 
-
-> Most of the ideas are taken from [Preshing on Programming](http://preshing.com/20160222/a-resizable-concurrent-map/).
-> The definition of concurrent and wait-free are from [concurrencyfreaks.blogspot.de](http://concurrencyfreaks.blogspot.de/2013/05/lock-free-and-wait-free-definition-and.html)
 
 
 ## Install
