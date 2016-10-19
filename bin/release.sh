@@ -1,7 +1,7 @@
 #! /bin/sh
 
 PROJECT="MulleConcurrent"    # requires camel-case
-DESC="Wait-free datastuctures (Array/Hashtable) in C"
+DESC="Lock- and Wait-free Hashtable (and an Array/ too) in C"
 DEPENDENCIES="mulle-c11
 mulle-allocator
 mulle-aba
