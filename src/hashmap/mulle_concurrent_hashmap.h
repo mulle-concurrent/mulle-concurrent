@@ -111,7 +111,7 @@ static inline unsigned int  mulle_concurrent_hashmap_get_size( struct mulle_conc
 //   ENOMEM : must be out of memory
 //
 // Do not use hash=0
-// Do not use value=0 or value=INTPTR_MAX
+// Do not use value=0 or value=INTPTR_MIN
 //
 int   mulle_concurrent_hashmap_insert( struct mulle_concurrent_hashmap *map,
                                        intptr_t hash,

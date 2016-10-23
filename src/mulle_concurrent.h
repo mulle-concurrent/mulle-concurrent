@@ -35,7 +35,7 @@
 #define mulle_concurrent_h__
 
 
-#define MULLE_CONCURRENT_VERSION  ((1 << 20) | (0 << 8) | 4)
+#define MULLE_CONCURRENT_VERSION  ((1 << 20) | (0 << 8) | 5)
 
 #include <mulle_thread/mulle_thread.h>
 #include <mulle_allocator/mulle_allocator.h>
