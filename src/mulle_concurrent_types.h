@@ -44,7 +44,7 @@
 //
 #define MULLE_CONCURRENT_NO_HASH           0
 
-#define MULLE_CONCURRENT_INVALID_POINTER   ((void *) INTPTR_MAX)
+#define MULLE_CONCURRENT_INVALID_POINTER   ((void *) INTPTR_MIN)
 #define MULLE_CONCURRENT_NO_POINTER        ((void *) 0)
 
 #endif /* mulle_concurrent_types_h */

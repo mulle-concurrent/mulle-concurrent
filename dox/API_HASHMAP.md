@@ -25,8 +25,6 @@ The following operations work in multi-threaded environments, but should be
 approached with caution:
 
 * `mulle_concurrent_hashmap_enumerate`
-* `mulle_concurrent_hashmapenumerator_next`
-* `mulle_concurrent_hashmapenumerator_done`
 * `mulle_concurrent_hashmap_lookup_any`
 * `mulle_concurrent_hashmap_count`
 * `mulle_concurrent_hashmap_get_size`
@@ -92,7 +90,7 @@ static inline uint64_t   mulle_hash_avalanche64(uint64_t h)
 }
 ```
 
-`value` can be any `void *` except `NULL` or `(void *) INTPTR_MAX`.  It will
+`value` can be any `void *` except `NULL` or `(void *) INTPTR_MIN`.  It will
 not get dereferenced by the hashmap.
 
 
@@ -107,8 +105,8 @@ Return Values:
 
 ```
 int  mulle_concurrent_hashmap_remove( struct mulle_concurrent_hashmap *map,
-                                       intptr_t hash,
-                                       void *value)
+                                      intptr_t hash,
+                                      void *value)
 ```
 
 Remove a `hash`, `value` pair. Read the description of
@@ -135,6 +133,16 @@ Return Values:
 *   NULL  : not found
 *   otherwise the value for this hash
 
+
+### `mulle_concurrent_hashmap_enumerate`
+
+```
+struct mulle_concurrent_hashmapenumerator  mulle_concurrent_hashmap_enumerate( struct mulle_concurrent_hashmap *map)
+```
+
+Enumerate a hashtable. See `mulle_concurrent_hashmapenumerator_next` for more details.
+It returns a `mulle_concurrent_hashmapenumerator`. This enumerator should not be jointly accessed by multiple threads.
+
 ---
 
 
@@ -150,12 +158,21 @@ number maybe not as meaningful as one might think, if the map is accessed in mul
 
 # `mulle_concurrent_hashmapenumerator`
 
+The following two functions operate on an enumerator over the possibly multi-threaded hashmap, the enumerator itself should not be accessed by multiple threads.
+
+* `mulle_concurrent_hashmapenumerator_next`
+* `mulle_concurrent_hashmapenumerator_done`
+
+
+### `mulle_concurrent_hashmapenumerator_next`
+
 ```
-struct mulle_concurrent_hashmapenumerator  mulle_concurrent_hashmap_enumerate( struct mulle_concurrent_hashmap *map)
+int  mulle_concurrent_hashmapenumerator_next( struct mulle_concurrent_hashmapenumerator *rover,
+                                               intptr_t *hash,
+                                               void **value)
 ```
 
-Enumerate a hashtable. This works reliably if `map` is accessed in
-single-threaded fashion, which it probably will NOT be. In multi-threaded
+Get the next `hash`, `value` pair from the enumerator. This works reliably if `map` is accessed in single-threaded fashion, which it probably will NOT be. In multi-threaded
 environments, the enumeration may be interrupted by mutations of the hashtable
 by other threads. The enumerator itself should not be shared with other threads.
 
@@ -177,19 +194,9 @@ retry:
    }
    mulle_concurrent_hashmapenumerator_done( &rover);
 
-   if( rval == EBUSY)
-      goto retry;  // restart from the beginning
+   if( rval == EBUSY) // interrupted!
+      goto retry;     // restart from the beginning will duplicate some
 ```
-
-### `mulle_concurrent_hashmapenumerator_next`
-
-```
-int  mulle_concurrent_hashmapenumerator_next( struct mulle_concurrent_hashmapenumerator *rover,
-                                               intptr_t *hash,
-                                               void **value)
-```
-
-Get the next `hash`, `value` pair from the enumerator.
 
 Return Values:
 
