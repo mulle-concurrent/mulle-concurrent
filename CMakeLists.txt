@@ -37,18 +37,29 @@ src/mulle_concurrent_standalone.c
 
 add_dependencies( mulle_concurrent_standalone mulle_concurrent)
 
+find_library( MULLE_ABA_LIBRARY            NAMES mulle_aba)
+find_library( MULLE_ALLOCATOR_LIBRARY      NAMES mulle_allocator)
+find_library( MULLE_TEST_ALLOCATOR_LIBRARY NAMES mulle_test_allocator)
+find_library( MULLE_THREAD_LIBRARY         NAMES mulle_thread)
+
+message(STATUS "MULLE_ABA_LIBRARY is ${MULLE_ABA_LIBRARY}")
+message(STATUS "MULLE_ALLOCATOR_LIBRARY is ${MULLE_ALLOCATOR_LIBRARY}")
+message(STATUS "MULLE_TEST_ALLOCATOR_LIBRARY is ${MULLE_TEST_ALLOCATOR_LIBRARY}")
+message(STATUS "MULLE_THREAD_LIBRARY is ${MULLE_THREAD_LIBRARY}")
+
+set( DEPENDENCY_LIBRARIES
+${MULLE_ABA_LIBRARY}
+${MULLE_ALLOCATOR_LIBRARY}
+${MULLE_TEST_ALLOCATOR_LIBRARY}
+${MULLE_THREAD_LIBRARY}
+)
+
 TARGET_LINK_LIBRARIES( mulle_concurrent_standalone
 ${BEGIN_ALL_LOAD}
 mulle_concurrent
-mulle_aba
-mulle_allocator
-mulle_test_allocator
+${DEPENDENCY_LIBRARIES}
 ${END_ALL_LOAD}
 )
 
-
-
 INSTALL( TARGETS mulle_concurrent_standalone mulle_concurrent DESTINATION "lib")
 INSTALL( FILES ${HEADERS} DESTINATION "include/mulle_concurrent")
-
-
