@@ -1,8 +1,9 @@
-1.0.1-1.0.6
+1.0.1-1.0.7
 ===
 
 * fix packaging
 * improve documentation
+* use find_library in CMakeLists.txt
 
 
 # v1.0
