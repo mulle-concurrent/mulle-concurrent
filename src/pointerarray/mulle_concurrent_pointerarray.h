@@ -70,12 +70,14 @@ static inline int  mulle_concurrent_pointerarray_init( struct mulle_concurrent_p
                                                        unsigned int size,
                                                        struct mulle_allocator *allocator)
 {
-   int  _mulle_concurrent_pointerarray_init( struct mulle_concurrent_pointerarray *array,
-                                            unsigned int size,
-                                            struct mulle_allocator *allocator);
+   void  _mulle_concurrent_pointerarray_init( struct mulle_concurrent_pointerarray *array,
+                                              unsigned int size,
+                                              struct mulle_allocator *allocator);
    if( ! array)
       return( EINVAL);
-   return( _mulle_concurrent_pointerarray_init( array, size, allocator));
+
+   _mulle_concurrent_pointerarray_init( array, size, allocator);
+   return( 0);
 }
 
 
@@ -211,7 +213,7 @@ int   mulle_concurrent_pointerarray_map( struct mulle_concurrent_pointerarray *l
 #pragma mark -
 #pragma mark various functions, no parameter checks
 
-int  _mulle_concurrent_pointerarray_init( struct mulle_concurrent_pointerarray *array,
+void  _mulle_concurrent_pointerarray_init( struct mulle_concurrent_pointerarray *array,
                                           unsigned int size,
                                           struct mulle_allocator *allocator);
 void  _mulle_concurrent_pointerarray_done( struct mulle_concurrent_pointerarray *array);
@@ -219,7 +221,7 @@ void  _mulle_concurrent_pointerarray_done( struct mulle_concurrent_pointerarray 
 unsigned int  _mulle_concurrent_pointerarray_get_size( struct mulle_concurrent_pointerarray *array);
 unsigned int  _mulle_concurrent_pointerarray_get_count( struct mulle_concurrent_pointerarray *array);
 
-int  _mulle_concurrent_pointerarray_add( struct mulle_concurrent_pointerarray *array,
+void  _mulle_concurrent_pointerarray_add( struct mulle_concurrent_pointerarray *array,
                                          void *value);
 
 void  *_mulle_concurrent_pointerarray_get( struct mulle_concurrent_pointerarray *array,

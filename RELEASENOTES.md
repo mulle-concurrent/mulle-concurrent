@@ -1,3 +1,11 @@
+1.1.0
+===
+
+* recompile because `mulle_allocator` change dramatically in layout
+* change some int returning funtions to void. Will probably redo the error
+handling here. Does this warrant a major version ? Hmm...
+
+
 1.0.1-1.0.8
 ===
 

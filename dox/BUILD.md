@@ -3,7 +3,7 @@
 
 ## What you get
 
-* `libmulle_concurrent.a` the mulle-concurrent static libraries along with a
+* `libmulle_concurrent.a` the mulle-concurrent static library along with a
 bunch of headers.
 
 
@@ -12,11 +12,13 @@ bunch of headers.
 #### mulle-aba
 
 [mulle-aba](//www.mulle-kybernetik.com/software/git/mulle-aba/) provides the
-ABA safe freeing of resources.
+ABA safe freeing of resources. Or use your own ABA free routine and place it
+in the allocator.
 
 #### mulle-allocator
 
-[mulle-allocator](//www.mulle-kybernetik.com/software/git/mulle-allocator/) contains the memory-allocation scheme, that mulle-concurrent uses.
+[mulle-allocator](//www.mulle-kybernetik.com/software/git/mulle-allocator/)
+contains the memory-allocation scheme, that mulle-concurrent uses.
 
 #### mulle-c11
 
@@ -59,7 +61,7 @@ exist in `./tests`, if you want to run tests.
 ### Windows: Installing further prerequisites
 
 Check the [mulle-build README.md](//www.mulle-kybernetik.com/software/git/mulle-build/README.md)
-for instrutions how to get the "Git for Windows" bash going.
+for instructions how to get the "Git for Windows" bash going.
 
 
 ### OSX: Install mulle-build using homebrew
