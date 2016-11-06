@@ -47,21 +47,10 @@ static void  insert_something( struct mulle_concurrent_pointerarray *map)
    int    rval;
 
    do
-      value = (void *) (rand() << 1); // no uneven pointer values
+      value = (void *) (intptr_t) (rand() << 1); // no uneven pointer values
    while( ! value);
 
-   rval = mulle_concurrent_pointerarray_add( map, value);
-
-   switch( rval)
-   {
-   default :
-      perror( "_mulle_concurrentpointerarray_add");
-      abort();
-
-   case 0 :
-   case EEXIST :
-      return;
-   }
+   mulle_concurrent_pointerarray_add( map, value);
 }
 
 
@@ -180,11 +169,7 @@ static void  single_threaded_test( void)
       for( i = 1; i <= 100; i++)
       {
          value = (void *) (i * 10);
-         if( _mulle_concurrent_pointerarray_add( &map, value))
-         {
-            perror( "_mulle_concurrent_pointerarray_add");
-            abort();
-         }
+         _mulle_concurrent_pointerarray_add( &map, value);
          assert( mulle_concurrent_pointerarray_get( &map, i - 1) == (void *) (i * 10));
       }
 
