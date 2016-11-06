@@ -78,8 +78,6 @@ static struct _mulle_concurrent_hashmapstorage *
    
    p = _mulle_allocator_calloc( allocator, 1, sizeof( struct _mulle_concurrent_hashvaluepair) * (n - 1) +
                              sizeof( struct _mulle_concurrent_hashmapstorage));
-   if( ! p)
-      return( p);
    
    p->mask = n - 1;
    
