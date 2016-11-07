@@ -1,3 +1,8 @@
+1.1.2
+===
+
+* fixes for community version
+
 1.1.1
 ===
 
