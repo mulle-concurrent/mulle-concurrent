@@ -1,6 +1,6 @@
 # mulle-concurrent
 
-[![Build Status](https://travis-ci.org/mulle-clang/mulle-concurrent.svg)](https://travis-ci.org/mulle-clang/mulle-concurrent)
+[![Build Status](https://travis-ci.org/mulle-objc/mulle-concurrent.svg)](https://travis-ci.org/mulle-objc/mulle-concurrent)
 
 **mulle-concurrent** is a library for lock- and wait-free data structures.
 Wait-freeness is a desirable property for "hotly" contested data structures
