@@ -1,7 +1,8 @@
 #! /bin/sh
 
+HOMEPAGE='https://github.com/mulle-nat/${NAME}'
 ORIGIN=public                                    # git repo to push
-REMOTEROOTDIR="mulle-nat"
+REMOTEROOTDIR="mulle-kybernetik"
 
 REMOTEHOST="https://github.com"
 REMOTEURL="${REMOTEHOST}/${REMOTEROOTDIR}"
