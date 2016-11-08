@@ -1,3 +1,8 @@
+1.1.3
+===
+
+* merge community fixes
+
 1.1.2
 ===
 
