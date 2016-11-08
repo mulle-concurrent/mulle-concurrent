@@ -2,10 +2,9 @@
 
 PROJECT="MulleConcurrent"    # requires camel-case
 DESC="Lock- and Wait-free Hashtable (and an Array too) in C"
-DEPENDENCIES='${REMOTEROOTDIR}/software/mulle-c11
-${REMOTEROOTDIR}/software/mulle-allocator
-${REMOTEROOTDIR}/software/mulle-aba
-${REMOTEROOTDIR}/software/mulle-thread'  # no camel case, will be evaled later!
+DEPENDENCIES='${DEPENDENCY_TAP}/mulle-allocator
+${DEPENDENCY_TAP}/mulle-aba
+${DEPENDENCY_TAP}/mulle-thread'  # no camel case, will be evaled later!
 LANGUAGE=c               # c,cpp, objc
 
 #

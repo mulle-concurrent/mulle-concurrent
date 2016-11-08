@@ -1,11 +1,18 @@
 #! /bin/sh
 
+# ARCHIVEURL will be evaled later! keep it in single quotes
+# where homebrew grabs the archive off
+ARCHIVEURL='https://github.com/mulle-nat/${NAME}/archive/${VERSION}.tar.gz'
+
+# written into formula for homebrew, will be evaled
 HOMEPAGE='https://github.com/mulle-nat/${NAME}'
-ORIGIN=public                                    # git repo to push
-REMOTEROOTDIR="mulle-kybernetik"
 
-REMOTEHOST="https://github.com"
-REMOTEURL="${REMOTEHOST}/${REMOTEROOTDIR}"
-ARCHIVEURL='${REMOTEURL}/${NAME}/archive/${VERSION}.tar.gz'  # ARCHIVEURL will be evaled later! keep it in single quotes
+# git remote to push to, usually origin
+ORIGIN='public'
 
+# base tap for dependencies
+DEPENDENCY_TAP='mulle-kybernetik/software'
+
+
+# keep this
 :
