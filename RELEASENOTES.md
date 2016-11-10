@@ -1,3 +1,13 @@
+1.1.4
+===
+
+* improve readme, improved packaging
+
+1.1.3
+===
+
+* merge community fixes
+
 1.1.2
 ===
 
