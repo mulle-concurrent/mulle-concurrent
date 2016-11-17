@@ -92,9 +92,9 @@ brew install mulle-build
 ### All: Install mulle-build using git
 
 ```
-git clone --branch release https://www.mulle-kybernetik.com/repositories/mulle-bootstrap
+git clone --branch release https://github.com/mulle-nat/mulle-bootstrap
 ( cd mulle-bootstrap ; ./install.sh )
-git clone --branch release https://www.mulle-kybernetik.com/repositories/mulle-build
+git clone --branch release https://github.com/mulle-nat/mulle-build
 ( cd mulle-build ; ./install.sh )
 ```
 
@@ -104,7 +104,7 @@ git clone --branch release https://www.mulle-kybernetik.com/repositories/mulle-b
 Grab the latest **mulle-concurrent** release and go into the project directory:
 
 ```
-git clone --branch release https://www.mulle-kybernetik.com/repositories/mulle-concurrent
+git clone --branch release https://github.com/mulle-objc/mulle-concurrent
 cd mulle-concurrent
 ```
 

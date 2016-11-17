@@ -1,7 +1,5 @@
 # mulle-concurrent
 
-[![Build Status](https://travis-ci.org/mulle-objc/mulle-concurrent.svg)](https://travis-ci.org/mulle-objc/mulle-concurrent)
-
 **mulle-concurrent** is a library for lock- and wait-free data structures.
 Wait-freeness is a desirable property for "hotly" contested data structures
 in multi-threaded environments.
@@ -10,13 +8,18 @@ in multi-threaded environments.
 > The definition of concurrent and wait-free are from [concurrencyfreaks.blogspot.de](http://concurrencyfreaks.blogspot.de/2013/05/lock-free-and-wait-free-definition-and.html)
 
 
+Fork      |  Build Status | Release Version
+----------|---------------|-----------------------------------
+[Mulle kybernetiK](//github.com/mulle-nat/mulle-concurrent) | [![Build Status](https://travis-ci.org/mulle-nat/mulle-concurrent.svg?branch=release)](https://travis-ci.org/mulle-nat/mulle-concurrent) | ![Mulle kybernetiK tag](https://img.shields.io/github/tag/mulle-nat/mulle-concurrent.svg) [![Build Status](https://travis-ci.org/mulle-nat/mulle-concurrent.svg?branch=release)](https://travis-ci.org/mulle-nat/mulle-concurrent)
+[Community](https://github.com/mulle-objc/mulle-concurrent/tree/release) | [![Build Status](https://travis-ci.org/mulle-objc/mulle-concurrent.svg)](https://travis-ci.org/mulle-objc/mulle-concurrent) | ![Community tag](https://img.shields.io/github/tag/mulle-objc/mulle-concurrent.svg) [![Build Status](https://travis-ci.org/mulle-objc/mulle-concurrent.svg?branch=release)](https://travis-ci.org/mulle-objc/mulle-concurrent)
+
 
 ## Data structures
 
 API                                                   | Description    | Example
 ------------------------------------------------------|----------------|---------
 [`mulle_concurrent_hashmap`](dox/API_POINTERARRAY.md) | A growing, mutable map of pointers, indexed by a hash. A.k.a. hashtable, dictionary, maptable | [Example](tests/hashmap/example.c)
-[`mulle_concurrent_pointerarray`](dox/API_HASHMAP.md) | A growing array of pointers                                                                   | [Example](tests/array/example.c)
+[`mulle_concurrent_pointerarray`](dox/API_HASHMAP.md) | A growing array of pointers                                                               | [Example](tests/array/example.c)
 
 
 ## Install
@@ -36,7 +39,7 @@ On other platforms you can use **mulle-install** from
 to install the library:
 
 ```
-mulle-install --prefix /usr/local --branch release https://www.mulle-kybernetik.com/repositories/mulle-concurrent
+mulle-install --prefix /usr/local --branch release https://github.com/mulle-objc/mulle-concurrent
 ```
 
 Otherwise read:
