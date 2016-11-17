@@ -1,4 +1,9 @@
 #! /bin/sh
+#
+# (c) 2016 Nat! for Mulle kybernetiK
+#
+# BSD3-License
+#
 
 PROJECT="MulleConcurrent"    # requires camel-case
 DESC="Lock- and Wait-free Hashtable (and an Array too) in C"
