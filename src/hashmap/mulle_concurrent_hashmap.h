@@ -94,7 +94,7 @@ static inline void  mulle_concurrent_hashmap_done( struct mulle_concurrent_hashm
 static inline unsigned int  mulle_concurrent_hashmap_get_size( struct mulle_concurrent_hashmap *map)
 {
    unsigned int  _mulle_concurrent_hashmap_get_size( struct mulle_concurrent_hashmap *map);
-   
+
    if( ! map)
       return( 0);
    return( _mulle_concurrent_hashmap_get_size( map));
@@ -164,11 +164,11 @@ struct mulle_concurrent_hashmapenumerator
 static inline struct mulle_concurrent_hashmapenumerator  mulle_concurrent_hashmap_enumerate( struct mulle_concurrent_hashmap *map)
 {
    struct mulle_concurrent_hashmapenumerator   rover;
-   
+
    rover.map   = map;
    rover.index = map ? 0 : (unsigned int) -1;
    rover.mask  = 0;
-   
+
    return( rover);
 }
 
