@@ -93,7 +93,7 @@ static inline void  mulle_concurrent_pointerarray_done( struct mulle_concurrent_
 static inline unsigned int  mulle_concurrent_pointerarray_get_size( struct mulle_concurrent_pointerarray *array)
 {
    unsigned int  _mulle_concurrent_pointerarray_get_size( struct mulle_concurrent_pointerarray *array);
-   
+
    if( ! array)
       return( 0);
    return( _mulle_concurrent_pointerarray_get_size( array));
@@ -149,10 +149,10 @@ static inline struct mulle_concurrent_pointerarrayenumerator
    mulle_concurrent_pointerarray_enumerate( struct mulle_concurrent_pointerarray *array)
 {
    struct mulle_concurrent_pointerarrayenumerator   rover;
-   
+
    rover.array = array;
    rover.index = array ? 0 : (unsigned int) -1;
-   
+
    return( rover);
 }
 
@@ -161,10 +161,10 @@ static inline struct mulle_concurrent_pointerarrayreverseenumerator
    mulle_concurrent_pointerarray_reverseenumerate( struct mulle_concurrent_pointerarray *array, unsigned int n)
 {
    struct mulle_concurrent_pointerarrayreverseenumerator   rover;
-   
+
    rover.array = array;
    rover.index = n;
-   
+
    return( rover);
 }
 
