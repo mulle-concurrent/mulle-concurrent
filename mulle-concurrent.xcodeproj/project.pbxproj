@@ -507,6 +507,7 @@
 			baseConfigurationReference = 417C02651BD8404E005A3751 /* Debug.xcconfig */;
 			buildSettings = {
 				CURRENT_PROJECT_VERSION = 0.5;
+				DEPENDENCIES_DIR = "$(PROJECT_DIR)/../dependencies";
 				GCC_WARN_PEDANTIC = YES;
 			};
 			name = Debug;
@@ -516,6 +517,7 @@
 			baseConfigurationReference = 417C02681BD8404E005A3751 /* Release.xcconfig */;
 			buildSettings = {
 				CURRENT_PROJECT_VERSION = 0.5;
+				DEPENDENCIES_DIR = "$(PROJECT_DIR)/../dependencies";
 				GCC_WARN_PEDANTIC = YES;
 			};
 			name = Release;

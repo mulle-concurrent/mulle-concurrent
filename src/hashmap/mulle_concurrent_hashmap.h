@@ -74,8 +74,8 @@ static inline int  mulle_concurrent_hashmap_init( struct mulle_concurrent_hashma
                                                   struct mulle_allocator *allocator)
 {
    int  _mulle_concurrent_hashmap_init( struct mulle_concurrent_hashmap *map,
-                                       unsigned int size,
-                                       struct mulle_allocator *allocator);
+                                        unsigned int size,
+                                        struct mulle_allocator *allocator);
    if( ! map)
       return( EINVAL);
    return( _mulle_concurrent_hashmap_init( map, size, allocator));

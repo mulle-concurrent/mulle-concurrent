@@ -1,3 +1,9 @@
+1.3.1
+===
+
+* if you init a pointerarray or hashmap with size == 0, initialization will be 
+done lazily, using a static empty storage first.
+
 1.1.5
 ===
 

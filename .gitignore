@@ -37,3 +37,5 @@ tests/hashmap/example
 tests/array/example.debug
 tests/hashmap/example.debug
 tests/hashmap/hashmap.debug
+tests/array/empty
+tests/array/empty.debug

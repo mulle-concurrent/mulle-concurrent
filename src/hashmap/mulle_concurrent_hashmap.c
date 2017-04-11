@@ -58,6 +58,18 @@ struct _mulle_concurrent_hashmapstorage
 };
 
 
+//
+// empty storage is designed, so that
+// you can make an optimistic read into entries
+//
+static const  struct _mulle_concurrent_hashmapstorage   empty_storage =
+{
+   (void *) -1,
+   0,
+   { { MULLE_CONCURRENT_NO_HASH, NULL } }
+};
+
+
 #define REDIRECT_VALUE     MULLE_CONCURRENT_INVALID_POINTER
 
 #pragma mark -
@@ -367,18 +379,16 @@ int  _mulle_concurrent_hashmap_init( struct mulle_concurrent_hashmap *map,
       allocator = &mulle_default_allocator;
 
    assert( allocator->abafree && allocator->abafree != (int (*)()) abort);
-   if( ! allocator->abafree || allocator->abafree == (int (*)()) abort)
-      return( EINVAL);
 
    map->allocator = allocator;
-   storage        = _mulle_concurrent_alloc_hashmapstorage( size, allocator);
-
-   if( ! storage)
-      return( ENOMEM);
+   if( size == 0)
+      storage = (void *) &empty_storage;
+   else
+      storage = _mulle_concurrent_alloc_hashmapstorage( size, allocator);
 
    _mulle_atomic_pointer_nonatomic_write( &map->storage.pointer, storage);
    _mulle_atomic_pointer_nonatomic_write( &map->next_storage.pointer, storage);
-
+   
    return( 0);
 }
 
@@ -395,8 +405,9 @@ void  _mulle_concurrent_hashmap_done( struct mulle_concurrent_hashmap *map)
    storage      = _mulle_atomic_pointer_nonatomic_read( &map->storage.pointer);
    next_storage = _mulle_atomic_pointer_nonatomic_read( &map->next_storage.pointer);
 
-   _mulle_allocator_abafree( map->allocator, storage);
-   if( storage != next_storage)
+   if( storage != &empty_storage)
+      _mulle_allocator_abafree( map->allocator, storage);
+   if( storage != next_storage && storage != &empty_storage)
       _mulle_allocator_abafree( map->allocator, next_storage);
 }
 
@@ -450,7 +461,7 @@ static int  _mulle_concurrent_hashmap_migrate_storage( struct mulle_concurrent_h
 
    // ok, if we succeed free old, if we fail alloced is
    // already gone. this must be an ABA free
-   if( previous == p)
+   if( previous == p && previous != &empty_storage)
       _mulle_allocator_abafree( map->allocator, previous); // ABA!!
 
    return( 0);
