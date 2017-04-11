@@ -51,6 +51,8 @@ struct _mulle_concurrent_pointerarraystorage
 };
 
 
+static const struct _mulle_concurrent_pointerarraystorage   empty_storage;
+
 //
 // the nice thing about the redirect is, that another thread that is
 // trying to add at the same time cooperates
@@ -108,6 +110,24 @@ static void   *_mulle_concurrent_pointerarraystorage_get( struct _mulle_concurre
 }
 
 
+//static void   *_mulle_concurrent_pointerarraystorage_extract( struct _mulle_concurrent_pointerarraystorage *p,
+//                                                    unsigned int i)
+//{
+//   void   *value;
+//   
+//   do
+//   {
+//      assert( i < (unsigned int) (uintptr_t) _mulle_atomic_pointer_read( &p->n));
+//      value = _mulle_atomic_pointer_read( &p->entries[ i]);
+//      if( value == MULLE_CONCURRENT_NO_POINTER)
+//         break;
+//   }
+//   while( ! _mulle_atomic_pointer_compare_and_swap( &p->entries[ i], MULLE_CONCURRENT_NO_POINTER, value));
+//   
+//   return( value);
+//}
+
+
 //
 // insert:
 //
@@ -160,7 +180,8 @@ static void   _mulle_concurrent_pointerarraystorage_copy( struct _mulle_concurre
    for( i = n; p < p_last; p++, i++)
    {
       value = _mulle_atomic_pointer_read( p);
-      if( _mulle_atomic_pointer_compare_and_swap( &dst->entries[ i], value, MULLE_CONCURRENT_NO_POINTER))
+      // value == MULLE_CONCURRENT_NO_POINTER ? because of extract
+      if( value == MULLE_CONCURRENT_NO_POINTER || _mulle_atomic_pointer_compare_and_swap( &dst->entries[ i], value, MULLE_CONCURRENT_NO_POINTER))
          _mulle_atomic_pointer_increment( &dst->n);
    }
 }
@@ -181,7 +202,10 @@ void  _mulle_concurrent_pointerarray_init( struct mulle_concurrent_pointerarray 
    assert( allocator->abafree && allocator->abafree != (int (*)()) abort);
 
    array->allocator = allocator;
-   storage          = _mulle_concurrent_alloc_pointerarraystorage( size, allocator);
+   if( size == 0)
+      storage = (void *) &empty_storage;
+   else
+      storage = _mulle_concurrent_alloc_pointerarraystorage( size, allocator);
 
    _mulle_atomic_pointer_nonatomic_write( &array->storage.pointer, storage);
    _mulle_atomic_pointer_nonatomic_write( &array->next_storage.pointer, storage);
@@ -199,8 +223,9 @@ void  _mulle_concurrent_pointerarray_done( struct mulle_concurrent_pointerarray 
    storage      = _mulle_atomic_pointer_nonatomic_read( &array->storage.pointer);
    next_storage = _mulle_atomic_pointer_nonatomic_read( &array->next_storage.pointer);
 
-   _mulle_allocator_abafree( array->allocator, storage);
-   if( storage != next_storage)
+   if( storage != &empty_storage)
+      _mulle_allocator_abafree( array->allocator, storage);
+   if( storage != next_storage && storage != &empty_storage)
       _mulle_allocator_abafree( array->allocator, next_storage);
 }
 
@@ -269,7 +294,7 @@ static void  _mulle_concurrent_pointerarray_migrate_storage( struct mulle_concur
 
    // ok, if we succeed free old, if we fail alloced is
    // already gone
-   if( previous == p)
+   if( previous == p && previous != &empty_storage)
       _mulle_allocator_abafree( array->allocator, previous);
 }
 
@@ -290,6 +315,30 @@ retry:
    }
    return( value);
 }
+
+
+//// hackish: replaces contents with NULL, returns previous value
+////          which could be NULL again
+////          not too sure about tj
+//void  *_mulle_concurrent_pointerarray_extract( struct mulle_concurrent_pointerarray *array,
+//                                               unsigned int index);
+//
+//void  *_mulle_concurrent_pointerarray_extract( struct mulle_concurrent_pointerarray *array,
+//                                               unsigned int index)
+//{
+//   struct _mulle_concurrent_pointerarraystorage   *p;
+//   void                                           *value;
+//
+//retry:
+//   p     = _mulle_atomic_pointer_read( &array->storage.pointer);
+//   value = _mulle_concurrent_pointerarraystorage_extract( p, index);
+//   if( value == REDIRECT_VALUE)
+//   {
+//      _mulle_concurrent_pointerarray_migrate_storage( array, p);
+//      goto retry;
+//   }
+//   return( value);
+//}
 
 
 void  _mulle_concurrent_pointerarray_add( struct mulle_concurrent_pointerarray *array,
@@ -323,16 +372,6 @@ int  mulle_concurrent_pointerarray_add( struct mulle_concurrent_pointerarray *ar
    _mulle_concurrent_pointerarray_add( array, value);
    return( 0);
 }
-
-
-void  *mulle_concurrent_pointerarray_get( struct mulle_concurrent_pointerarray *array,
-                                          unsigned int i)
-{
-   if( ! array)
-      return( NULL);
-   return( _mulle_concurrent_pointerarray_get( array, i));
-}
-
 
 
 int  mulle_concurrent_pointerarray_find( struct mulle_concurrent_pointerarray *array,

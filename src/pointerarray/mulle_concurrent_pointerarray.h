@@ -121,8 +121,16 @@ static inline unsigned int  mulle_concurrent_pointerarray_get_count( struct mull
 int  mulle_concurrent_pointerarray_add( struct mulle_concurrent_pointerarray *array,
                                         void *value);
 
-void  *mulle_concurrent_pointerarray_get( struct mulle_concurrent_pointerarray *array,
-                                          unsigned int i);
+static inline void  *mulle_concurrent_pointerarray_get( struct mulle_concurrent_pointerarray *array,
+                                          unsigned int i)
+{
+   void  *_mulle_concurrent_pointerarray_get( struct mulle_concurrent_pointerarray *array,
+                                              unsigned int index);
+   if( ! array)
+      return( NULL);
+   return( _mulle_concurrent_pointerarray_get( array, i));
+}
+
 
 int  mulle_concurrent_pointerarray_find( struct mulle_concurrent_pointerarray *array,
                                          void *value);
