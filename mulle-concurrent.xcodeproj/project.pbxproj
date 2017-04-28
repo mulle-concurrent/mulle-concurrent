@@ -506,7 +506,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 417C02651BD8404E005A3751 /* Debug.xcconfig */;
 			buildSettings = {
-				CURRENT_PROJECT_VERSION = 0.5;
+				CURRENT_PROJECT_VERSION = 1.3.1;
 				DEPENDENCIES_DIR = "$(PROJECT_DIR)/../dependencies";
 				GCC_WARN_PEDANTIC = YES;
 			};
@@ -516,7 +516,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 417C02681BD8404E005A3751 /* Release.xcconfig */;
 			buildSettings = {
-				CURRENT_PROJECT_VERSION = 0.5;
+				CURRENT_PROJECT_VERSION = 1.3.1;
 				DEPENDENCIES_DIR = "$(PROJECT_DIR)/../dependencies";
 				GCC_WARN_PEDANTIC = YES;
 			};
