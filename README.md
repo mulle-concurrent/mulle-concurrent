@@ -1,4 +1,4 @@
-_mulle_concurrent_hashmapstorage_lookup# mulle-concurrent
+# mulle-concurrent
 
 **mulle-concurrent** is a library for lock- and wait-free data structures.
 Wait-freeness is a desirable property for "hotly" contested data structures
