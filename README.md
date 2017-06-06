@@ -30,8 +30,7 @@ On OS X and Linux you can use
 to install the library:
 
 ```
-brew tap mulle-kybernetik/software
-brew install mulle-concurrent
+brew install mulle-objc/softwaremulle-concurrent
 ```
 
 On other platforms you can use **mulle-install** from
