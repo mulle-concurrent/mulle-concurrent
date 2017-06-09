@@ -4,6 +4,7 @@
 .idea/
 *.dSYM/
 *.exe
+*.old
 
 .repos/
 .bootstrap.auto/

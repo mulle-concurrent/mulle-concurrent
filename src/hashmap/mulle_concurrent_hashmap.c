@@ -388,7 +388,7 @@ int  _mulle_concurrent_hashmap_init( struct mulle_concurrent_hashmap *map,
 
    _mulle_atomic_pointer_nonatomic_write( &map->storage.pointer, storage);
    _mulle_atomic_pointer_nonatomic_write( &map->next_storage.pointer, storage);
-   
+
    return( 0);
 }
 

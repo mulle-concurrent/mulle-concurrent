@@ -114,7 +114,7 @@ static void   *_mulle_concurrent_pointerarraystorage_get( struct _mulle_concurre
 //                                                    unsigned int i)
 //{
 //   void   *value;
-//   
+//
 //   do
 //   {
 //      assert( i < (unsigned int) (uintptr_t) _mulle_atomic_pointer_read( &p->n));
@@ -123,7 +123,7 @@ static void   *_mulle_concurrent_pointerarraystorage_get( struct _mulle_concurre
 //         break;
 //   }
 //   while( ! _mulle_atomic_pointer_compare_and_swap( &p->entries[ i], MULLE_CONCURRENT_NO_POINTER, value));
-//   
+//
 //   return( value);
 //}
 
