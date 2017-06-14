@@ -39,4 +39,5 @@ tests/array/example.debug
 tests/hashmap/example.debug
 tests/hashmap/hashmap.debug
 tests/array/empty
-tests/array/empty.debug
+tests/array/empty.debugbin/tap-info.sh
+tap-info.sh
