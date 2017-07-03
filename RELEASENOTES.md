@@ -1,3 +1,7 @@
+### 1.3.5
+
+* make it a cmake "C" project
+
 ### 1.3.3
 
 * modernize
