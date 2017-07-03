@@ -37,7 +37,7 @@
 //
 // community version is always even
 //
-#define MULLE_CONCURRENT_VERSION  ((1 << 20) | (3 << 8) | 3)
+#define MULLE_CONCURRENT_VERSION  ((1 << 20) | (3 << 8) | 5)
 
 #include <mulle_thread/mulle_thread.h>
 #include <mulle_allocator/mulle_allocator.h>
