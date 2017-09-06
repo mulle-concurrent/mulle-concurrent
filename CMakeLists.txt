@@ -1,8 +1,8 @@
 cmake_minimum_required (VERSION 3.0)
 
-project(mulle-concurrent C)
+project( mulle-concurrent C)
 
-cmake_policy(SET CMP0054 NEW)
+cmake_policy( SET CMP0054 NEW)
 
 set( CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/mulle-configuration/cmake)
 message(STATUS "CMAKE_MODULE_PATH is ${CMAKE_MODULE_PATH}")
@@ -46,6 +46,12 @@ message(STATUS "MULLE_ABA_LIBRARY is ${MULLE_ABA_LIBRARY}")
 message(STATUS "MULLE_ALLOCATOR_LIBRARY is ${MULLE_ALLOCATOR_LIBRARY}")
 message(STATUS "MULLE_TEST_ALLOCATOR_LIBRARY is ${MULLE_TEST_ALLOCATOR_LIBRARY}")
 message(STATUS "MULLE_THREAD_LIBRARY is ${MULLE_THREAD_LIBRARY}")
+
+
+if( MSVC)
+   add_definitions( -DMULLE_ALLOCATOR_EXTERN_GLOBAL=extern)
+endif()
+
 
 set( DEPENDENCY_LIBRARIES
 ${MULLE_ABA_LIBRARY}
