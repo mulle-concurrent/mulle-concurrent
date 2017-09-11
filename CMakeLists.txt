@@ -2,7 +2,6 @@ cmake_minimum_required( VERSION 3.0)
 
 project( mulle-concurrent C)
 
-
 set( CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/mulle-configuration/cmake)
 message( STATUS "CMAKE_MODULE_PATH is ${CMAKE_MODULE_PATH}")
 message( STATUS "CMAKE_BUILD_TYPE is ${CMAKE_BUILD_TYPE}")
@@ -22,6 +21,12 @@ find_library( MULLE_TEST_ALLOCATOR_LIBRARY NAMES mulle_test_allocator)
 message( STATUS "MULLE_TEST_ALLOCATOR_LIBRARY is ${MULLE_TEST_ALLOCATOR_LIBRARY}")
 find_library( MULLE_THREAD_LIBRARY         NAMES mulle_thread)
 message( STATUS "MULLE_THREAD_LIBRARY is ${MULLE_THREAD_LIBRARY}")
+
+
+if( MSVC)
+   add_definitions( -DMULLE_ALLOCATOR_EXTERN_GLOBAL=extern)
+endif()
+
 
 set( DEPENDENCY_LIBRARIES
 ${MULLE_ABA_LIBRARY}
