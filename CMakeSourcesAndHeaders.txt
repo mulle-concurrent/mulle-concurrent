@@ -16,3 +16,4 @@ set( SOURCES
 src/pointerarray/mulle_concurrent_pointerarray.c
 src/hashmap/mulle_concurrent_hashmap.c
 )
+

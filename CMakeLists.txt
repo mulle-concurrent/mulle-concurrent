@@ -39,8 +39,7 @@ ${MULLE_THREAD_LIBRARY}
 #
 #
 add_library( mulle_concurrent
-src/pointerarray/mulle_concurrent_pointerarray.c
-src/hashmap/mulle_concurrent_hashmap.c
+${SOURCES}
 )
 
 set( STANDALONE_BASE_NAME "mulle_concurrent")
