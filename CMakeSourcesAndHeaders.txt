@@ -1,0 +1,18 @@
+# using include_directories is a little bit shitty
+include_directories( src
+src/hashmap
+src/pointerarray
+)
+
+set( HEADERS
+src/mulle_concurrent.h
+src/mulle_concurrent_types.h
+src/pointerarray/mulle_concurrent_pointerarray.h
+src/hashmap/mulle_concurrent_hashmap.h
+)
+
+
+set( SOURCES
+src/pointerarray/mulle_concurrent_pointerarray.c
+src/hashmap/mulle_concurrent_hashmap.c
+)
