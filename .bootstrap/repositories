@@ -1,9 +1,2 @@
-#
-# override the repositories like so:
-#    echo "https://www.mulle-kybernetik.com/repositories" > .bootstrap.local/MULLE_REPOSITORIES
-#
-# override the branches like so:
-#    echo "master" > .bootstrap.local/MULLE_ABA_BRANCH
-
 # aba pulls threads and allocators
 ${MULLE_REPOSITORIES:-https://github.com/mulle-nat}/mulle-aba;;${MULLE_ABA_BRANCH:-release}

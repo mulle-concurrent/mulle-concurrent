@@ -1,3 +1,7 @@
+### 1.4.3
+
+* Various small improvements
+
 ## 1.4.1
 
 * adapt to mulle-configuration 2.0
