@@ -1,0 +1,21 @@
+if( NOT __MULLE_CONCURRENT_CMAKE_DEPENDENCIES_TXT__)
+   set( __MULLE_CONCURRENT_CMAKE_DEPENDENCIES_TXT__ ON)
+
+   message( STATUS "# Include mulle-concurrent CMakeDependencies.txt")
+
+   include( ${DEPENDENCIES_DIR}/include/mulle_aba/CMakeDependencies.txt)
+
+   if( NOT MULLE_CONCURRENT_LIBRARY)
+      find_library( MULLE_CONCURRENT_LIBRARY NAMES mulle_concurrent)
+      message(STATUS "MULLE_CONCURRENT_LIBRARY is ${MULLE_CONCURRENT_LIBRARY}")
+      set( C_DEPENDENCY_LIBRARIES
+         ${MULLE_CONCURRENT_LIBRARY}
+         ${C_DEPENDENCY_LIBRARIES}
+         CACHE INTERNAL "need to cache this"
+      )
+   endif()
+
+   if( MSVC)
+      set( MULLE_CONCURRENT_DEFINITIONS ${MULLE_ABA_DEFINITIONS})
+   endif()
+endif()
