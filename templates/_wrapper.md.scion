@@ -1,2 +1,2 @@
-<!-- [comment]: <> ({{COMMENT}}) ->
+<!-- [comment]: <> ({{COMMENT}}) -->
 {% includes TEMPLATE_FILE %}
