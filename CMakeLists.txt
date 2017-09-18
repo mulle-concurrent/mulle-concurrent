@@ -11,22 +11,16 @@ else()
   include( Release)
 endif()
 
+
+set( MULLE_CONCURRENT_LIBRARY ON)
 include( CMakeSourcesAndHeaders.txt)
-
-find_library( MULLE_ABA_LIBRARY            NAMES mulle_aba)
-message( STATUS "MULLE_ABA_LIBRARY is ${MULLE_ABA_LIBRARY}")
-find_library( MULLE_ALLOCATOR_LIBRARY      NAMES mulle_allocator)
-message( STATUS "MULLE_ALLOCATOR_LIBRARY is ${MULLE_ALLOCATOR_LIBRARY}")
-find_library( MULLE_TEST_ALLOCATOR_LIBRARY NAMES mulle_test_allocator)
-message( STATUS "MULLE_TEST_ALLOCATOR_LIBRARY is ${MULLE_TEST_ALLOCATOR_LIBRARY}")
-find_library( MULLE_THREAD_LIBRARY         NAMES mulle_thread)
-message( STATUS "MULLE_THREAD_LIBRARY is ${MULLE_THREAD_LIBRARY}")
+include( CMakeDependencies.txt)
 
 
-if( MSVC)
-   add_definitions( -DMULLE_ALLOCATOR_EXTERN_GLOBAL=extern)
-endif()
-
+set( PUBLIC_HEADERS
+${HEADERS}
+CMakeDependencies.txt
+)
 
 set( DEPENDENCY_LIBRARIES
 ${MULLE_ABA_LIBRARY}
@@ -44,14 +38,15 @@ ${SOURCES}
 
 set( STANDALONE_BASE_NAME "mulle_concurrent")
 set( STANDALONE_NAME "mulle_concurrent_standalone")
-
-set( TARGET_ALL_LOAD_LIBRARIES
+set( STANDALONE_DEFINITIONS ${MULLE_CONCURRENT_DEFINITIONS})
+set( STANDALONE_ALL_LOAD_LIBRARIES
 $<TARGET_FILE:mulle_concurrent>
 ${DEPENDENCY_LIBRARIES}
 )
+
 
 include( Standalone)
 
 
 INSTALL( TARGETS mulle_concurrent_standalone mulle_concurrent DESTINATION "lib")
-INSTALL( FILES ${HEADERS} DESTINATION "include/mulle_concurrent")
+INSTALL( FILES ${PUBLIC_HEADERS} DESTINATION "include/mulle_concurrent")

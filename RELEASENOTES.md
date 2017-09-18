@@ -1,3 +1,7 @@
+### 1.4.5
+
+* follow mulle-configuration 3.1 changes and move .travis.yml to trusty
+
 ### 1.4.3
 
 * Various small improvements
