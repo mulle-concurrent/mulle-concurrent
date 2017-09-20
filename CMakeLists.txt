@@ -50,3 +50,5 @@ include( Standalone)
 
 INSTALL( TARGETS mulle_concurrent_standalone mulle_concurrent DESTINATION "lib")
 INSTALL( FILES ${PUBLIC_HEADERS} DESTINATION "include/mulle_concurrent")
+
+include( MulleTest)
