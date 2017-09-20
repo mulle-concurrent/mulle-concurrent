@@ -36,6 +36,12 @@ add_library( mulle_concurrent
 ${SOURCES}
 )
 
+
+target_compile_definitions( mulle_concurrent
+PRIVATE ${MULLE_CONCURRENT_DEFINITIONS}
+)
+
+
 set( STANDALONE_BASE_NAME "mulle_concurrent")
 set( STANDALONE_NAME "mulle_concurrent_standalone")
 set( STANDALONE_DEFINITIONS ${MULLE_CONCURRENT_DEFINITIONS})
