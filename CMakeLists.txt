@@ -16,6 +16,8 @@ set( MULLE_CONCURRENT_LIBRARY ON)
 include( CMakeSourcesAndHeaders.txt)
 include( CMakeDependencies.txt)
 
+include_directories( ${INCLUDE_DIRS})
+
 
 set( PUBLIC_HEADERS
 ${HEADERS}
@@ -36,14 +38,11 @@ add_library( mulle_concurrent
 ${SOURCES}
 )
 
-
-target_compile_definitions( mulle_concurrent
-PRIVATE ${MULLE_CONCURRENT_DEFINITIONS}
-)
-
+target_compile_definitions( mulle_concurrent PRIVATE ${MULLE_CONCURRENT_DEFINITIONS})
 
 set( STANDALONE_BASE_NAME "mulle_concurrent")
 set( STANDALONE_NAME "mulle_concurrent_standalone")
+set( STANDALONE_SOURCES "src/mulle_concurrent_standalone.c")
 set( STANDALONE_DEFINITIONS ${MULLE_CONCURRENT_DEFINITIONS})
 set( STANDALONE_ALL_LOAD_LIBRARIES
 $<TARGET_FILE:mulle_concurrent>
@@ -52,7 +51,6 @@ ${DEPENDENCY_LIBRARIES}
 
 
 include( Standalone)
-
 
 INSTALL( TARGETS mulle_concurrent_standalone mulle_concurrent DESTINATION "lib")
 INSTALL( FILES ${PUBLIC_HEADERS} DESTINATION "include/mulle_concurrent")

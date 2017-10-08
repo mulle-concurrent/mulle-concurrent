@@ -1,5 +1,6 @@
 # using include_directories is a little bit shitty
-include_directories( src
+set( INCLUDE_DIRS
+src
 src/hashmap
 src/pointerarray
 )
