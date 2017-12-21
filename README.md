@@ -31,7 +31,7 @@ On OS X and Linux you can use
 to install the library:
 
 ```
-brew install mulle-objc/softwaremulle-concurrent
+brew install mulle-objc/software/mulle-concurrent
 ```
 
 On other platforms you can use **mulle-install** from
