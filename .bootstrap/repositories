@@ -1,2 +1,0 @@
-# aba pulls threads and allocators
-${MULLE_REPOSITORIES:-https://github.com/mulle-nat}/mulle-aba;;${MULLE_ABA_BRANCH:-release}
