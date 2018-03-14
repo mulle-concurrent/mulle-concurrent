@@ -1,0 +1,7 @@
+mulle-c/c-cmake;meta
+mulle-sde/c-cmake;meta
+mulle-sde/c;runtime
+mulle-sde/cmake;buildtool
+mulle-sde/sde;buildtool
+mulle-c/cmake;buildtool
+mulle-c/c;runtime

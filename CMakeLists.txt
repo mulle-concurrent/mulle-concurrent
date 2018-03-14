@@ -2,57 +2,66 @@ cmake_minimum_required( VERSION 3.0)
 
 project( mulle-concurrent C)
 
-set( CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/mulle-configuration/cmake)
-message( STATUS "CMAKE_MODULE_PATH is ${CMAKE_MODULE_PATH}")
-message( STATUS "CMAKE_BUILD_TYPE is ${CMAKE_BUILD_TYPE}")
-if( "${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
-  include( Debug)
-else()
-  include( Release)
-endif()
 
+### mulle-sde environment
+
+# add cmake module paths to search path
+list( INSERT CMAKE_MODULE_PATH 0 "${PROJECT_SOURCE_DIR}/cmake/share")
+list( INSERT CMAKE_MODULE_PATH 0 "${PROJECT_SOURCE_DIR}/cmake")
+
+include( Environment)
+
+
+### Files
+
+include( PreFiles OPTIONAL)
 
 set( MULLE_CONCURRENT_LIBRARY ON)
-include( CMakeSourcesAndHeaders.txt)
-include( CMakeDependencies.txt)
+
+#
+# Include all non underscored .cmake files in ./cmake
+#
+file( GLOB LOCAL_CMAKE_INCLUDES
+   "cmake/[A-Za-z0-9]*.cmake"
+)
+
+foreach( FILE ${LOCAL_CMAKE_INCLUDES} )
+   include( "${FILE}")
+endforeach()
+
 
 include_directories( ${INCLUDE_DIRS})
 
+include( PostFiles OPTIONAL)
 
-set( PUBLIC_HEADERS
-${HEADERS}
-CMakeDependencies.txt
-)
+### Library
 
-set( DEPENDENCY_LIBRARIES
-${MULLE_ABA_LIBRARY}
-${MULLE_ALLOCATOR_LIBRARY}
-${MULLE_TEST_ALLOCATOR_LIBRARY}
-${MULLE_THREAD_LIBRARY}
-)
+include( PreLibrary OPTIONAL)
 
-###
-#
-#
-add_library( mulle_concurrent
+add_library( "mulle-concurrent"
 ${SOURCES}
+${PUBLIC_HEADERS}
+${PRIVATE_HEADERS}
+${CMAKE_EDITABLE_FILES}
 )
 
-target_compile_definitions( mulle_concurrent PRIVATE ${MULLE_CONCURRENT_DEFINITIONS})
-
-set( STANDALONE_BASE_NAME "mulle_concurrent")
-set( STANDALONE_NAME "mulle_concurrent_standalone")
-set( STANDALONE_SOURCES "src/mulle_concurrent_standalone.c")
-set( STANDALONE_DEFINITIONS ${MULLE_CONCURRENT_DEFINITIONS})
-set( STANDALONE_ALL_LOAD_LIBRARIES
-$<TARGET_FILE:mulle_concurrent>
-${DEPENDENCY_LIBRARIES}
+if( BUILD_SHARED_LIBS)
+   target_link_libraries( mulle-concurrent
+${DEPENDENCIES_LIBRARIES}
+${OS_SPECIFIC_LIBRARIES}
 )
+endif()
 
+include( PostLibrary OPTIONAL)
 
-include( Standalone)
+### Install
 
-INSTALL( TARGETS mulle_concurrent_standalone mulle_concurrent DESTINATION "lib")
-INSTALL( FILES ${PUBLIC_HEADERS} DESTINATION "include/mulle_concurrent")
+include( PreInstall OPTIONAL)
 
-include( MulleTest)
+install( TARGETS "mulle-concurrent" DESTINATION "lib")
+install( FILES ${PUBLIC_HEADERS}  DESTINATION "include/mulle-concurrent")
+install( FILES ${PRIVATE_HEADERS} DESTINATION "include/mulle-concurrent/private")
+
+install( FILES ${CMAKE_INCLUDES}  DESTINATION "include/mulle-concurrent/cmake")
+
+include( PostInstall OPTIONAL)
