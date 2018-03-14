@@ -1,0 +1,1 @@
+mulle-aba;tar;;a9eca791-975e-4209-b86a-d21578aa5569;${MULLE_ABA_URL:-https://github.com/mulle-c/mulle-aba/archive/${MULLE_ABA_BRANCH:-latest}.tar.gz};;;;
