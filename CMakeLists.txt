@@ -54,11 +54,27 @@ endif()
 
 include( PostLibrary OPTIONAL)
 
+
+set( STANDALONE_BASE_NAME "mulle-concurrent")
+set( STANDALONE_NAME "mulle-concurrent-standalone")
+set( STANDALONE_DEFINITIONS ${MULLE_CONCURRENT_DEFINITIONS})
+set( STANDALONE_DEPENDENCIES
+mulle-concurrent
+)
+
+set( STANDALONE_ALL_LOAD_LIBRARIES
+$<TARGET_FILE:mulle-concurrent>
+${C_DEPENDENCY_LIBRARIES}
+${OS_SPECIFIC_LIBRARIES}
+)
+
+include( Standalone)
+
 ### Install
 
 include( PreInstall OPTIONAL)
 
-install( TARGETS "mulle-concurrent" DESTINATION "lib")
+install( TARGETS "mulle-concurrent" "mulle-concurrent-standalone" DESTINATION "lib")
 install( FILES ${PUBLIC_HEADERS}  DESTINATION "include/mulle-concurrent")
 install( FILES ${PRIVATE_HEADERS} DESTINATION "include/mulle-concurrent/private")
 
