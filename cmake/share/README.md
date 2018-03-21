@@ -1,4 +1,8 @@
-# Files for cross-platform C development
+# DO NOT EDIT THIS FOLDER
 
-A bunch of stuff, that always comes up, when doing projects for multiple
-platforms, has been collected here.
+If you want to edit any of the files copy them "up" and edit them there.
+
+```
+cp share/Environment.cmake .
+vi Environment.cmake
+```
