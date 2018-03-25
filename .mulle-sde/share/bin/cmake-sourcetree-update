@@ -99,7 +99,7 @@ osexclude_to_cmake_if()
          ;;
 
          no-os-*)
-            cmakevar="`uname_to_cmake "${osexclude:5}"`"
+            cmakevar="`uname_to_cmake "${osexclude:6}"`"
             excludes="`concat "${excludes}" "${cmakevar}" " AND "`"
          ;;
       esac
@@ -127,48 +127,112 @@ osexclude_to_cmake_if()
 }
 
 
-_emit_cmake_dependency()
+_emit_cmake_find_library()
 {
-   log_entry "_emit_cmake_dependency" "$@"
+   log_entry "_emit_cmake_find_library" "$@"
+
+   local preference="$1"; shift
 
    local aliases="$1"
    local identifier="$2"
    local containername="$3"
-   local indent="$4"
+   local marks="$4"
+   local indent="$5"
+
+   local libraries
+   local i
+
+   for i in ${aliases}
+   do
+      case "${preference}" in
+         "static")
+            libraries="`concat "${libraries}" "\\\${CMAKE_STATIC_LIBRARY_PREFIX}${i}\\\${CMAKE_STATIC_LIBRARY_SUFFIX}"`"
+         ;;
+
+         "shared")
+            libraries="`concat "${libraries}" "\\\${CMAKE_SHARED_LIBRARY_PREFIX}${i}\\\${CMAKE_SHARED_LIBRARY_SUFFIX}"`"
+         ;;
+      esac
+
+      # fallback to whatever linkage
+      libraries="`concat "${libraries}" "${i}"`"
+   done
+
+   local failstring
+   local failstatus
+
+   case ",${marks}," in
+      *,no-require-link,*)
+
+         failstatus="STATUS"
+         failstring="${identifier}_LIBRARY is missing but it\'s \"no-require-link\""
+      ;;
+
+      *)
+         failstatus="FATAL_ERROR"
+         failstring="${identifier}_LIBRARY was not found"
+      ;;
+   esac
 
    cat <<EOF
 ${indent}if( NOT ${identifier}_LIBRARY)
-${indent}   find_library( ${identifier}_LIBRARY NAMES ${aliases})
+${indent}   find_library( ${identifier}_LIBRARY NAMES ${libraries})
 ${indent}   message( STATUS "${identifier}_LIBRARY is \${${identifier}_LIBRARY}")
-${indent}   set( ${containername}
-${indent}      \${${identifier}_LIBRARY}
-${indent}      \${${containername}}
-${indent}      CACHE INTERNAL "need to cache this"
-${indent}   )
-${indent}   if( ${identifier}_LIBRARY)
-${indent}      # temporarily expand CMAKE_MODULE_PATH
-${indent}      get_filename_component( TMP_${identifier}_ROOT "\${${identifier}_LIBRARY}" DIRECTORY)
-${indent}      get_filename_component( TMP_${identifier}_ROOT "\${TMP_${identifier}_ROOT}" DIRECTORY)
-${indent}      set( MEMO_CMAKE_MODULE_PATH "\${CMAKE_MODULE_PATH}")
-${indent}      list( INSERT CMAKE_MODULE_PATH 0 "\${TMP_${identifier}_ROOT}/include/cmake")
-${indent}      # use explicit path to avoid "surprises"
-${indent}      unset( ${identifier}_DEFINITIONS)
-${indent}      include( "\${TMP_${identifier}_ROOT}/include/cmake/DependenciesAndLibraries.cmake" OPTIONAL)
-${indent}      set( CMAKE_MODULE_PATH "\${MEMO_CMAKE_MODULE_PATH}")
 ${indent}
-${indent}      set( INHERITED_DEFINITIONS
-${indent}           \${${identifier}_DEFINITIONS}
-${indent}           \${INHERITED_DEFINITIONS}
+${indent}   # the order looks ascending, but due to the way this file is read
+${indent}   # it ends up being descending, which is what we need
+${indent}   if( ${identifier}_LIBRARY)
+${indent}      set( ${containername}
+${indent}         \${${containername}}
+${indent}         \${${identifier}_LIBRARY}
+${indent}         CACHE INTERNAL "need to cache this"
 ${indent}      )
-${indent}  endif()
+${indent}      # temporarily expand CMAKE_MODULE_PATH
+${indent}      get_filename_component( _TMP_${identifier}_ROOT "\${${identifier}_LIBRARY}" DIRECTORY)
+${indent}      get_filename_component( _TMP_${identifier}_ROOT "\${_TMP_${identifier}_ROOT}" DIRECTORY)
+${indent}
+${indent}      # search for DependenciesAndLibraries.cmake to include
+${indent}      foreach( _TMP_${identifier}_NAME in ${aliases})
+${indent}         set( _TMP_${identifier}_DIR "\${_TMP_${identifier}_ROOT}/include/\${_TMP_${identifier}_NAME}/cmake")
+${indent}         # use explicit path to avoid "surprises"
+${indent}         if( EXISTS "\${_TMP_${identifier}_DIR}/DependenciesAndLibraries.cmake")
+${indent}            unset( ${identifier}_DEFINITIONS)
+${indent}            list( INSERT CMAKE_MODULE_PATH 0 "\${_TMP_${identifier}_DIR}")
+${indent}            include( "\${_TMP_${identifier}_DIR}/DependenciesAndLibraries.cmake")
+${indent}            list( REMOVE_ITEM CMAKE_MODULE_PATH "\${_TMP_${identifier}_DIR}")
+${indent}            set( INHERITED_DEFINITIONS
+${indent}               \${INHERITED_DEFINITIONS}
+${indent}               \${${identifier}_DEFINITIONS}
+${indent}               CACHE INTERNAL "need to cache this"
+${indent}            )
+${indent}            break()
+${indent}         endif()
+${indent}      endforeach()
+${indent}   else()
+${indent}      message( ${failstatus} "${failstring}")
+${indent}   endif()
 ${indent}endif()
 EOF
 }
 
 
+_emit_cmake_library()
+{
+   log_entry "_emit_cmake_library" "$@"
+
+   _emit_cmake_find_library "any" "$@"
+}
+
+
+_emit_cmake_dependency()
+{
+   log_entry "_emit_cmake_dependency" "$@"
+
+   _emit_cmake_find_library "static" "$@"
+}
+
+
 #
-# I suppose header only libraries might want to expose link stuff too ?
-# shouldn't hurt
 #
 _emit_cmake_header_only()
 {
@@ -177,11 +241,36 @@ _emit_cmake_header_only()
    local aliases="$1"
    local identifier="$2"
    local containername="$3"
-   local indent="$4"
+   local marks="$4"
+   local indent="$5"
 
+   local headers
+   local i
+
+   for i in ${aliases}
+   do
+      headers="`concat "${headers}" "${i}.h"`"
+      headers="`concat "${headers}" "${i}/${i}.h"`"
+   done
+
+   case ",${marks}," in
+      *,no-require-link,*)
+
+         failstatus="STATUS"
+         failstring="${identifier}_HEADER is missing but it\'s \"no-require-link\""
+      ;;
+
+      *)
+         failstatus="FATAL_ERROR"
+         failstring="${identifier}_HEADER was not found"
+      ;;
+   esac
+   #
+   # the idea here is that cmake should generate the proper -I option
+   #
    cat <<EOF
 ${indent}if( NOT ${identifier}_HEADER)
-${indent}   find_file( ${identifier}_HEADER NAMES ${aliases})
+${indent}   find_file( ${identifier}_HEADER NAMES ${headers})
 ${indent}   message( STATUS "${identifier}_HEADER is \${${identifier}_HEADER}")
 ${indent}   set( ${containername}
 ${indent}      \${${identifier}_HEADER}
@@ -189,20 +278,24 @@ ${indent}      \${${containername}}
 ${indent}      CACHE INTERNAL "need to cache this"
 ${indent}   )
 ${indent}   if( ${identifier}_HEADER)
-${indent}      # temporarily expand CMAKE_MODULE_PATH
-${indent}      get_filename_component( TMP_${identifier}_ROOT "\${${identifier}_HEADER}" DIRECTORY)
-${indent}      set( MEMO_CMAKE_MODULE_PATH "\${CMAKE_MODULE_PATH}")
-${indent}      list( INSERT CMAKE_MODULE_PATH 0 "\${TMP_${identifier}_ROOT}/cmake")
+${indent}      # search for DependenciesAndLibraries.cmake to include
+${indent}      get_filename_component( _TMP_${identifier}_DIR "\${${identifier}_HEADER}" DIRECTORY)
+${indent}      set( _TMP_${identifier}_DIR "\${_TMP_${identifier}_DIR}/cmake")
 ${indent}      # use explicit path to avoid "surprises"
-${indent}      unset( ${identifier}_DEFINITIONS)
-${indent}      include( "\${TMP_${identifier}_ROOT}/cmake/DependenciesAndLibraries.cmake" OPTIONAL)
-${indent}      set( CMAKE_MODULE_PATH "\${MEMO_CMAKE_MODULE_PATH}")
-${indent}
-${indent}      set( INHERITED_DEFINITIONS
-${indent}           \${${identifier}_DEFINITIONS}
-${indent}           \${INHERITED_DEFINITIONS}
-${indent}      )
-${indent}  endif()
+${indent}      if( EXISTS "\${_TMP_${identifier}_DIR}/DependenciesAndLibraries.cmake")
+${indent}         unset( ${identifier}_DEFINITIONS)
+${indent}         list( INSERT CMAKE_MODULE_PATH 0 "\${_TMP_${identifier}_DIR}")
+${indent}         include( "\${_TMP_${identifier}_DIR}/DependenciesAndLibraries.cmake")
+${indent}         list( REMOVE_ITEM CMAKE_MODULE_PATH "\${_TMP_${identifier}_DIR}")
+${indent}         set( INHERITED_DEFINITIONS
+${indent}               \${INHERITED_DEFINITIONS}
+${indent}               \${${identifier}_DEFINITIONS}
+${indent}               CACHE INTERNAL "need to cache this"
+${indent}         )
+${indent}      endif()
+${indent}   else()
+${indent}      message( ${failstatus} "${failstring}")
+${indent}   endif()
 ${indent}endif()
 EOF
 }
@@ -248,6 +341,7 @@ emit_cmake_dependency()
    "${emitter}" "${aliases}" \
                 "${identifier}" \
                 "${containername}" \
+                "${marks}" \
                 "${indent}"
 
    if [ ! -z "${ifstatement}" ]
@@ -255,6 +349,7 @@ emit_cmake_dependency()
       echo "endif()"
    fi
 
+   echo
    echo
 }
 
@@ -281,7 +376,7 @@ emit_cmake_dependencies()
 
       log_debug "read \"${dependency}\""
 
-      IFS=";" read address marks aliases <<< "${dependency}"
+      IFS=";" read address marks aliases include <<< "${dependency}"
 
       log_debug "address: ${address}"
       log_debug "marks:   ${marks}"
@@ -338,7 +433,7 @@ write_libraries_file()
                                                          --no-output-header`" || return 1
       log_debug "library: ${library}"
       text_lib="`emit_cmake_dependencies "${library}" \
-                                         "_emit_cmake_dependency" \
+                                         "_emit_cmake_library" \
                                          "OS_SPECIFIC_LIBRARIES"`" || return 1
 
       text_lib="`add_line "${text_header}" "${text_lib}"`"
@@ -353,7 +448,7 @@ write_libraries_file()
    text_lib="# ${MULLE_SDE_LIBRARIES_FILE} is generated by \`mulle-sde\`. Edits will be lost.
 #
 if( MULLE_TRACE_INCLUDE)
-   MESSAGE( STATUS \"# Include \\\"\${CMAKE_CURRENT_LIST_FILE}\\\"\" )
+   message( STATUS \"# Include \\\"\${CMAKE_CURRENT_LIST_FILE}\\\"\" )
 endif()
 
 ${text_lib}"
@@ -392,7 +487,7 @@ write_dependencies_file()
                                             "_emit_cmake_header_only" \
                                             "HEADER_ONLY_LIBRARIES"`"
 
-      dependency="` exekutor mulle-sde ${MULLE_SDE_FLAGS} dependency list \
+      dependency="`exekutor mulle-sde ${MULLE_SDE_FLAGS} dependency list \
                                                         --marks link \
                                                         -- \
                                                         --output-raw \
@@ -414,7 +509,7 @@ write_dependencies_file()
    text_dep="# ${MULLE_SDE_DEPENDENCIES_FILE} is generated by \`mulle-sde\`. Edits will be lost.
 #
 if( MULLE_TRACE_INCLUDE)
-   MESSAGE( STATUS \"# Include \\\"\${CMAKE_CURRENT_LIST_FILE}\\\"\" )
+   message( STATUS \"# Include \\\"\${CMAKE_CURRENT_LIST_FILE}\\\"\" )
 endif()
 
 ${text_dep}"
@@ -432,6 +527,23 @@ ${text_dep}"
 main()
 {
    log_entry "main" "$@"
+
+   local MULLE_TRACE
+   local MULLE_FLAG_DONT_DEFER="NO"
+   local MULLE_FLAG_EXEKUTOR_DRY_RUN="NO"
+   local MULLE_FLAG_FOLLOW_SYMLINKS="YES"
+   local MULLE_FLAG_LOG_CACHE="NO"
+   local MULLE_FLAG_LOG_DEBUG="NO"
+   local MULLE_FLAG_LOG_EXEKUTOR="NO"
+   local MULLE_FLAG_LOG_FLUFF="NO"
+   local MULLE_FLAG_LOG_MERGE="NO"
+   local MULLE_FLAG_LOG_SCRIPTS="NO"
+   local MULLE_FLAG_LOG_SETTINGS="NO"
+   local MULLE_FLAG_LOG_VERBOSE="NO"
+   local MULLE_TRACE_PATHS_FLIP_X="NO"
+   local MULLE_TRACE_POSTPONE="NO"
+   local MULLE_TRACE_RESOLVER_FLIP_X="NO"
+   local MULLE_TRACE_SETTINGS_FLIP_X="NO"
 
    while [ $# -ne 0 ]
    do

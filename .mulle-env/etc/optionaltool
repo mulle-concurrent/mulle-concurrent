@@ -3,9 +3,9 @@ otool
 install_name_tool
 xcrun
 xcodebuild
-cc
-gcc
-ld
 inotifywait
 ssh
 ninja
+cc
+gcc
+ld
