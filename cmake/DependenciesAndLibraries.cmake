@@ -9,7 +9,7 @@ if( NOT __MULLE_CONCURRENT_DEPENDENCIES_AND_LIBRARIES_CMAKE__)
    # Put your find_library() statements here to import other libraries
    #
    # Add OS specific dependencies to OS_SPECIFIC_LIBRARIES
-   # Add all other dependencies (rest) to DEPENDENCIES_LIBRARIES
+   # Add all other dependencies (rest) to DEPENDENCY_LIBRARIES
 
 
    #

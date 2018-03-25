@@ -22,34 +22,42 @@ then
 your convenience" >&2
 fi
 
-
-#
-# Set PS1 so that we can see, that we are in a mulle-env
-#
-envname="`PATH=/bin:/usr/bin basename -- "${MULLE_VIRTUAL_ROOT}"`"
-
-case "${PS1}" in
-   *\\h\[*)
-   ;;
-
-   *\\h*)
-      PS1="$(sed 's/\\h/\\h\['${envname}'\]/' <<< '${PS1}' )"
-   ;;
-
-   *)
-      PS1='\u@\h['${envname}'] \W$ '
-   ;;
-esac
-export PS1
-
-unset envname
-
 alias mulle-env-reload='. "${MULLE_VIRTUAL_ROOT}/.mulle-env/share/environment-include.sh"'
 
-mulle-env-reload
 
-# install cd catcher
-. "`mulle-env libexec-dir`/mulle-env-cd.sh"
+if [ "${MULLE_SHELL_MODE}" = "INTERACTIVE" ]
+then
+   #
+   # Set PS1 so that we can see, that we are in a mulle-env
+   #
+   envname="`PATH=/bin:/usr/bin basename -- "${MULLE_VIRTUAL_ROOT}"`"
+
+   case "${PS1}" in
+      *\\h\[*)
+      ;;
+
+      *\\h*)
+         PS1="$(sed 's/\\h/\\h\['${envname}'\]/' <<< '${PS1}' )"
+      ;;
+
+      *)
+         PS1='\u@\h['${envname}'] \W$ '
+      ;;
+   esac
+   export PS1
+
+   unset envname
+
+   # install cd catcher
+   . "${MULLE_ENV_LIBEXEC_DIR}/mulle-env-cd.sh"
+   unset MULLE_ENV_LIBEXEC_DIR
+
+   mulle-env-reload
+else
+   set -a ; mulle-env-reload     # export all definitions for command
+   ${COMMAND}
+   exit $?
+fi
 
 
 #

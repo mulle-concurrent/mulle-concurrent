@@ -1,6 +1,5 @@
-#include <mulle_concurrent/mulle_concurrent.h>
-#include <mulle_test_allocator/mulle_test_allocator.h>
-#include <mulle_aba/mulle_aba.h>
+#include <mulle-concurrent/mulle-concurrent.h>
+#include <mulle-test-allocator/mulle-test-allocator.h>
 #include <assert.h>
 #include <stdlib.h>
 #include <errno.h>

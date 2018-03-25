@@ -229,6 +229,7 @@ main()
    log_entry "main" "$@"
 
    # technical flags
+   local MULLE_TRACE
    local MULLE_FLAG_DONT_DEFER="NO"
    local MULLE_FLAG_EXEKUTOR_DRY_RUN="NO"
    local MULLE_FLAG_FOLLOW_SYMLINKS="YES"

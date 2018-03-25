@@ -1,5 +1,10 @@
-if( MULLE_TRACE_INCLUDE)
-   message( STATUS "# Include \"${CMAKE_CURRENT_LIST_FILE}\"" )
-endif()
+if( NOT __POST_FILES__CMAKE__)
+   set( __POST_FILES__CMAKE__ ON)
 
-include( PostFilesCAux.cmake OPTIONAL)
+   if( MULLE_TRACE_INCLUDE)
+      message( STATUS "# Include \"${CMAKE_CURRENT_LIST_FILE}\"" )
+   endif()
+
+   include( PostFilesCAux.cmake OPTIONAL)
+
+endif()

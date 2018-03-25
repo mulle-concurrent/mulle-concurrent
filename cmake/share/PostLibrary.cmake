@@ -1,7 +1,12 @@
-if( MULLE_TRACE_INCLUDE)
-   message( STATUS "# Include \"${CMAKE_CURRENT_LIST_FILE}\"" )
+if( NOT __POST_LIBRARY__CMAKE__)
+   set( __POST_LIBRARY__CMAKE__ ON)
+
+   if( MULLE_TRACE_INCLUDE)
+      message( STATUS "# Include \"${CMAKE_CURRENT_LIST_FILE}\"" )
+   endif()
+
+   include( FinalOutput)
+
+   include( PostLibraryCAux OPTIONAL)
+
 endif()
-
-include( FinalOutput)
-
-include( PostLibraryCAux OPTIONAL)
