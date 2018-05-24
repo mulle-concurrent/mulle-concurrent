@@ -1,3 +1,7 @@
+### 2.0.1
+
+* Various small improvements
+
 # 2.0.0
 
 * migrated to mulle-sde
