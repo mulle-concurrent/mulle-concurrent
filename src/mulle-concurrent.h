@@ -34,10 +34,7 @@
 #ifndef mulle_concurrent_h__
 #define mulle_concurrent_h__
 
-//
-// community version is always even
-//
-#define MULLE_CONCURRENT_VERSION  ((1 << 20) | (4 << 8) | 11)
+#define MULLE_CONCURRENT_VERSION  ((2 << 20) | (0 << 8) | 0)
 
 #include "dependencies.h"
 

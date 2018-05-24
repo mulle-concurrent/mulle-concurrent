@@ -1,5 +1,5 @@
-if( NOT __LINK_ALL_SYMBOLS__CMAKE__)
-   set( __LINK_ALL_SYMBOLS__CMAKE__ ON)
+if( NOT __ALL_LOAD__CMAKE__)
+   set( __ALL_LOAD__CMAKE__ ON)
 
    if( MULLE_TRACE_INCLUDE)
       message( STATUS "# Include \"${CMAKE_CURRENT_LIST_FILE}\"" )

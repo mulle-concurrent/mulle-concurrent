@@ -39,7 +39,7 @@ usage()
 Usage:
    c-sourcetree-update <action> <filename> <category>
 
-   This produces _dependencies.h
+   This produces the _dependencies.h or some similiarly named file.
 
 EOF
    exit 1
@@ -119,9 +119,10 @@ _emit_c_include()
 {
    log_entry "_emit_c_include" "$@"
 
-   local header="$1"
-   local marks="$2"
-   local aliases="$3"
+   local address="$1"
+   local header="$2"
+   local marks="$3"
+   local aliases="$4"
 
    local indent
    local ifstatement
@@ -160,7 +161,7 @@ _emit_c_include()
       indent=" "
    fi
 
-   echo "# ${indent}include <${header}>"
+   echo "# ${indent}include <${header}>   // ${address}"
    if [ ! -z "${ifstatement}" ]
    then
       echo "# endif"
@@ -174,7 +175,7 @@ emit_c_include_library()
 {
    log_entry "emit_c_include_library" "$@"
 
-   local name="$1"
+   local address="$1"
    local marks="$2"
    local aliases="$3"
    local header="$4"
@@ -184,18 +185,22 @@ emit_c_include_library()
    #
    if [ -z "${header}" ]
    then
+      local name
+
+      name="`fast_basename "${address}"`"
       header="${name}.h"
    fi
 
-   _emit_c_include "${header}" "${marks}" "${aliases}"
+   _emit_c_include "${address}" "${header}" "${marks}" "${aliases}"
 
 }
+
 
 emit_c_include_dependency()
 {
    log_entry "emit_c_include_dependency" "$@"
 
-   local name="$1"
+   local address="$1"
    local marks="$2"
    local aliases="$3"
    local header="$4"
@@ -205,19 +210,30 @@ emit_c_include_dependency()
    #
    if [ -z "${header}" ]
    then
+      local name
+
+      name="`fast_basename "${address}"`"
       header="${name}/${name}.h"
    fi
 
-   _emit_c_include "${header}" "${marks}" "${aliases}"
+   _emit_c_include "${address}" "${header}" "${marks}" "${aliases}"
 }
 
 
-_emit_headers()
+emit_c_header()
 {
-   log_entry "_emit_headers" "$@"
+   log_entry "emit_c_header" "$@"
 
-   local headers="$1"; shift
-   local emitter="$1"; shift
+   # since the order of the headers is important and needs to be in treeorder
+   # we use mulle-sourcetree directly
+   local headers
+
+   headers="`exekutor mulle-sourcetree list \
+                                       --format "%a;%m;%i={aliases,,-------};\
+%i={include,,-------}\\n" \
+                                       --marks header \
+                                       --output-raw \
+                                       --no-output-header`" || return 1
 
    local dependency
 
@@ -233,38 +249,33 @@ _emit_headers()
 
       IFS=";" read address marks aliases include <<< "${header}"
 
-      if [ ! -z "${address}" ]
+      if [ -z "${address}" ]
       then
-         log_verbose "Emit statements for ${C_MAGENTA}${C_BOLD}${address}"
-         ${emitter} "${address}" "${marks}" "${aliases}" "${include}" "$@"
+         continue
       fi
+
+      log_verbose "Emit statements for ${C_MAGENTA}${C_BOLD}${address}"
+
+      case ",${marks}," in
+         *,no-dependency,*)
+            emit_c_include_library "${address}" \
+                                   "${marks}" \
+                                   "${aliases}" \
+                                   "${include}" \
+                                   "$@"
+         ;;
+
+         *)
+            emit_c_include_dependency "${address}" \
+                                      "${marks}" \
+                                      "${aliases}" \
+                                      "${include}" \
+                                      "$@"
+         ;;
+      esac
    done
+
    IFS="${DEFAULT_IFS}"; set +o noglob
-}
-
-
-
-emit_c_header()
-{
-   log_entry "emit_c_header" "$@"
-
-   local headers
-
-   headers="`exekutor mulle-sde dependency list \
-                                   --marks header \
-                                   --\
-                                   --output-raw \
-                                   --no-output-header`" || return 1
-
-   _emit_headers "${headers}" emit_c_include_dependency
-
-   headers="`exekutor mulle-sde library list \
-                                   --marks header \
-                                   --\
-                                   --output-raw \
-                                   --no-output-header`" || return 1
-   _emit_headers "${headers}" emit_c_include_library
-
 }
 
 
@@ -327,8 +338,7 @@ main()
 
    local projectname
 
-   projectname="${MULLE_SDE_PROJECT_NAME}"
-   projectname="${projectname:-${PROJECT_NAME}}"
+   projectname="${PROJECT_NAME}"
    if [ -z "${projectname}" ]
    then
       projectname="`fast_basename "${PWD}"`" # could be nicer
@@ -341,7 +351,7 @@ main()
 
    if [ -z "${MULLE_SDE_DEPENDENCIES_HEADER_FILE}" ]
    then
-      MULLE_SDE_DEPENDENCIES_HEADER_FILE="src/_${projectname}-dependencies.h"
+      MULLE_SDE_DEPENDENCIES_HEADER_FILE="${PROJECT_SOURCE_DIR:-src}/_${projectname}-dependencies.h"
    fi
 
    local text_h

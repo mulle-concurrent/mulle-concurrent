@@ -182,6 +182,7 @@ create_sources_file()
    log_entry "create_sources_file" "$@"
 
    local categorized_files="$1"
+
    local text_src
 
    if [ "${MULLE_SDE_CMAKE_SOURCES_FILE}" = "NONE" ]
