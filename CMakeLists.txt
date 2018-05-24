@@ -39,14 +39,19 @@ include( PostFiles OPTIONAL)
 include( PreLibrary OPTIONAL)
 
 add_library( "mulle-concurrent"
+# definitions from cmake/HeadersAndSources.cmake
 ${SOURCES}
 ${PUBLIC_HEADERS}
 ${PRIVATE_HEADERS}
+# definitions from cmake/share/Environment.cmake
 ${CMAKE_EDITABLE_FILES}
 )
 
+
+
 if( BUILD_SHARED_LIBS)
    target_link_libraries( mulle-concurrent
+# definitions from cmake/share/DependenciesAndLibraries.cmake
 ${DEPENDENCY_LIBRARIES}
 ${OS_SPECIFIC_LIBRARIES}
 )
@@ -54,34 +59,47 @@ endif()
 
 include( PostLibrary OPTIONAL)
 
+option( STANDALONE "Create standalone library for debugging" OFF)
 
-set( STANDALONE_BASE_NAME "mulle-concurrent")
-set( STANDALONE_NAME "mulle-concurrent-standalone")
-set( STANDALONE_DEFINITIONS ${MULLE_CONCURRENT_DEFINITIONS})
-set( STANDALONE_DEPENDENCIES
-mulle-concurrent
+set( INSTALL_LIBRARY_TARGETS
+"mulle-concurrent"
 )
 
-set( STANDALONE_ALL_LOAD_LIBRARIES
-$<TARGET_FILE:mulle-concurrent>
-${DEPENDENCY_LIBRARIES}
-${OPTIONAL_DEPENDENCY_LIBRARIES}
-)
+if( STANDALONE)
+   set( STANDALONE_BASE_NAME "mulle-concurrent")
+   set( STANDALONE_NAME "mulle-concurrent-standalone")
+   set( STANDALONE_DEFINITIONS ${MULLE_CONCURRENT_DEFINITIONS})
+   set( STANDALONE_DEPENDENCIES
+   mulle-concurrent
+   )
 
-set( STANDALONE_NORMAL_LOAD_LIBRARIES
-${OS_SPECIFIC_LIBRARIES}
-)
+   set( STANDALONE_ALL_LOAD_LIBRARIES
+   $<TARGET_FILE:mulle-concurrent>
+   ${DEPENDENCY_LIBRARIES}
+   ${OPTIONAL_DEPENDENCY_LIBRARIES}
+   ${OS_SPECIFIC_LIBRARIES}
+   )
 
-include( Standalone)
+   include( Standalone)
+
+   set( INSTALL_LIBRARY_TARGETS
+   ${INSTALL_LIBRARY_TARGETS}
+   "mulle-concurrent-standalone"
+   )
+endif()
 
 ### Install
 
 include( PreInstall OPTIONAL)
 
-install( TARGETS "mulle-concurrent" "mulle-concurrent-standalone" DESTINATION "lib")
+install( TARGETS ${INSTALL_LIBRARY_TARGETS} DESTINATION "lib")
 install( FILES ${PUBLIC_HEADERS}  DESTINATION "include/mulle-concurrent")
 install( FILES ${PRIVATE_HEADERS} DESTINATION "include/mulle-concurrent/private")
 
+# definitions from cmake/share/Environment.cmake
 install( FILES ${CMAKE_INCLUDES}  DESTINATION "include/mulle-concurrent/cmake")
+
+# definitions from cmake/share/LinkManifest.cmake
+install( FILES ${LINK_MANIFEST_FILES}  DESTINATION "include/mulle-concurrent/link")
 
 include( PostInstall OPTIONAL)
