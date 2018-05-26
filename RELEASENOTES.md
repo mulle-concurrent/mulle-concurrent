@@ -1,3 +1,7 @@
+### 2.0.2
+
+* fix travis.yml
+
 ### 2.0.1
 
 * Various small improvements
