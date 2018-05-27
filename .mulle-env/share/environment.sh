@@ -1,4 +1,4 @@
-[ "${TRACE}" = "YES" ] && set -x  && : "$0" "$@"
+[ "${TRACE}" = "YES" -o "${MULLE_ENVIRONMENT_TRACE}" = "YES" ] && set -x  && : "$0" "$@"
 
 #
 # If mulle-env is broken, sometimes its nice just to source this file.
@@ -56,7 +56,7 @@ case "${MULLE_SHELL_MODE}" in
 
    *)
       set -a ; mulle-env-reload     # export all definitions for command
-      ${COMMAND}
+      eval ${COMMAND}  # must eval this so ls -1  works
       exit $?
    ;;
 esac
