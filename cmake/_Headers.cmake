@@ -10,9 +10,13 @@ src/hashmap
 src/pointerarray
 ) 
 
+set( PRIVATE_HEADERS
+src/include-private.h
+)
+
 set( PUBLIC_HEADERS
-src/dependencies.h
 src/hashmap/mulle-concurrent-hashmap.h
+src/include.h
 src/mulle-concurrent.h
 src/mulle-concurrent-types.h
 src/pointerarray/mulle-concurrent-pointerarray.h

@@ -1,3 +1,7 @@
+### 2.0.4
+
+* modernized mulle-sde
+
 ### 2.0.3
 
 * Various small improvements

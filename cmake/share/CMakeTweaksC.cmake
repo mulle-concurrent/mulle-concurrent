@@ -1,5 +1,5 @@
-if( NOT __CMAKE_TWEAKS__CMAKE__)
-   set( __CMAKE_TWEAKS__CMAKE__ ON)
+if( NOT __CMAKE_TWEAKS_C_CMAKE__)
+   set( __CMAKE_TWEAKS_C_CMAKE__ ON)
 
    if( MULLE_TRACE_INCLUDE)
       message( STATUS "# Include \"${CMAKE_CURRENT_LIST_FILE}\"" )
@@ -46,5 +46,7 @@ if( NOT __CMAKE_TWEAKS__CMAKE__)
          set( CMAKE_POSITION_INDEPENDENT_CODE TRUE)
       endif()
    endif()
+
+   include( CMakeTweaksCAux OPTIONAL)
 
 endif()

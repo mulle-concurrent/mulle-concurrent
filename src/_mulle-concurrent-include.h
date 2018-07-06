@@ -3,8 +3,8 @@
    Edits will be lost.
 */
 
-#ifndef _mulle_concurrent__dependencies_h__
-#define _mulle_concurrent__dependencies_h__
+#ifndef _mulle_concurrent_include_h__
+#define _mulle_concurrent_include_h__
 
 # include <mulle-aba/mulle-aba.h>   // mulle-aba
 
