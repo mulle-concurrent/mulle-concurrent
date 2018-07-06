@@ -34,9 +34,9 @@
 #ifndef mulle_concurrent_h__
 #define mulle_concurrent_h__
 
-#define MULLE_CONCURRENT_VERSION  ((2 << 20) | (0 << 8) | 3)
+#define MULLE_CONCURRENT_VERSION  ((2 << 20) | (0 << 8) | 4)
 
-#include "dependencies.h"
+#include "include.h"
 
 #include "mulle-concurrent-types.h"
 #include "mulle-concurrent-hashmap.h"

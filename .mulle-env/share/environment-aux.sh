@@ -1,60 +1,46 @@
-# By default assume a project has source and a sourcetree
-export MULLE_SDE_UPDATE_CALLBACKS="source:sourcetree"
-
-
 #
+# Git mirror and Zip/TGZ cache to conserve bandwidth
+# Memo: override in os-specific env file
 #
-#
-export MULLE_SDE_INSTALLED_VERSION="0.15.6"
-
+export MULLE_FETCH_MIRROR_DIR="${HOME:-/tmp}/.cache/mulle-fetch/git-mirror"
 
 #
+# Git mirror and Zip/TGZ cache to conserve bandwidth
 #
-#
-export PROJECT_NAME="mulle-concurrent"
-
-
-#
-#
-#
-export PROJECT_LANGUAGE="c"
-
+export MULLE_FETCH_ARCHIVE_DIR="${HOME:-/tmp}/.cache/mulle-fetch/archive"
 
 #
+# PATH to search for git repositories locally
 #
-#
-export PROJECT_TYPE="library"
-
-
-#
-#
-#
-export PROJECT_DIALECT="c"
-
+export MULLE_FETCH_SEARCH_PATH="${MULLE_VIRTUAL_ROOT}/.."
 
 #
+# Prefer symlinking to local git repositories found via MULLE_FETCH_SEARCH_PATH
 #
-#
-# export DIALECT_EXTENSION="c"
-
-
-# These are used by `mulle-match find` to speed up the search.
-export MULLE_MATCH_FIND_NAMES="config:CMakeLists.txt:*.cmake:*.h:*.inc:*.c"
-
-
-# These are used by `mulle-match find` to locate files
-export MULLE_MATCH_FIND_LOCATIONS=".mulle-sourcetree/etc/config:CMakeLists.txt:cmake:src"
-
+export MULLE_SOURCETREE_SYMLINK="YES"
 
 #
+# Use common folder for sharable projects
 #
-#
-# export DIALECT_EXTENSIONS="c"
+export MULLE_SOURCETREE_SHARE_DIR="${MULLE_VIRTUAL_ROOT}/stash"
 
+#
+# Share dependency directory (absolute for ease of use)
+#
+export DEPENDENCY_DIR="${MULLE_VIRTUAL_ROOT}/dependency"
 
 #
+# Share addiction directory (absolute for ease of use)
 #
+export ADDICTION_DIR="${MULLE_VIRTUAL_ROOT}/addiction"
+
 #
-export PROJECT_EXTENSIONS="c"
+# Use common build directory
+#
+export BUILD_DIR="${MULLE_VIRTUAL_ROOT}/build"
 
-
+#
+# Modify path so that dependency and addictions executables are found and
+# preferred.
+#
+export PATH="${DEPENDENCY_DIR}/bin:${ADDICTION_DIR}/bin:$PATH"

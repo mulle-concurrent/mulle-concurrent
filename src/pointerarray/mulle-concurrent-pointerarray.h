@@ -36,7 +36,7 @@
 #ifndef mulle_concurrent_pointerarray_h__
 #define mulle_concurrent_pointerarray_h__
 
-#include "dependencies.h"
+#include "include.h"
 
 
 struct _mulle_concurrent_pointerarraystorage;
