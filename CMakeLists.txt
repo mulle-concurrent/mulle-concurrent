@@ -91,7 +91,13 @@ add_library( "mulle-concurrent"
 )
 
 
-set( INSTALL_LIBRARY_TARGETS "mulle-concurrent")
+include( Library OPTIONAL)
+
+
+set( INSTALL_LIBRARY_TARGETS
+   "mulle-concurrent"
+   ${INSTALL_LIBRARY_TARGETS}
+)
 
 include( PostLibrary OPTIONAL)
 
