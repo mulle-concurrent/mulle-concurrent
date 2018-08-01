@@ -1,3 +1,7 @@
+### 2.0.6
+
+* remove obsolete file
+
 ### 2.0.5
 
 * remove cruft, modernize test, modernize project
