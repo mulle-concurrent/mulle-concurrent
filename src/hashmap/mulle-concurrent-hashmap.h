@@ -38,8 +38,32 @@
 
 #include "include.h"
 
+#include <errno.h>
 
-struct _mulle_concurrent_hashmapstorage;
+
+struct _mulle_concurrent_hashvaluepair
+{
+   intptr_t                 hash;
+   mulle_atomic_pointer_t   value;
+};
+
+
+struct _mulle_concurrent_hashmapstorage
+{
+   mulle_atomic_pointer_t   n_hashs;  // with possibly empty values
+   uintptr_t                mask;     // easier to read from debugger if void * size
+
+   struct _mulle_concurrent_hashvaluepair  entries[ 1];
+};
+
+
+static inline int
+   _mulle_concurrent_hashmapstorage_is_const( struct _mulle_concurrent_hashmapstorage *p)
+{
+	// non atomic because const
+	return( _mulle_atomic_pointer_nonatomic_read( &p->n_hashs) == (void *) -1);
+}
+
 
 
 union mulle_concurrent_atomichashmapstorage_t
@@ -56,7 +80,7 @@ struct mulle_concurrent_hashmap
 {
    union mulle_concurrent_atomichashmapstorage_t   storage;
    union mulle_concurrent_atomichashmapstorage_t   next_storage;
-   struct mulle_allocator                          *allocator;
+   mulle_atomic_pointer_t                          allocator;
 };
 
 #pragma mark -
@@ -68,9 +92,10 @@ struct mulle_concurrent_hashmap
 //   EINVAL : invalid argument
 //   ENOMEM : out of memory
 //
-static inline int  mulle_concurrent_hashmap_init( struct mulle_concurrent_hashmap *map,
-                                                  unsigned int size,
-                                                  struct mulle_allocator *allocator)
+static inline int
+   mulle_concurrent_hashmap_init( struct mulle_concurrent_hashmap *map,
+                                  unsigned int size,
+                                  struct mulle_allocator *allocator)
 {
    int  _mulle_concurrent_hashmap_init( struct mulle_concurrent_hashmap *map,
                                         unsigned int size,
@@ -81,7 +106,8 @@ static inline int  mulle_concurrent_hashmap_init( struct mulle_concurrent_hashma
 }
 
 
-static inline void  mulle_concurrent_hashmap_done( struct mulle_concurrent_hashmap *map)
+static inline void
+   mulle_concurrent_hashmap_done( struct mulle_concurrent_hashmap *map)
 {
    void  _mulle_concurrent_hashmap_done( struct mulle_concurrent_hashmap *map);
 
@@ -90,7 +116,8 @@ static inline void  mulle_concurrent_hashmap_done( struct mulle_concurrent_hashm
 }
 
 
-static inline unsigned int  mulle_concurrent_hashmap_get_size( struct mulle_concurrent_hashmap *map)
+static inline unsigned int
+   mulle_concurrent_hashmap_get_size( struct mulle_concurrent_hashmap *map)
 {
    unsigned int  _mulle_concurrent_hashmap_get_size( struct mulle_concurrent_hashmap *map);
 
@@ -103,6 +130,18 @@ static inline unsigned int  mulle_concurrent_hashmap_get_size( struct mulle_conc
 #pragma mark -
 #pragma mark multi-threaded
 
+// Return value (rval):
+//   value                            : OK, inserted
+//   MULLE_CONCURRENT_INVALID_POINTER : an error occurred (see errno)
+//   other                            : retrieved value for hash
+//
+// Do not use hash=0
+// Do not use value=0 or value=INTPTR_MIN
+//
+
+void   *mulle_concurrent_hashmap_register( struct mulle_concurrent_hashmap *map,
+                                                intptr_t hash,
+                                                void *value);
 // Return value (rval):
 //   0      : OK, inserted
 //   EEXIST : detected duplicate
@@ -119,8 +158,9 @@ int   mulle_concurrent_hashmap_insert( struct mulle_concurrent_hashmap *map,
 
 // if rval == NULL, not found
 
-static inline void  *mulle_concurrent_hashmap_lookup( struct mulle_concurrent_hashmap *map,
-                                                     intptr_t hash)
+static inline void
+   *mulle_concurrent_hashmap_lookup( struct mulle_concurrent_hashmap *map,
+                                     intptr_t hash)
 {
    void  *_mulle_concurrent_hashmap_lookup( struct mulle_concurrent_hashmap *map,
                                            intptr_t hash);
@@ -141,9 +181,6 @@ int   mulle_concurrent_hashmap_remove( struct mulle_concurrent_hashmap *map,
                                        void *value);
 
 
-
-
-
 #pragma mark -
 #pragma mark limited multi-threaded
 
@@ -160,7 +197,8 @@ struct mulle_concurrent_hashmapenumerator
 // if you remove stuff from the map, the enumerator will be unhappy and
 // stop (but will tell you). If the map grows, the rover is equally unhappy.
 //
-static inline struct mulle_concurrent_hashmapenumerator  mulle_concurrent_hashmap_enumerate( struct mulle_concurrent_hashmap *map)
+static inline struct mulle_concurrent_hashmapenumerator
+	mulle_concurrent_hashmap_enumerate( struct mulle_concurrent_hashmap *map)
 {
    struct mulle_concurrent_hashmapenumerator   rover;
 
@@ -178,9 +216,10 @@ static inline struct mulle_concurrent_hashmapenumerator  mulle_concurrent_hashma
 // ENOMEM     : out of memory
 // EINVAL     : wrong parameter value
 
-static inline int  mulle_concurrent_hashmapenumerator_next( struct mulle_concurrent_hashmapenumerator *rover,
-                                               intptr_t *hash,
-                                               void **value)
+static inline int
+  mulle_concurrent_hashmapenumerator_next( struct mulle_concurrent_hashmapenumerator *rover,
+                                           intptr_t *hash,
+                                           void **value)
 {
    int  _mulle_concurrent_hashmapenumerator_next( struct mulle_concurrent_hashmapenumerator *rover,
                                                  intptr_t *hash,
@@ -191,7 +230,8 @@ static inline int  mulle_concurrent_hashmapenumerator_next( struct mulle_concurr
 }
 
 
-static inline void  mulle_concurrent_hashmapenumerator_done( struct mulle_concurrent_hashmapenumerator *rover)
+static inline void
+   mulle_concurrent_hashmapenumerator_done( struct mulle_concurrent_hashmapenumerator *rover)
 {
 }
 
@@ -213,6 +253,10 @@ void  _mulle_concurrent_hashmap_done( struct mulle_concurrent_hashmap *map);
 
 unsigned int  _mulle_concurrent_hashmap_get_size( struct mulle_concurrent_hashmap *map);
 
+
+void   *_mulle_concurrent_hashmap_register( struct mulle_concurrent_hashmap *map,
+                                            intptr_t hash,
+                                            void *value);
 
 int  _mulle_concurrent_hashmap_insert( struct mulle_concurrent_hashmap *map,
                                        intptr_t hash,
