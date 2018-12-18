@@ -35,7 +35,7 @@
 //
 #include <mulle-concurrent/mulle-concurrent.h>
 
-#include <mulle-test-allocator/mulle-test-allocator.h>
+#include <mulle-testallocator/mulle-testallocator.h>
 #include <assert.h>
 #include <errno.h>
 
@@ -168,11 +168,11 @@ static void  multi_threaded_test( unsigned int n_threads)
 
    assert( n_threads <= 32);
 
-   mulle_aba_init( &mulle_test_allocator);
-   mulle_allocator_set_aba( &mulle_test_allocator, mulle_aba_get_global(), (void (*)()) _mulle_aba_free);
+   mulle_aba_init( &mulle_testallocator);
+   mulle_allocator_set_aba( &mulle_testallocator, mulle_aba_get_global(), (void (*)()) _mulle_aba_free);
    mulle_aba_register();
 
-   mulle_concurrent_hashmap_init( &map, 0, &mulle_test_allocator);
+   mulle_concurrent_hashmap_init( &map, 0, &mulle_testallocator);
 
    {
       for( i = 0; i < n_threads; i++)
@@ -191,7 +191,7 @@ static void  multi_threaded_test( unsigned int n_threads)
    mulle_concurrent_hashmap_done( &map);
 
    mulle_aba_unregister();
-   mulle_allocator_set_aba( &mulle_test_allocator, NULL, NULL);
+   mulle_allocator_set_aba( &mulle_testallocator, NULL, NULL);
    mulle_aba_done();
 }
 
@@ -204,11 +204,11 @@ static void  single_threaded_test( void)
    unsigned int                                i;
    void                                        *value;
 
-   mulle_aba_init( &mulle_test_allocator);
-   mulle_allocator_set_aba( &mulle_test_allocator, mulle_aba_get_global(), (void (*)()) _mulle_aba_free);
+   mulle_aba_init( &mulle_testallocator);
+   mulle_allocator_set_aba( &mulle_testallocator, mulle_aba_get_global(), (void (*)()) _mulle_aba_free);
    mulle_aba_register();
 
-   mulle_concurrent_hashmap_init( &map, 0, &mulle_test_allocator);
+   mulle_concurrent_hashmap_init( &map, 0, &mulle_testallocator);
    {
       for( i = 1; i <= 100; i++)
       {
@@ -255,28 +255,28 @@ static void  single_threaded_test( void)
    mulle_concurrent_hashmap_done( &map);
 
    mulle_aba_unregister();
-   mulle_allocator_set_aba( &mulle_test_allocator, NULL, NULL);
+   mulle_allocator_set_aba( &mulle_testallocator, NULL, NULL);
    mulle_aba_done();
 }
 
 
 int   main(int argc, const char * argv[])
 {
-   mulle_test_allocator_reset();
+   mulle_testallocator_reset();
 
    do
    {
       single_threaded_test();
-      mulle_test_allocator_reset();
+      mulle_testallocator_reset();
 
       multi_threaded_test( 1);
-      mulle_test_allocator_reset();
+      mulle_testallocator_reset();
 
       multi_threaded_test( 2);
-      mulle_test_allocator_reset();
+      mulle_testallocator_reset();
 
       multi_threaded_test( 32);
-      mulle_test_allocator_reset();
+      mulle_testallocator_reset();
    }
    while( FOREVER);
 
