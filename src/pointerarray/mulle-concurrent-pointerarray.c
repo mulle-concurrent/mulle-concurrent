@@ -33,6 +33,8 @@
 //  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 //  POSSIBILITY OF SUCH DAMAGE.
 //
+#pragma clang diagnostic ignored "-Wparentheses"
+
 #include "mulle-concurrent-pointerarray.h"
 
 #include "mulle-concurrent-types.h"
@@ -122,7 +124,7 @@ static void   *_mulle_concurrent_pointerarraystorage_get( struct _mulle_concurre
 //      if( value == MULLE_CONCURRENT_NO_POINTER)
 //         break;
 //   }
-//   while( ! _mulle_atomic_pointer_compare_and_swap( &p->entries[ i], MULLE_CONCURRENT_NO_POINTER, value));
+//   while( ! _mulle_atomic_pointer_weakcas( &p->entries[ i], MULLE_CONCURRENT_NO_POINTER, value));
 //
 //   return( value);
 //}
@@ -151,7 +153,7 @@ static int   _mulle_concurrent_pointerarraystorage_add( struct _mulle_concurrent
       if( i >= (unsigned int) p->size)
          return( ENOSPC);
 
-      found = __mulle_atomic_pointer_compare_and_swap( &p->entries[ i], value, MULLE_CONCURRENT_NO_POINTER);
+      found = __mulle_atomic_pointer_cas( &p->entries[ i], value, MULLE_CONCURRENT_NO_POINTER);
       if( found == MULLE_CONCURRENT_NO_POINTER)
       {
          _mulle_atomic_pointer_increment( &p->n);
@@ -181,7 +183,8 @@ static void   _mulle_concurrent_pointerarraystorage_copy( struct _mulle_concurre
    {
       value = _mulle_atomic_pointer_read( p);
       // value == MULLE_CONCURRENT_NO_POINTER ? because of extract
-      if( value == MULLE_CONCURRENT_NO_POINTER || _mulle_atomic_pointer_compare_and_swap( &dst->entries[ i], value, MULLE_CONCURRENT_NO_POINTER))
+      if( value == MULLE_CONCURRENT_NO_POINTER ||
+          _mulle_atomic_pointer_cas( &dst->entries[ i], value, MULLE_CONCURRENT_NO_POINTER))
          _mulle_atomic_pointer_increment( &dst->n);
    }
 }
@@ -275,7 +278,7 @@ static void  _mulle_concurrent_pointerarray_migrate_storage( struct mulle_concur
       alloced = _mulle_concurrent_alloc_pointerarraystorage( (unsigned int) p->size * 2, array->allocator);
 
       // make this the next world, assume that's still set to 'p' (SIC)
-      q = __mulle_atomic_pointer_compare_and_swap( &array->next_storage.pointer, alloced, p);
+      q = __mulle_atomic_pointer_cas( &array->next_storage.pointer, alloced, p);
       if( q != p)
       {
          // someone else produced a next world, use that and get rid of 'alloced'
@@ -290,7 +293,7 @@ static void  _mulle_concurrent_pointerarray_migrate_storage( struct mulle_concur
    _mulle_concurrent_pointerarraystorage_copy( q, p);
 
    // now update world, giving it the same value as 'next_world'
-   previous = __mulle_atomic_pointer_compare_and_swap( &array->storage.pointer, q, p);
+   previous = __mulle_atomic_pointer_cas( &array->storage.pointer, q, p);
 
    // ok, if we succeed free old, if we fail alloced is
    // already gone

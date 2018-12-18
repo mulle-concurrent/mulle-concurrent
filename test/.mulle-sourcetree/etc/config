@@ -1,0 +1,2 @@
+mulle-concurrent;tar;no-all-load,no-import,only-standalone;2A6E2715-E908-44E9-9244-60DC7068F791;${MULLE_CONCURRENT_URL:-https://github.com/nat/mulle-concurrent/archive/${MULLE_CONCURRENT_BRANCH:-latest}.tar.gz};;;;
+mulle-testallocator;tar;no-all-load,no-import;F83CBEEF-FDD6-4EFC-99C8-1BC5AA04823D;${MULLE_TESTALLOCATOR_URL:-https://github.com/mulle-core/mulle-testallocator/archive/${MULLE_TESTALLOCATOR_BRANCH:-latest}.tar.gz};;;;

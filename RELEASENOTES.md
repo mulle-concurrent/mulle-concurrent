@@ -1,3 +1,8 @@
+## 2.2.0
+
+* added experimental register function to get or set a value
+
+
 ### 2.0.6
 
 * remove obsolete file

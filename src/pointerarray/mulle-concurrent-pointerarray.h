@@ -38,6 +38,8 @@
 
 #include "include.h"
 
+#include <errno.h>
+
 
 struct _mulle_concurrent_pointerarraystorage;
 
