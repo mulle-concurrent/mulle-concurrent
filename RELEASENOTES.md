@@ -1,3 +1,7 @@
+### 2.2.1
+
+* fix README, ensure newest aba is used
+
 ## 2.2.0
 
 * added experimental register function to get or set a value
