@@ -37,16 +37,23 @@ if( LINK_PHASE)
       ${CMAKE_EDITABLE_FILES}
    )
 
-   add_dependencies( "${EXECUTABLE_NAME}" "_1_${EXECUTABLE_NAME}")
+   add_dependencies( "${EXECUTABLE_NAME}"
+      "_1_${EXECUTABLE_NAME}"
+      ${EXECUTABLE_DEPENDENCY_NAMES}
+   )
 
    # useful for mulle-c, but can be commented out
    set_property( TARGET "${EXECUTABLE_NAME}" PROPERTY CXX_STANDARD 11)
 
    #
    # this will set EXECUTABLE_LIBRARY_LIST if ALL_LOAD is used
+   # and EXECUTABLE_LIBRARY_LIST is not set yet
    #
    include( ExecutableAux OPTIONAL)
 
+   #
+   # fall back if EXECUTABLE_LIBRARY_LIST is not set by ALL_LOAD
+   #
    if( NOT EXECUTABLE_LIBRARY_LIST)
       if( ALL_LOAD_DEPENDENCY_LIBRARIES)
          message( FATAL_ERROR "ALL_LOAD_DEPENDENCY_LIBRARIES \"${ALL_LOAD_DEPENDENCY_LIBRARIES}\" are not linked to ${EXECUTABLE_NAME}")

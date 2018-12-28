@@ -34,7 +34,7 @@
 #ifndef mulle_concurrent_h__
 #define mulle_concurrent_h__
 
-#define MULLE_CONCURRENT_VERSION  ((2 << 20) | (2 << 8) | 0)
+#define MULLE_CONCURRENT_VERSION  ((2 << 20) | (2 << 8) | 1)
 
 #include "include.h"
 
@@ -43,11 +43,8 @@
 #include "mulle-concurrent-pointerarray.h"
 
 
-#if MULLE_ALLOCATOR_VERSION < ((1 << 20) | (3 << 8) | 0)
-# error "mulle_allocator is too old"
-#endif
-#if MULLE_THREAD_VERSION < ((2 << 20) | (0 << 8) | 0)
-# error "mulle_thread is too old"
+#if MULLE_ABA_VERSION < ((2 << 20) | (0 << 8) | 12)
+# error "mulle_aba is too old"
 #endif
 
 #endif /* mulle_concurrent_h */

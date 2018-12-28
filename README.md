@@ -8,9 +8,9 @@ in multi-threaded environments.
 > The definition of concurrent and wait-free are from [concurrencyfreaks.blogspot.de](http://concurrencyfreaks.blogspot.de/2013/05/lock-free-and-wait-free-definition-and.html)
 
 
-Fork      |  Build Status | Release Version
-----------|---------------|-----------------------------------
-[Mulle kybernetiK](//github.com/mulle-c/mulle-concurrent) | [![Build Status](https://travis-ci.org/mulle-c/mulle-concurrent.svg?branch=release)](https://travis-ci.org/mulle-c/mulle-concurrent) | ![Mulle kybernetiK tag](https://img.shields.io/github/tag/mulle-c/mulle-concurrent.svg) [![Build Status](https://travis-ci.org/mulle-c/mulle-concurrent.svg?branch=release)](https://travis-ci.org/mulle-c/mulle-concurrent)
+Build Status | Release Version
+-------------|-----------------------------------
+[![Build Status](https://travis-ci.org/mulle-concurrent/mulle-concurrent.svg?branch=release)](https://travis-ci.org/mulle-concurrent/mulle-concurrent) | ![Mulle kybernetiK tag](https://img.shields.io/github/tag/mulle-concurrent/mulle-concurrent.svg) [![Build Status](https://travis-ci.org/mulle-concurrent/mulle-concurrent.svg?branch=release)](https://travis-ci.org/mulle-concurrent/mulle-concurrent)
 
 
 ## Install
@@ -19,9 +19,9 @@ Fork      |  Build Status | Release Version
 
 Install the prerequisites first:
 
-| Prerequisites                               |
-|---------------------------------------------|
-| [mulle-aba](//github.com/mulle-c/mulle-aba) |
+| Prerequisites                                        |
+|------------------------------------------------------|
+| [mulle-aba](//github.com/mulle-concurrent/mulle-aba) |
 
 Then build and install
 
@@ -52,7 +52,7 @@ API                                                   | Description    | Example
 
 All platforms and compilers supported by
 [mulle-c11](//github.com/mulle-c/mulle-c11) and
-[mulle-thread](//github.com/mulle-c/mulle-thread).
+[mulle-thread](//github.com/mulle-concurrent/mulle-thread).
 
 
 ## Author
