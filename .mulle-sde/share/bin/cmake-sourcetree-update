@@ -234,7 +234,7 @@ ${indent}      # Disable with: \`mark no-cmakeloader\`
 ${indent}      #
 ${indent}      if( NOT NO_INHERIT_OBJC_LOADERS)
 ${indent}         foreach( _TMP_${identifier}_NAME ${quoted_names})
-${indent}            set( _TMP_${identifier}_FILE "\${_TMP_${identifier}_ROOT}/include/\${_TMP_${identifier}_NAME}/objc-loader.inc")
+${indent}            set( _TMP_${identifier}_FILE "\${_TMP_${identifier}_ROOT}/include/\${_TMP_${identifier}_NAME}/MulleObjCLoader+\${_TMP_${identifier}_NAME}.h")
 ${indent}            if( EXISTS "\${_TMP_${identifier}_FILE}")
 ${indent}               set( INHERITED_OBJC_LOADERS
 ${indent}                  \${INHERITED_OBJC_LOADERS}
