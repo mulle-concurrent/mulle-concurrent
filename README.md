@@ -1,5 +1,7 @@
 # mulle-concurrent
 
+📶 A lock- and wait-free hashtable (and an array too), written in C
+
 **mulle-concurrent** is a library for lock- and wait-free data structures.
 Wait-freeness is a desirable property for "hotly" contested data structures
 in multi-threaded environments.
