@@ -1,3 +1,7 @@
+### 2.2.2
+
+* modernized to mulle-sde with .mulle folder
+
 ### 2.2.1
 
 * fix README, ensure newest aba is used
