@@ -9,7 +9,7 @@ set( INCLUDE_DIRS
 src
 src/hashmap
 src/pointerarray
-) 
+)
 
 set( PRIVATE_HEADERS
 src/include-private.h
@@ -21,5 +21,5 @@ src/include.h
 src/mulle-concurrent.h
 src/mulle-concurrent-types.h
 src/pointerarray/mulle-concurrent-pointerarray.h
-) 
+)
 
