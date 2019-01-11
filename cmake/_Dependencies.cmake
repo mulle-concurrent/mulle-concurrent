@@ -5,6 +5,7 @@ if( MULLE_TRACE_INCLUDE)
    message( STATUS "# Include \"${CMAKE_CURRENT_LIST_FILE}\"" )
 endif()
 
+# sourcetree: MULLE_ABA;no-all-load,no-singlephase;
 if( NOT MULLE_ABA_LIBRARY)
    find_library( MULLE_ABA_LIBRARY NAMES ${CMAKE_STATIC_LIBRARY_PREFIX}mulle-aba${CMAKE_STATIC_LIBRARY_SUFFIX} mulle-aba)
    message( STATUS "MULLE_ABA_LIBRARY is ${MULLE_ABA_LIBRARY}")

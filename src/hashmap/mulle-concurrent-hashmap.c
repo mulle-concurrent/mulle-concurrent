@@ -174,8 +174,8 @@ static struct _mulle_concurrent_hashvaluepair  *
 //     other : the read value
 //
 static void   *_mulle_concurrent_hashmapstorage_register( struct _mulle_concurrent_hashmapstorage *p,
-                                                               intptr_t hash,
-                                                               void *value)
+                                                          intptr_t hash,
+                                                          void *value)
 {
    struct _mulle_concurrent_hashvaluepair   *entry;
    void                                     *found;
@@ -332,7 +332,7 @@ static int   _mulle_concurrent_hashmapstorage_put( struct _mulle_concurrent_hash
 }
 
 
-static int   
+static int
 	_mulle_concurrent_hashmapstorage_remove( struct _mulle_concurrent_hashmapstorage *p,
                                             intptr_t hash,
                                             void *value)
