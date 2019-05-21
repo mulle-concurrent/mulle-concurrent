@@ -169,9 +169,9 @@ static struct _mulle_concurrent_hashvaluepair  *
 // register:
 //
 //  return value is either
-//     NULL  : an error occured (see ERRNO)
-//     value : means it did insert
-//     other : the read value
+//     MULLE_CONCURRENT_NO_POINTER      : means it did insert
+//     MULLE_CONCURRENT_INVALID_POINTER : is busy
+//     old                              : value that is already registered
 //
 static void   *_mulle_concurrent_hashmapstorage_register( struct _mulle_concurrent_hashmapstorage *p,
                                                           intptr_t hash,
@@ -211,7 +211,7 @@ static void   *_mulle_concurrent_hashmapstorage_register( struct _mulle_concurre
             entry->hash = hash;
          }
 
-         return( found);
+         return( found); // MULLE_CONCURRENT_NO_POINTER
       }
 
       ++index;
@@ -416,6 +416,14 @@ int  _mulle_concurrent_hashmap_init( struct mulle_concurrent_hashmap *map,
 {
    struct _mulle_concurrent_hashmapstorage   *storage;
 
+   //
+   // check assumption that we can use EINVAL ENOMEM ECANCELED and
+   // not clash with 0/1
+   //
+   assert( EINVAL != 1 && EINVAL != 0);
+   assert( ENOMEM != 1 && ENOMEM != 0);
+   assert( ECANCELED != 1 && ECANCELED != 0);
+
    if( ! allocator)
       allocator = &mulle_default_allocator;
 
@@ -587,7 +595,12 @@ static inline void   assert_hash_value( intptr_t hash, void *value)
    assert( value != MULLE_CONCURRENT_INVALID_POINTER);
 }
 
-
+//  return value:
+//
+//     MULLE_CONCURRENT_NO_POINTER      : means it did insert
+//     MULLE_CONCURRENT_INVALID_POINTER : error
+//     old                              : value that is already registered
+//
 void   *_mulle_concurrent_hashmap_register( struct mulle_concurrent_hashmap *map,
                                             intptr_t hash,
                                             void *value)

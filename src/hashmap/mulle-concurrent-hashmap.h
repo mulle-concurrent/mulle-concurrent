@@ -60,8 +60,8 @@ struct _mulle_concurrent_hashmapstorage
 static inline int
    _mulle_concurrent_hashmapstorage_is_const( struct _mulle_concurrent_hashmapstorage *p)
 {
-	// non atomic because const
-	return( _mulle_atomic_pointer_nonatomic_read( &p->n_hashs) == (void *) -1);
+   // non atomic because const
+   return( _mulle_atomic_pointer_nonatomic_read( &p->n_hashs) == (void *) -1);
 }
 
 
@@ -131,17 +131,17 @@ static inline unsigned int
 #pragma mark multi-threaded
 
 // Return value (rval):
-//   value                            : OK, inserted
-//   MULLE_CONCURRENT_INVALID_POINTER : an error occurred (see errno)
-//   other                            : retrieved value for hash
+//
+//     MULLE_CONCURRENT_NO_POINTER      : means it did insert
+//     MULLE_CONCURRENT_INVALID_POINTER : error (check errno)
+//     other                            : value that was already registered
 //
 // Do not use hash=0
 // Do not use value=0 or value=INTPTR_MIN
 //
-
 void   *mulle_concurrent_hashmap_register( struct mulle_concurrent_hashmap *map,
-                                                intptr_t hash,
-                                                void *value);
+                                           intptr_t hash,
+                                           void *value);
 // Return value (rval):
 //   0      : OK, inserted
 //   EEXIST : detected duplicate
@@ -198,7 +198,7 @@ struct mulle_concurrent_hashmapenumerator
 // stop (but will tell you). If the map grows, the rover is equally unhappy.
 //
 static inline struct mulle_concurrent_hashmapenumerator
-	mulle_concurrent_hashmap_enumerate( struct mulle_concurrent_hashmap *map)
+   mulle_concurrent_hashmap_enumerate( struct mulle_concurrent_hashmap *map)
 {
    struct mulle_concurrent_hashmapenumerator   rover;
 
@@ -225,7 +225,7 @@ static inline int
                                                  intptr_t *hash,
                                                  void **value);
    if( ! rover)
-      return( -EINVAL);
+      return( EINVAL);
    return( _mulle_concurrent_hashmapenumerator_next( rover, hash, value));
 }
 

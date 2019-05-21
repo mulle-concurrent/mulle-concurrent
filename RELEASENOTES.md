@@ -1,3 +1,7 @@
+### 2.2.3
+
+* fix error value EINVAL on enumerate and improve comments detailing error codes
+
 ### 2.2.2
 
 * modernized to mulle-sde with .mulle folder
