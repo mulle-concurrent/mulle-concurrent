@@ -1,3 +1,7 @@
+### 2.2.4
+
+* improved aba library `find_library`
+
 ### 2.2.3
 
 * fix error value EINVAL on enumerate and improve comments detailing error codes
