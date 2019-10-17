@@ -1,3 +1,7 @@
+### 2.2.5
+
+* updated mulle-sde
+
 ### 2.2.4
 
 * improved aba library `find_library`
