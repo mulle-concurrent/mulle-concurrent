@@ -1,3 +1,7 @@
+### 2.2.6
+
+* fix test sourcetree
+
 ### 2.2.5
 
 * updated mulle-sde
