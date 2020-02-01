@@ -1,1 +1,1 @@
-mulle-aba;${MULLE_ABA_NODETYPE:-tar};no-all-load,no-import,no-singlephase;a9eca791-975e-4209-b86a-d21578aa5569;${MULLE_ABA_URL:-https://github.com/mulle-concurrent/mulle-aba/archive/${MULLE_BRANCH}.tar.gz};${MULLE_ABA_BRANCH:-latest};;;
+mulle-aba;${MULLE_ABA_NODETYPE:-tar};no-all-load,no-import,no-singlephase;a9eca791-975e-4209-b86a-d21578aa5569;${MULLE_ABA_URL:-https://github.com/mulle-concurrent/mulle-aba/archive/${MULLE_TAG}.tar.gz};;${MULLE_ABA_TAG:-latest};;
