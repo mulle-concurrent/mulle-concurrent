@@ -1,3 +1,7 @@
+### 2.2.7
+
+* Various small improvements
+
 ### 2.2.6
 
 * fix test sourcetree

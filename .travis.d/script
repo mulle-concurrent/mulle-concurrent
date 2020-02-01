@@ -1,0 +1,14 @@
+#! /bin/sh
+
+# with serial its easier to read the logs
+
+echo "MULLE_HOSTNAME=\"${MULLE_HOSTNAME}\"" 2>&1
+
+mulle-sde -v craft --serial || exit 1
+
+if [ -d test ]
+then
+   # here verbose is more distracting and duplicates much of what we've seen
+   mulle-sde test craft &&
+   mulle-sde -v test run --serial
+fi
