@@ -1,3 +1,7 @@
+### If you want to edit this, copy it from cmake/share to cmake. It will be
+### picked up in preference over the one in cmake/share. And it will not get
+### clobbered with the next upgrade.
+
 # This in theory can be included multiple times
 
 if( MULLE_TRACE_INCLUDE)
@@ -12,6 +16,7 @@ endif()
 
 if( NOT LIBRARY_SOURCES)
    set( LIBRARY_SOURCES "${SOURCES}")
+   set( __LIBRARY_SOURCES_UNSET ON)
 endif()
 
 include( PreLibrary OPTIONAL)
@@ -42,6 +47,13 @@ set( ALL_OBJECT_FILES
 
 set_property( TARGET "_1_${LIBRARY_NAME}" PROPERTY CXX_STANDARD 11)
 
+#
+# Sometimes needed for elder linux ? Seen on xenial, with mulle-mmap
+#
+if( BUILD_SHARED_LIBS)
+   set_property(TARGET "_1_${LIBRARY_NAME}" PROPERTY POSITION_INDEPENDENT_CODE TRUE)
+endif()
+
 
 if( STAGE2_SOURCES)
    add_library( "_2_${LIBRARY_NAME}" OBJECT
@@ -53,6 +65,9 @@ if( STAGE2_SOURCES)
       $<TARGET_OBJECTS:_2_${LIBRARY_NAME}>
    )
    set_property( TARGET "_2_${LIBRARY_NAME}" PROPERTY CXX_STANDARD 11)
+   if( BUILD_SHARED_LIBS)
+      set_property(TARGET "_2_${LIBRARY_NAME}" PROPERTY POSITION_INDEPENDENT_CODE TRUE)
+   endif()
 else()
    if( STAGE2_HEADERS)
       message( FATAL_ERROR "No STAGE2_SOURCES found but STAGE2_HEADERS exist")
@@ -141,3 +156,9 @@ if( LINK_PHASE)
 endif()
 
    ### Install
+
+   # clean EXECUTABLE_SOURCES for the next run, if set by this script
+if( __LIBRARY_SOURCES_UNSET )
+   unset( LIBRARY_SOURCES)
+   unset( __LIBRARY_SOURCES_UNSET)
+endif()

@@ -1,3 +1,7 @@
+### If you want to edit this, copy it from cmake/share to cmake. It will be
+### picked up in preference over the one in cmake/share. And it will not get
+### clobbered with the next upgrade.
+
 if( NOT __ENVIRONMENT__CMAKE__)
    set( __ENVIRONMENT__CMAKE__ ON)
 
@@ -48,7 +52,7 @@ if( NOT __ENVIRONMENT__CMAKE__)
    #       set( FALLBACK_BUILD_TYPE "Debug")
    #    endif()
    # endif()
-#
+   #
    # if( FALLBACK_BUILD_TYPE STREQUAL "Release")
    #    unset( FALLBACK_BUILD_TYPE)
    # endif()
@@ -69,35 +73,37 @@ if( NOT __ENVIRONMENT__CMAKE__)
       #
       if( EXISTS "${TMP_SDK_PATH}")
 
+         set( TMP_PREFIX "${TMP_SDK_PATH}")
+
          #
          # add build type unconditionally if not Release
          #
          if( NOT CMAKE_BUILD_TYPE STREQUAL "Release")
             set( TMP_CMAKE_INCLUDE_PATH
                ${TMP_CMAKE_INCLUDE_PATH}
-               "${TMP_SDK_PATH}/${CMAKE_BUILD_TYPE}/include"
+               "${TMP_PREFIX}/${CMAKE_BUILD_TYPE}/include"
             )
             set( TMP_INCLUDE_DIRS
                ${TMP_INCLUDE_DIRS}
-               "${TMP_SDK_PATH}/${CMAKE_BUILD_TYPE}/include"
+               "${TMP_PREFIX}/${CMAKE_BUILD_TYPE}/include"
             )
 
             set( TMP_CMAKE_LIBRARY_PATH
                ${TMP_CMAKE_LIBRARY_PATH}
-               "${TMP_SDK_PATH}/${CMAKE_BUILD_TYPE}/lib"
+               "${TMP_PREFIX}/${CMAKE_BUILD_TYPE}/lib"
             )
             set( TMP_CMAKE_FRAMEWORK_PATH
                ${TMP_CMAKE_FRAMEWORK_PATH}
-               "${TMP_SDK_PATH}/${CMAKE_BUILD_TYPE}/Frameworks"
+               "${TMP_PREFIX}/${CMAKE_BUILD_TYPE}/Frameworks"
             )
          endif()
 
          #
          # add release as fallback always
          #
-         set( TMP_SDK_RELEASE_PATH "${TMP_SDK_PATH}/Release")
+         set( TMP_SDK_RELEASE_PATH "${TMP_PREFIX}/Release")
          if( NOT EXISTS "${TMP_SDK_RELEASE_PATH}")
-            set( TMP_SDK_RELEASE_PATH "${TMP_SDK_PATH}")
+            set( TMP_SDK_RELEASE_PATH "${TMP_PREFIX}")
          endif()
 
          message( STATUS "TMP_SDK_RELEASE_PATH=${TMP_SDK_RELEASE_PATH}")

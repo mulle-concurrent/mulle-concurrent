@@ -1,14 +1,61 @@
 language: c
 
-dist: xenial
-sudo: required
+if: NOT tag =~ .*-prerelease$
 
-before_install:
-   - curl -sS "https://www.mulle-kybernetik.com/dists/debian-admin-pub.asc" | sudo apt-key add -
-   - echo "deb [arch=all] http://www.mulle-kybernetik.com `lsb_release -c -s` main" | sudo tee "/etc/apt/sources.list.d/mulle-kybernetik.com-main.list" > /dev/null
-   - sudo apt-get update
-   - sudo apt-get -y install mulle-sde mulle-test
+#
+# "addons" always runs before "before_install" so sadly
+# we can't use it for our mulle/codeon packages
+#
+addons:
+  apt:
+    packages:
+      - cmake
+      - cmake-data
 
-script: |
-   mulle-sde -v craft
-   [ -d test ] && mulle-sde -v test --serial
+matrix:
+  include:
+    - os: linux
+      dist: xenial
+      sudo: required
+      before_install:
+         - '[ ! -f .travis.d/before_install.linux ]      || source .travis.d/before_install.linux'
+         - '[ ! -f .travis.d/before_install-aux.linux ]  || source .travis.d/before_install-aux.linux'
+         - '[ ! -f .travis.d/before_install-user.linux ] || source .travis.d/before_install-user.linux'
+
+#
+# Uncomment if you want osx too
+#
+#    - os: osx
+#      before_install:
+#         - '[ ! -f .travis.d/before_install.darwin ]      || source .travis.d/before_install.darwin'
+#         - '[ ! -f .travis.d/before_install-aux.darwin ]  || source .travis.d/before_install-aux.darwin'
+#         - '[ ! -f .travis.d/before_install-user.darwin ] || source .travis.d/before_install-user.darwin'
+
+
+# install:
+#    - '[ ! -f .travis.d/install ] || source .travis.d/install'
+#
+# before_script:
+#    - '[ ! -f .travis.d/before_script ] || source .travis.d/before_script'
+#
+
+script:
+   - '[ ! -f .travis.d/script ] || source .travis.d/script'
+
+# before_cache:
+#    - '[ ! -f .travis.d/before_cache ] || source .travis.d/before_cache'
+#
+# after_success:
+#    - '[ ! -f .travis.d/after_success ] || source .travis.d/after_success'
+#
+# after_failure:
+#    - '[ ! -f .travis.d/after_failure ] || source .travis.d/after_failure'
+#
+# before_deploy:
+#    - '[ ! -f .travis.d/before_deploy ] || source .travis.d/before_deploy'
+#
+# after_deploy:
+#    - '[ ! -f .travis.d/after_deploy ] || source .travis.d/after_deploy'
+#
+# after_script:
+#    - '[ ! -f .travis.d/after_script ] || source .travis.d/after_script'

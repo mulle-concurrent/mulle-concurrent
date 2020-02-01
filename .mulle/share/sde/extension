@@ -5,6 +5,7 @@ mulle-sde/sde;extra
 mulle-c/c-cmake;buildtool
 mulle-sde/c-cmake;buildtool
 mulle-sde/cmake;buildtool
-mulle-c/travis;extra
 mulle-sde/c-demo;extra
 mulle-c/c-demo;extra
+mulle-c/travis;extra
+mulle-sde/travis;extra
