@@ -19,7 +19,7 @@ if( NOT MULLE_ABA_LIBRARY)
    #
    if( MULLE_ABA_LIBRARY)
       #
-      # Add to MULLE_ABA_LIBRARY list.
+      # Add MULLE_ABA_LIBRARY to DEPENDENCY_LIBRARIES list.
       # Disable with: `mulle-sourcetree mark mulle-aba no-cmakeadd`
       #
       set( DEPENDENCY_LIBRARIES

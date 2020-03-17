@@ -1,2 +1,3 @@
-project
-extension
+s:project
+s:extension
+e:host-travis-ci-prerelease

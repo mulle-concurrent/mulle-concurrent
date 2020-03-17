@@ -27,7 +27,7 @@ if( STANDALONE)
    endif()
 
    if( NOT STANDALONE_DEFINITIONS)
-      set( STANDALONE_DEFINITIONS ${MULLE_CONCURRENT_DEFINITIONS})
+      set( STANDALONE_DEFINITIONS ${mulle_concurrent_DEFINITIONS})
    endif()
 
    #

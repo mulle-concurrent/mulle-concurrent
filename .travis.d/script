@@ -1,0 +1,11 @@
+#! /bin/sh
+
+printf "%s\n" "Crafting..." >&2
+mulle-sde -v craft -V || exit 1
+
+
+if [ -d test ]
+then
+   printf "%s\n" "Testing..." >&2
+   mulle-sde -v test --serial
+fi
