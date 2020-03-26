@@ -1,3 +1,4 @@
+# Fill it with mulle-env envirionment --scope  set <key> <value>
 #
 # mulle-testallocator nodetype: ${MULLE_TESTALLOCATOR_NODETYPE:-tar}
 #
