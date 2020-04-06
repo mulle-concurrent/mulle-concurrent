@@ -7,6 +7,9 @@ endif()
 
 set( SOURCES
 src/hashmap/mulle-concurrent-hashmap.c
-src/mulle-concurrent-standalone.c
 src/pointerarray/mulle-concurrent-pointerarray.c
+)
+
+set( STANDALONE_SOURCES
+src/mulle-concurrent-standalone.c
 )

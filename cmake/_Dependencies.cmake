@@ -11,7 +11,7 @@ endif()
 # Disable with: `mulle-sourcetree mark mulle-aba no-link`
 #
 if( NOT MULLE_ABA_LIBRARY)
-   find_library( MULLE_ABA_LIBRARY NAMES ${CMAKE_STATIC_LIBRARY_PREFIX}mulle-aba${CMAKE_STATIC_LIBRARY_SUFFIX} mulle-aba NO_CMAKE_SYSTEM_PATH)
+   find_library( MULLE_ABA_LIBRARY NAMES ${CMAKE_STATIC_LIBRARY_PREFIX}mulle-aba${CMAKE_STATIC_LIBRARY_SUFFIX} mulle-aba NO_CMAKE_SYSTEM_PATH NO_SYSTEM_ENVIRONMENT_PATH)
    message( STATUS "MULLE_ABA_LIBRARY is ${MULLE_ABA_LIBRARY}")
    #
    # The order looks ascending, but due to the way this file is read

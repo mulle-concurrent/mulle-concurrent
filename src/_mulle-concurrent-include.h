@@ -15,6 +15,7 @@
 // How to tweak the following mulle-aba #include
 //    remove:          `mulle-sourcetree mark mulle-aba no-header`
 //    rename:          `mulle-sourcetree mark mulle-aba set include whatever.h`
+//    toggle #import:  `mulle-sourcetree mark mulle-aba [no-]import`
 //    toggle public:   `mulle-sourcetree mark mulle-aba [no-]public`
 //    toggle optional: `mulle-sourcetree mark mulle-aba [no-]require`
 //    remove for os:   `mulle-sourcetree mark mulle-aba no-os-<osname>`
