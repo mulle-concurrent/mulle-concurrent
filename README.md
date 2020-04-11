@@ -14,16 +14,41 @@ Build Status | Release Version
 -------------|-----------------------------------
 [![Build Status](https://travis-ci.org/mulle-concurrent/mulle-concurrent.svg?branch=release)](https://travis-ci.org/mulle-concurrent/mulle-concurrent) | ![Mulle kybernetiK tag](https://img.shields.io/github/tag/mulle-concurrent/mulle-concurrent.svg) [![Build Status](https://travis-ci.org/mulle-concurrent/mulle-concurrent.svg?branch=release)](https://travis-ci.org/mulle-concurrent/mulle-concurrent)
 
+## Data structures
+
+API                                                   | Description    | Example
+------------------------------------------------------|----------------|---------
+[`mulle_concurrent_hashmap`](dox/API_POINTERARRAY.md) | A growing, mutable map of pointers, indexed by a hash. A.k.a. hashtable, dictionary, maptable | [Example](tests/hashmap/example.c)
+[`mulle_concurrent_pointerarray`](dox/API_HASHMAP.md) | A growing array of pointers                                                               | [Example](tests/array/example.c)
+
+
+## Add 
+
+Use [mulle-sde](//github.com/mulle-sde) to add mulle-concurrent to your project:
+
+```
+mulle-sde dependency add --c --github mulle-concurrent mulle-concurrent
+```
 
 ## Install
 
-### Manually
+### mulle-sde
 
-Install the prerequisites first:
+Use [mulle-sde](//github.com/mulle-sde) to build and install mulle-concurrent and all dependencies:
 
-| Prerequisites                                        |
-|------------------------------------------------------|
-| [mulle-aba](//github.com/mulle-concurrent/mulle-aba) |
+```
+mulle-sde install --prefix /usr/local \
+   https://github.com/mulle-concurrent/mulle-concurrent/archive/latest.tar.gz
+```
+
+### Manual Installation
+
+
+Install the requirements:
+
+Requirements                                         | Description
+-----------------------------------------------------|-----------------------
+[mulle-aba](//github.com/mulle-concurrent/mulle-aba) | Concurrent memory reclamation
 
 
 Install into `/usr/local`:
@@ -38,20 +63,6 @@ mkdir build 2> /dev/null
    make install
 )
 ```
-
-
-### Conveniently
-
-Or let [mulle-sde](//github.com/mulle-sde) do it all for you.
-
-
-## Data structures
-
-API                                                   | Description    | Example
-------------------------------------------------------|----------------|---------
-[`mulle_concurrent_hashmap`](dox/API_POINTERARRAY.md) | A growing, mutable map of pointers, indexed by a hash. A.k.a. hashtable, dictionary, maptable | [Example](tests/hashmap/example.c)
-[`mulle_concurrent_pointerarray`](dox/API_HASHMAP.md) | A growing array of pointers                                                               | [Example](tests/array/example.c)
-
 
 ### Platforms and Compilers
 
