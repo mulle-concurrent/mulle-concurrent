@@ -13,6 +13,16 @@ endif()
 if( NOT LIBRARY_NAME)
    set( LIBRARY_NAME "${PROJECT_NAME}")
 endif()
+if( NOT LIBRARY_IDENTIFIER)
+   string( MAKE_C_IDENTIFIER "${LIBRARY_NAME}" LIBRARY_IDENTIFIER)
+endif()
+if( NOT LIBRARY_UPCASE_IDENTIFIER)
+   string( TOUPPER "${LIBRARY_IDENTIFIER}" LIBRARY_UPCASE_IDENTIFIER)
+endif()
+if( NOT LIBRARY_DOWNCASE_IDENTIFIER)
+   string( TOLOWER "${LIBRARY_IDENTIFIER}" LIBRARY_DOWNCASE_IDENTIFIER)
+endif()
+
 
 if( NOT LIBRARY_SOURCES)
    set( LIBRARY_SOURCES "${SOURCES}")
@@ -22,7 +32,7 @@ endif()
 include( PreLibrary OPTIONAL)
 
 if( NOT LIBRARY_SOURCES)
-   message( FATAL_ERROR "There are no sources to compile for libray ${LIBRARY_NAME}. Did mulle-sde update run yet ?")
+   message( FATAL_ERROR "There are no sources to compile for library ${LIBRARY_NAME}. Did mulle-sde update run yet ?")
 endif()
 
 # Libraries are built in two stages:
@@ -145,10 +155,10 @@ if( LINK_PHASE)
    )
 
    if( LIBRARY_RESOURCES)
-      set( INSTALL_${LIBRARY_NAME}_RESOURCES ${LIBRARY_RESOURCES})
+      set( INSTALL_${LIBRARY_UPCASE_IDENTIFIER}_RESOURCES ${LIBRARY_RESOURCES})
    else()
       if( RESOURCES)
-         set( INSTALL_${LIBRARY_NAME}_RESOURCES ${RESOURCES})
+         set( INSTALL_${LIBRARY_UPCASE_IDENTIFIER}_RESOURCES ${RESOURCES})
       endif()
    endif()
 
@@ -157,7 +167,7 @@ endif()
 
    ### Install
 
-   # clean EXECUTABLE_SOURCES for the next run, if set by this script
+   # clean LIBRARY_SOURCES for the next run, if set by this script
 if( __LIBRARY_SOURCES_UNSET )
    unset( LIBRARY_SOURCES)
    unset( __LIBRARY_SOURCES_UNSET)
