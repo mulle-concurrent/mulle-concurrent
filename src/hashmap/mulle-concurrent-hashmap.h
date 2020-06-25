@@ -83,8 +83,7 @@ struct mulle_concurrent_hashmap
    mulle_atomic_pointer_t                          allocator;
 };
 
-#pragma mark -
-#pragma mark single-threaded
+#pragma mark - single-threaded
 
 
 // Returns:
@@ -127,8 +126,7 @@ static inline unsigned int
 }
 
 
-#pragma mark -
-#pragma mark multi-threaded
+#pragma mark - multi-threaded
 
 // Return value (rval):
 //
@@ -181,8 +179,7 @@ int   mulle_concurrent_hashmap_remove( struct mulle_concurrent_hashmap *map,
                                        void *value);
 
 
-#pragma mark -
-#pragma mark limited multi-threaded
+#pragma mark - limited multi-threaded
 
 struct mulle_concurrent_hashmapenumerator
 {
@@ -236,15 +233,13 @@ static inline void
 }
 
 
-#pragma mark -
-#pragma mark enumerator conveniences
+#pragma mark - enumerator conveniences
 
 void           *mulle_concurrent_hashmap_lookup_any( struct mulle_concurrent_hashmap *map);
 unsigned int   mulle_concurrent_hashmap_count( struct mulle_concurrent_hashmap *map);
 
 
-#pragma mark -
-#pragma mark various functions, no parameter checks
+#pragma mark - various functions, no parameter checks
 
 int  _mulle_concurrent_hashmap_init( struct mulle_concurrent_hashmap *map,
                                      unsigned int size,
