@@ -56,8 +56,7 @@ static const struct _mulle_concurrent_hashmapstorage   mulle_concurrent_empty_st
 
 #define REDIRECT_VALUE   MULLE_CONCURRENT_INVALID_POINTER
 
-#pragma mark -
-#pragma mark _mulle_concurrent_hashmapstorage
+#pragma mark - _mulle_concurrent_hashmapstorage
 
 
 // n must be a power of 2
@@ -407,8 +406,7 @@ static void
 }
 
 
-#pragma mark -
-#pragma mark _mulle_concurrent_hashmap
+#pragma mark - _mulle_concurrent_hashmap
 
 int  _mulle_concurrent_hashmap_init( struct mulle_concurrent_hashmap *map,
                                      unsigned int size,
@@ -759,8 +757,7 @@ int  mulle_concurrent_hashmap_remove( struct mulle_concurrent_hashmap *map,
 }
 
 
-#pragma mark -
-#pragma mark not so concurrent enumerator
+#pragma mark - not so concurrent enumerator
 
 int  _mulle_concurrent_hashmapenumerator_next( struct mulle_concurrent_hashmapenumerator *rover,
                                                intptr_t *p_hash,
@@ -784,8 +781,7 @@ int  _mulle_concurrent_hashmapenumerator_next( struct mulle_concurrent_hashmapen
 }
 
 
-#pragma mark -
-#pragma mark enumerator based code
+#pragma mark - enumerator based code
 
 //
 // obviously just a snapshot at some recent point in time

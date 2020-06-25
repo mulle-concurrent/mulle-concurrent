@@ -64,8 +64,7 @@ static const struct _mulle_concurrent_pointerarraystorage   empty_storage;
 #define REDIRECT_VALUE   MULLE_CONCURRENT_INVALID_POINTER
 
 
-#pragma mark -
-#pragma mark _mulle_concurrent_pointerarraystorage
+#pragma mark - _mulle_concurrent_pointerarraystorage
 
 
 // n must be a power of 2
@@ -190,8 +189,7 @@ static void   _mulle_concurrent_pointerarraystorage_copy( struct _mulle_concurre
 }
 
 
-#pragma mark -
-#pragma mark _mulle_concurrent_pointerarray
+#pragma mark - _mulle_concurrent_pointerarray
 
 void  _mulle_concurrent_pointerarray_init( struct mulle_concurrent_pointerarray *array,
                                            unsigned int size,
@@ -388,8 +386,7 @@ int  mulle_concurrent_pointerarray_find( struct mulle_concurrent_pointerarray *a
 }
 
 
-#pragma mark -
-#pragma mark not so concurrent enumerator
+#pragma mark - not so concurrent enumerator
 
 void  *_mulle_concurrent_pointerarrayenumerator_next( struct mulle_concurrent_pointerarrayenumerator *rover)
 {

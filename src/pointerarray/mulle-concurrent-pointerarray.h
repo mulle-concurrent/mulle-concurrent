@@ -59,8 +59,7 @@ struct mulle_concurrent_pointerarray
 };
 
 
-#pragma mark -
-#pragma mark single-threaded
+#pragma mark - single-threaded
 
 // Returns:
 //   0      : OK
@@ -111,8 +110,7 @@ static inline unsigned int  mulle_concurrent_pointerarray_get_count( struct mull
 }
 
 
-#pragma mark -
-#pragma mark multi-threaded
+#pragma mark - multi-threaded
 
 // Returns:
 //   0      : OK
@@ -136,8 +134,7 @@ static inline void  *mulle_concurrent_pointerarray_get( struct mulle_concurrent_
 int  mulle_concurrent_pointerarray_find( struct mulle_concurrent_pointerarray *array,
                                          void *value);
 
-#pragma mark -
-#pragma mark enumerator
+#pragma mark - enumerator
 
 struct mulle_concurrent_pointerarrayenumerator
 {
@@ -212,15 +209,13 @@ static inline void  mulle_concurrent_pointerarrayreverseenumerator_done( struct 
 }
 
 
-#pragma mark -
-#pragma mark enumerator conveniences
+#pragma mark - enumerator conveniences
 
 int   mulle_concurrent_pointerarray_map( struct mulle_concurrent_pointerarray *list,
                                         void (*f)( void *, void *),
                                         void *userinfo);
 
-#pragma mark -
-#pragma mark various functions, no parameter checks
+#pragma mark - various functions, no parameter checks
 
 void  _mulle_concurrent_pointerarray_init( struct mulle_concurrent_pointerarray *array,
                                           unsigned int size,
