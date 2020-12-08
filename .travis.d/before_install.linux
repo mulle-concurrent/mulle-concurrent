@@ -115,7 +115,7 @@ before_install_main()
       PACKAGES="`egrep -v '^#' ".travis.d/PACKAGES.linux" `"
    else
       PACKAGES="`egrep -v '^#' ".travis.d/PACKAGES" `"
-   fi &&
+   fi
 
    (
       IFS=$'\n'
