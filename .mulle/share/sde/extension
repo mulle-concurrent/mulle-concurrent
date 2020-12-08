@@ -7,5 +7,3 @@ mulle-sde/c-cmake;buildtool
 mulle-sde/cmake;buildtool
 mulle-sde/c-demo;extra
 mulle-c/c-demo;extra
-mulle-c/travis;extra
-mulle-sde/travis;extra
