@@ -1,6 +1,6 @@
 # mulle-concurrent
 
-📶 A lock- and wait-free hashtable (and an array too), written in C
+#### 📶 A lock- and wait-free hashtable (and an array too), written in C
 
 **mulle-concurrent** is a library for lock- and wait-free data structures.
 Wait-freeness is a desirable property for "hotly" contested data structures
@@ -10,9 +10,9 @@ in multi-threaded environments.
 > The definition of concurrent and wait-free are from [concurrencyfreaks.blogspot.de](http://concurrencyfreaks.blogspot.de/2013/05/lock-free-and-wait-free-definition-and.html)
 
 
-Build Status | Release Version
--------------|-----------------------------------
-[![Build Status](https://travis-ci.org/mulle-concurrent/mulle-concurrent.svg?branch=release)](https://travis-ci.org/mulle-concurrent/mulle-concurrent) | ![Mulle kybernetiK tag](https://img.shields.io/github/tag/mulle-concurrent/mulle-concurrent.svg) [![Build Status](https://travis-ci.org/mulle-concurrent/mulle-concurrent.svg?branch=release)](https://travis-ci.org/mulle-concurrent/mulle-concurrent)
+| Release Version
+|-----------------------------------
+[![Build Status](https://travis-ci.org/mulle-concurrent/mulle-concurrent.svg?branch=release)](https://travis-ci.org/mulle-concurrent/mulle-concurrent) | ![Mulle kybernetiK tag](https://img.shields.io/github/tag/mulle-concurrent/mulle-concurrent.svg?branch=release) [![Build Status](https://travis-ci.org/mulle-concurrent/mulle-concurrent.svg?branch=release)](https://travis-ci.org/mulle-concurrent/mulle-concurrent)
 
 ## Data structures
 
@@ -22,7 +22,7 @@ API                                                   | Description    | Example
 [`mulle_concurrent_pointerarray`](dox/API_HASHMAP.md) | A growing array of pointers                                                               | [Example](tests/array/example.c)
 
 
-## Add 
+## Add
 
 Use [mulle-sde](//github.com/mulle-sde) to add mulle-concurrent to your project:
 

@@ -35,6 +35,9 @@ if( NOT LIBRARY_SOURCES)
    message( FATAL_ERROR "There are no sources to compile for library ${LIBRARY_NAME}. Did mulle-sde update run yet ?")
 endif()
 
+# RPATH must be ahead of add_library, but is it really needed ?
+include( InstallRpath OPTIONAL)
+
 # Libraries are built in two stages:
 #
 # In the first step the PROJECT_FILES are compiled.
@@ -53,6 +56,8 @@ add_library( "_1_${LIBRARY_NAME}" OBJECT
 
 set( ALL_OBJECT_FILES
    $<TARGET_OBJECTS:_1_${LIBRARY_NAME}>
+   ${OTHER_LIBRARY_OBJECT_FILES}
+   ${OTHER_${LIBRARY_UPCASE_IDENTIFIER}_OBJECT_FILES}
 )
 
 set_property( TARGET "_1_${LIBRARY_NAME}" PROPERTY CXX_STANDARD 11)

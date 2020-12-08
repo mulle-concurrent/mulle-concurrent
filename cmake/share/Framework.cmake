@@ -31,7 +31,7 @@ endif()
 include( PreFramework OPTIONAL)
 
 if( NOT SOURCES)
-   message( FATAL_ERROR "There are no sources to compile for framework ${FRAMEWORK_NAME}. Did mulle-sde update run yet ?")
+   message( FATAL_ERROR "There are no sources to compile for framework ${FRAMEWORK_NAME}. Did mulle-sde reflect run yet ?")
 endif()
 
 add_library( "${FRAMEWORK_NAME}" SHARED
