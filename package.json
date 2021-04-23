@@ -1,0 +1,16 @@
+{
+   "name" : "mulle-concurrent",
+   "version" : "2.2.9",
+   "description" : "📶 A lock- and wait-free hashtable (and an array too), written in C",
+   "homepage" : "https://github.com/mulle-concurrent/mulle-concurrent",
+   "bugs" : "https://github.com/mulle-concurrent/mulle-concurrent/issues",
+   "keywords" : [],
+   "license" : "BSD-3-Clause",
+   "repository" : {
+      "type" : "git",
+      "url" : "mulle-concurrent/mulle-concurrent"
+   },
+   "dependencies" : {
+      "mulle-aba" : "mulle-concurrent/mulle-aba"
+   }
+}
