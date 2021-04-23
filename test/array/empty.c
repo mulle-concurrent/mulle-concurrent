@@ -11,8 +11,8 @@ static void   test( void)
    struct mulle_concurrent_pointerarray map;
 
    mulle_concurrent_pointerarray_init( &map, 0, NULL);
-   printf( "%ld\n", _mulle_concurrent_pointerarray_get_size( &map));
-   printf( "%ld\n", _mulle_concurrent_pointerarray_get_count( &map));
+   printf( "%ld\n", (long) _mulle_concurrent_pointerarray_get_size( &map));
+   printf( "%ld\n", (long) _mulle_concurrent_pointerarray_get_count( &map));
    printf( "%sfound\n",
       _mulle_concurrent_pointerarray_find( &map, (void *) 0x1)
            ? "" : "not ");

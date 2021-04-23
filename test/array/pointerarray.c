@@ -125,7 +125,9 @@ static void  multi_threaded_test( unsigned int n_threads)
    assert( n_threads <= 32);
 
    mulle_aba_init( &mulle_testallocator);
-   mulle_allocator_set_aba( &mulle_testallocator, mulle_aba_get_global(), (void (*)()) _mulle_aba_free);
+   mulle_allocator_set_aba( &mulle_testallocator,
+                            mulle_aba_get_global(),
+                            (mulle_allocator_aba_t) _mulle_aba_free);
    mulle_aba_register();
 
    mulle_concurrent_pointerarray_init( &map, 0, &mulle_testallocator);
@@ -160,14 +162,16 @@ static void  single_threaded_test( void)
    void                                             *value;
 
    mulle_aba_init( &mulle_testallocator);
-   mulle_allocator_set_aba( &mulle_testallocator, mulle_aba_get_global(), (void (*)()) _mulle_aba_free);
+   mulle_allocator_set_aba( &mulle_testallocator,
+                            mulle_aba_get_global(),
+                            (mulle_allocator_aba_t) _mulle_aba_free);
    mulle_aba_register();
 
    mulle_concurrent_pointerarray_init( &map, 0, &mulle_testallocator);
    {
       for( i = 1; i <= 100; i++)
       {
-         value = (void *) (i * 10);
+         value = (void *) (uintptr_t) (i * 10);
          _mulle_concurrent_pointerarray_add( &map, value);
          assert( mulle_concurrent_pointerarray_get( &map, i - 1) == (void *) (i * 10));
       }
