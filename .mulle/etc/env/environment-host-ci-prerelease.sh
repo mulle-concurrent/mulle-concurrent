@@ -1,4 +1,3 @@
-# Fill it with mulle-env envirionment --scope  set <key> <value>
 #
 # mulle-aba nodetype: ${MULLE_ABA_NODETYPE:-tar}
 #

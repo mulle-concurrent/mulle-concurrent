@@ -4,37 +4,38 @@ on: [push]
 
 env:
   BUILD_TYPE: release
+  OTHER_PROJECTS: "mulle-c/mulle-c-developer;"
 
 jobs:
   build:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ macos-latest, ubuntu-latest]
+        os: [ ubuntu-latest] # macos-latest,
 
     steps:
-    - name: Update stuff (for act)
-      if: ${{ env.ACT }}
-      run: apt-get update
-
-    - name: Install stuff (for act)
-      if: ${{ env.ACT }}
-      run: apt-get -y install cmake curl uuid-runtime
-
     - name: Set MULLE_HOSTNAME
       run: |
         name="${GITHUB_REF##*/}"
-        echo "MULLE_HOSTNAME=ci-${name##*-}" >> $GITHUB_ENV
-
-    - uses: actions/checkout@v2
-
-    - uses: mulle-sde/github-ci@v1
+        MULLE_HOSTNAME="ci-${name##*-}"
+        echo "MULLE_HOSTNAME=${MULLE_HOSTNAME}" >> $GITHUB_ENV
 
     - name: Add to path
       run:  echo "$HOME/bin" >> $GITHUB_PATH
 
     - name: Dump Environment
       run:  env | sort
+
+    - uses: actions/checkout@v2
+      if: ${{ ! env.ACT }}
+
+    - uses: mulle-sde/github-ci@v1
+      if: ${{ ! env.ACT }}
+
+    - name: Dump Project Environment
+      run:  |
+        [ ! -d .mulle/etc/env ] || ls -l .mulle/etc/env/environment*.sh
+        mulle-sde environment
 
     - name: Mulle-SDE Fetch
       run: mulle-sde fetch
