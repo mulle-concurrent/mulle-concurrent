@@ -1,3 +1,7 @@
+### 2.2.10
+
+* Various small improvements
+
 ### 2.2.9
 
 * use github actions instead of travis, upgrade mulle-sde
