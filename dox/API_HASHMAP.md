@@ -75,7 +75,7 @@ int  mulle_concurrent_hashmap_insert( struct mulle_concurrent_hashmap *map,
 
 Insert a `hash`, `value` pair.
 `hash` must not be zero. It should be a unique integer key, suitably treated to
-be a good hash value. Here is an example of an avalance function for simple
+be a good hash value. Here is an example ([murmur3](https://en.wikipedia.org/wiki/MurmurHash) of an avalance function for simple
 integer keys (1-...)
 
 ```
