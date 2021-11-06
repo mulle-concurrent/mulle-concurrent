@@ -104,7 +104,7 @@ static struct _mulle_concurrent_pointerarraystorage *
 
 
 static void   *_mulle_concurrent_pointerarraystorage_get( struct _mulle_concurrent_pointerarraystorage *p,
-                                                    unsigned int i)
+                                                          unsigned int i)
 {
    assert( i < (unsigned int) (uintptr_t) _mulle_atomic_pointer_read( &p->n));
    return( _mulle_atomic_pointer_read( &p->entries[ i]));
@@ -137,7 +137,7 @@ static void   *_mulle_concurrent_pointerarraystorage_get( struct _mulle_concurre
 //  ENOSPC : storage is full
 //
 static int   _mulle_concurrent_pointerarraystorage_add( struct _mulle_concurrent_pointerarraystorage *p,
-                                                  void *value)
+                                                        void *value)
 {
    void           *found;
    unsigned int   i;
@@ -166,7 +166,7 @@ static int   _mulle_concurrent_pointerarraystorage_add( struct _mulle_concurrent
 
 
 static void   _mulle_concurrent_pointerarraystorage_copy( struct _mulle_concurrent_pointerarraystorage *dst,
-                                                    struct _mulle_concurrent_pointerarraystorage *src)
+                                                          struct _mulle_concurrent_pointerarraystorage *src)
 {
    mulle_atomic_pointer_t   *p;
    mulle_atomic_pointer_t   *p_last;
@@ -256,7 +256,7 @@ unsigned int   _mulle_concurrent_pointerarray_get_count( struct mulle_concurrent
 # pragma mark multi-threaded
 
 static void  _mulle_concurrent_pointerarray_migrate_storage( struct mulle_concurrent_pointerarray *array,
-                                                      struct _mulle_concurrent_pointerarraystorage *p)
+                                                             struct _mulle_concurrent_pointerarraystorage *p)
 {
 
    struct _mulle_concurrent_pointerarraystorage   *q;
@@ -273,7 +273,8 @@ static void  _mulle_concurrent_pointerarray_migrate_storage( struct mulle_concur
 
    if( q == p)
    {
-      alloced = _mulle_concurrent_alloc_pointerarraystorage( (unsigned int) p->size * 2, array->allocator);
+      alloced = _mulle_concurrent_alloc_pointerarraystorage( (unsigned int) p->size * 2, 
+                                                             array->allocator);
 
       // make this the next world, assume that's still set to 'p' (SIC)
       q = __mulle_atomic_pointer_cas( &array->next_storage.pointer, alloced, p);
@@ -293,9 +294,13 @@ static void  _mulle_concurrent_pointerarray_migrate_storage( struct mulle_concur
    // now update world, giving it the same value as 'next_world'
    previous = __mulle_atomic_pointer_cas( &array->storage.pointer, q, p);
 
+   // if this assert hits, it means that mulle-concurrent has been linked
+   // twice (happens sometimes)
+   assert( previous->size || previous == &empty_storage);
+
    // ok, if we succeed free old, if we fail alloced is
    // already gone
-   if( previous == p && previous != &empty_storage)
+   if( previous == p && p->size)
       _mulle_allocator_abafree( array->allocator, previous);
 }
 

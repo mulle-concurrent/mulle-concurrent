@@ -87,8 +87,9 @@ static void  enumerate_something( struct mulle_concurrent_pointerarray *map)
 //
 // run until the mask is >= 1 mio entries
 //
-static void  tester( struct mulle_concurrent_pointerarray *map)
+static mulle_thread_rval_t   tester( void *arg)
 {
+   struct mulle_concurrent_pointerarray *map  = arg;
    int   todo;
 
    mulle_aba_register();
@@ -112,6 +113,7 @@ static void  tester( struct mulle_concurrent_pointerarray *map)
    }
 
    mulle_aba_unregister();
+   mulle_thread_return();
 }
 
 
@@ -135,7 +137,7 @@ static void  multi_threaded_test( unsigned int n_threads)
    {
       for( i = 0; i < n_threads; i++)
       {
-         if( mulle_thread_create( (void (*)()) tester, &map, &threads[ i]))
+         if( mulle_thread_create( tester, &map, &threads[ i]))
          {
             perror( "mulle_thread_create");
             abort();
