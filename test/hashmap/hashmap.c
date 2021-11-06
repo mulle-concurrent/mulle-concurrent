@@ -36,6 +36,7 @@
 #include <mulle-concurrent/mulle-concurrent.h>
 
 #include <mulle-testallocator/mulle-testallocator.h>
+#include <mulle-allocator/mulle-allocator.h>
 #include <assert.h>
 #include <errno.h>
 
