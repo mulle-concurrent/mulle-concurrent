@@ -43,6 +43,10 @@ if( LIBRARY_SOURCES)
    # RPATH must be ahead of add_library, but is it really needed ?
    include( InstallRpath OPTIONAL)
 
+   option( DLL_EXPORT_ALL "Export all global symbols for DLL" ON)
+
+   set( CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ${DLL_EXPORT_ALL})
+
    # Libraries are built in two stages:
    #
    # In the first step the PROJECT_FILES are compiled.
@@ -140,7 +144,7 @@ if( LIBRARY_SOURCES)
                ${DEPENDENCY_LIBRARIES}
                ${DEPENDENCY_FRAMEWORKS}
                ${OPTIONAL_DEPENDENCY_LIBRARIES}
-               ${OPTIONAL_DEPENDENCY_FRAMWORKS}
+               ${OPTIONAL_DEPENDENCY_FRAMEWORKS}
                ${OS_SPECIFIC_LIBRARIES}
                ${OS_SPECIFIC_FRAMEWORKS}
          )
