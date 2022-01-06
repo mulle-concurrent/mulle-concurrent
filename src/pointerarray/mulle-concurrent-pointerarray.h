@@ -117,6 +117,7 @@ static inline unsigned int  mulle_concurrent_pointerarray_get_count( struct mull
 //   EINVAL : invalid argument
 //   ENOMEM : out of memory
 //
+MULLE_CONCURRENT_EXTERN_GLOBAL
 int  mulle_concurrent_pointerarray_add( struct mulle_concurrent_pointerarray *array,
                                         void *value);
 
@@ -131,6 +132,7 @@ static inline void  *mulle_concurrent_pointerarray_get( struct mulle_concurrent_
 }
 
 
+MULLE_CONCURRENT_EXTERN_GLOBAL
 int  mulle_concurrent_pointerarray_find( struct mulle_concurrent_pointerarray *array,
                                          void *value);
 
@@ -211,32 +213,43 @@ static inline void  mulle_concurrent_pointerarrayreverseenumerator_done( struct 
 
 #pragma mark - enumerator conveniences
 
+MULLE_CONCURRENT_EXTERN_GLOBAL
 int   mulle_concurrent_pointerarray_map( struct mulle_concurrent_pointerarray *list,
                                         void (*f)( void *, void *),
                                         void *userinfo);
 
 #pragma mark - various functions, no parameter checks
 
+MULLE_CONCURRENT_EXTERN_GLOBAL
 void  _mulle_concurrent_pointerarray_init( struct mulle_concurrent_pointerarray *array,
                                           unsigned int size,
                                           struct mulle_allocator *allocator);
+MULLE_CONCURRENT_EXTERN_GLOBAL
 void  _mulle_concurrent_pointerarray_done( struct mulle_concurrent_pointerarray *array);
 
+MULLE_CONCURRENT_EXTERN_GLOBAL
 unsigned int  _mulle_concurrent_pointerarray_get_size( struct mulle_concurrent_pointerarray *array);
+
+MULLE_CONCURRENT_EXTERN_GLOBAL
 unsigned int  _mulle_concurrent_pointerarray_get_count( struct mulle_concurrent_pointerarray *array);
 
+MULLE_CONCURRENT_EXTERN_GLOBAL
 void  _mulle_concurrent_pointerarray_add( struct mulle_concurrent_pointerarray *array,
                                          void *value);
 
+MULLE_CONCURRENT_EXTERN_GLOBAL
 void  *_mulle_concurrent_pointerarray_get( struct mulle_concurrent_pointerarray *array,
                                            unsigned int i);
 
+MULLE_CONCURRENT_EXTERN_GLOBAL
 int  _mulle_concurrent_pointerarray_find( struct mulle_concurrent_pointerarray *array,
                                           void *value);
 
+MULLE_CONCURRENT_EXTERN_GLOBAL
 void   *_mulle_concurrent_pointerarrayenumerator_next( struct mulle_concurrent_pointerarrayenumerator *rover);
 
 
+MULLE_CONCURRENT_EXTERN_GLOBAL
 void  *_mulle_concurrent_pointerarrayreverseenumerator_next( struct mulle_concurrent_pointerarrayreverseenumerator *rover);
 
 #endif /* mulle_concurrent_pointerarray_h */

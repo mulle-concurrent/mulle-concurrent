@@ -21,6 +21,11 @@
 
 #include "_mulle-concurrent-include.h"
 
+#ifndef MULLE_CONCURRENT_EXTERN_GLOBAL
+# define MULLE_CONCURRENT_EXTERN_GLOBAL MULLE_C_EXTERN_GLOBAL
+#endif
+
+
 /* You can add some more include statements here */
 
 #endif
