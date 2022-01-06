@@ -18,8 +18,8 @@ in multi-threaded environments.
 
 API                                                   | Description    | Example
 ------------------------------------------------------|----------------|---------
-[`mulle_concurrent_hashmap`](dox/API_POINTERARRAY.md) | A growing, mutable map of pointers, indexed by a hash. A.k.a. hashtable, dictionary, maptable | [Example](tests/hashmap/example.c)
-[`mulle_concurrent_pointerarray`](dox/API_HASHMAP.md) | A growing array of pointers                                                               | [Example](tests/array/example.c)
+[`mulle_concurrent_hashmap`](dox/API_HASHMAP.md)      | A growing, mutable map of pointers, indexed by a hash. A.k.a. hashtable, dictionary, maptable | [Example](tests/hashmap/example.c)
+[`mulle_concurrent_pointerarray`](dox/API_POINTERARRAY.md) | A growing array of pointers                                                              | [Example](tests/array/example.c)
 
 
 ## Add
