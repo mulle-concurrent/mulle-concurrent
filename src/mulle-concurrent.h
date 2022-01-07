@@ -42,9 +42,10 @@
 #include "mulle-concurrent-hashmap.h"
 #include "mulle-concurrent-pointerarray.h"
 
-
-#if MULLE_ABA_VERSION < ((2 << 20) | (0 << 8) | 12)
-# error "mulle_aba is too old"
+#ifdef __has_include
+# if __has_include( "_mulle-concurrent-versioncheck.h")
+#  include "_mulle-concurrent-versioncheck.h"
+# endif
 #endif
 
 #endif /* mulle_concurrent_h */
