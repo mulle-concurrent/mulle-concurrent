@@ -12,6 +12,7 @@ endif()
 
 set( INCLUDE_DIRS
 src
+src/generic
 src/hashmap
 src/pointerarray
 src/reflect
@@ -28,7 +29,7 @@ src/reflect/_mulle-concurrent-include-private.h
 # contents selected with patternfile ??-header--private-generic-headers
 #
 set( PRIVATE_GENERIC_HEADERS
-src/include-private.h
+src/generic/include-private.h
 )
 
 #
@@ -44,7 +45,7 @@ src/reflect/_mulle-concurrent-versioncheck.h
 # contents selected with patternfile ??-header--public-generic-headers
 #
 set( PUBLIC_GENERIC_HEADERS
-src/include.h
+src/generic/include.h
 )
 
 #
