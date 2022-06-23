@@ -252,8 +252,7 @@ unsigned int   _mulle_concurrent_pointerarray_get_count( struct mulle_concurrent
 }
 
 
-# pragma mark -
-# pragma mark multi-threaded
+# pragma mark - multi-threaded
 
 static void  _mulle_concurrent_pointerarray_migrate_storage( struct mulle_concurrent_pointerarray *array,
                                                              struct _mulle_concurrent_pointerarraystorage *p)

@@ -1,3 +1,7 @@
+### 2.2.12
+
+* change GLOBALs for Windows
+
 ### 2.2.11
 
 * Various small improvements
