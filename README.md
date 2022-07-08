@@ -12,14 +12,14 @@ in multi-threaded environments.
 
 | Release Version
 |-----------------------------------
-[![Build Status](https://github.com/mulle-concurrent/mulle-concurrent/CI/badge.svg?branch=release)](//github.com/mulle-concurrent/mulle-concurrent) | ![Mulle kybernetiK tag](https://img.shields.io/github/tag/mulle-concurrent/mulle-concurrent.svg?branch=release) [![Build Status](https://github.com/mulle-concurrent/mulle-concurrent/CI/badge.svg?branch=release)](//github.com/mulle-concurrent/mulle-concurrent)
+|[![Build Status](https://github.com/mulle-concurrent/mulle-concurrent/workflows/CI/badge.svg?branch=release)](//github.com/mulle-concurrent/mulle-concurrent)  ![Mulle kybernetiK tag](https://img.shields.io/github/tag/mulle-concurrent/mulle-concurrent/workflows/CI/badge.svg?branch=release)
 
 ## Data structures
 
 API                                                   | Description    | Example
 ------------------------------------------------------|----------------|---------
-[`mulle_concurrent_hashmap`](dox/API_HASHMAP.md)      | A growing, mutable map of pointers, indexed by a hash. A.k.a. hashtable, dictionary, maptable | [Example](test/hashmap/example.c)
-[`mulle_concurrent_pointerarray`](dox/API_POINTERARRAY.md) | A growing array of pointers                                                              | [Example](test/array/example.c)
+[`mulle_concurrent_hashmap`](dox/API_HASHMAP.md)      | A growing, mutable map of pointers, indexed by a hash. A.k.a. hashtable, dictionary, maptable  | [Example](test/hashmap/example.c)
+[`mulle_concurrent_pointerarray`](dox/API_POINTERARRAY.md) | A growing array of pointers                                                   | [Example](test/array/example.c)
 
 
 
