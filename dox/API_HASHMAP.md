@@ -172,9 +172,11 @@ int  mulle_concurrent_hashmapenumerator_next( struct mulle_concurrent_hashmapenu
                                                void **value)
 ```
 
-Get the next `hash`, `value` pair from the enumerator. This works reliably if `map` is accessed in single-threaded fashion, which it probably will NOT be. In multi-threaded
-environments, the enumeration may be interrupted by mutations of the hashtable
-by other threads. The enumerator itself should not be shared with other threads.
+Get the next `hash`, `value` pair from the enumerator. This works reliably if
+`map` is accessed in single-threaded fashion, which it probably will NOT be.
+In multi-threaded environments, the enumeration may be interrupted by mutations
+of the hashtable by other threads. The enumerator itself should not be shared
+with other threads.
 
 Here is a simple usage example:
 
