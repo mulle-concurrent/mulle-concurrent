@@ -350,16 +350,16 @@ void  _mulle_concurrent_pointerarray_add( struct mulle_concurrent_pointerarray *
                                          void *value)
 {
    struct _mulle_concurrent_pointerarraystorage   *p;
+   int                                            rval;
 
    assert( value != MULLE_CONCURRENT_NO_POINTER);
    assert( value != REDIRECT_VALUE);
 
 retry:
-   p = _mulle_atomic_pointer_read( &array->storage.pointer);
-   switch( _mulle_concurrent_pointerarraystorage_add( p, value))
+   p    = _mulle_atomic_pointer_read( &array->storage.pointer);
+   rval = _mulle_concurrent_pointerarraystorage_add( p, value);
+   if( rval == EBUSY || rval == ENOSPC)
    {
-   case EBUSY   :
-   case ENOSPC  :
       _mulle_concurrent_pointerarray_migrate_storage( array, p);
       goto retry;
    }

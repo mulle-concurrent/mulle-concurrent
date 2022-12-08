@@ -15,6 +15,7 @@ endif()
 # Generated from sourcetree: 0A5FA4B8-AB96-4A8A-A855-E40FCC951603;mulle-aba;no-all-load,no-cmake-searchpath,no-import,no-singlephase;
 # Disable with : `mulle-sourcetree mark mulle-aba no-link`
 # Disable for this platform: `mulle-sourcetree mark mulle-aba no-cmake-platform-${MULLE_UNAME}`
+# Disable for a sdk: `mulle-sourcetree mark mulle-aba no-cmake-sdk-<name>`
 #
 if( NOT MULLE_ABA_LIBRARY)
    find_library( MULLE_ABA_LIBRARY NAMES ${CMAKE_STATIC_LIBRARY_PREFIX}mulle-aba${CMAKE_DEBUG_POSTFIX}${CMAKE_STATIC_LIBRARY_SUFFIX} ${CMAKE_STATIC_LIBRARY_PREFIX}mulle-aba${CMAKE_STATIC_LIBRARY_SUFFIX} mulle-aba NO_CMAKE_SYSTEM_PATH NO_SYSTEM_ENVIRONMENT_PATH)
