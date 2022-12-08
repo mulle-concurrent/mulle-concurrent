@@ -53,17 +53,10 @@ static void  insert_something( struct mulle_concurrent_hashmap *map)
    hash  = rand() << 1;  // no uneven ids
    value = (void *) (hash * 10);
    rval  = _mulle_concurrent_hashmap_insert( map, hash, value);
-
-   switch( rval)
-   {
-   default :
-      perror( "mulle_concurrent_hashmap_insert");
-      abort();
-
-   case 0 :
-   case EEXIST :
+   if( ! rval || rval == EEXIST)
       return;
-   }
+   perror( "mulle_concurrent_hashmap_insert");
+   abort();
 }
 
 
@@ -163,8 +156,8 @@ static void  tester( struct mulle_concurrent_hashmap *map)
 static void  multi_threaded_test( unsigned int n_threads)
 {
    struct mulle_concurrent_hashmap   map;
-   mulle_thread_t                             threads[ 32];
-   unsigned int                               i;
+   mulle_thread_t                    threads[ 32];
+   unsigned int                      i;
 
 
    assert( n_threads <= 32);
@@ -172,7 +165,7 @@ static void  multi_threaded_test( unsigned int n_threads)
    mulle_aba_init( &mulle_testallocator);
    mulle_allocator_set_aba( &mulle_testallocator,
                             mulle_aba_get_global(),
-                            (mulle_allocator_aba_t) _mulle_aba_free);
+                            (mulle_allocator_aba_t) _mulle_aba_free_owned_pointer);
    mulle_aba_register();
 
    mulle_concurrent_hashmap_init( &map, 0, &mulle_testallocator);
@@ -201,7 +194,7 @@ static void  multi_threaded_test( unsigned int n_threads)
 
 static void  single_threaded_test( void)
 {
-   intptr_t                                     hash;
+   intptr_t                                    hash;
    struct mulle_concurrent_hashmap             map;
    struct mulle_concurrent_hashmapenumerator   rover;
    unsigned int                                i;
@@ -224,11 +217,11 @@ static void  single_threaded_test( void)
             perror( "mulle_concurrent_hashmap_insert");
             abort();
          }
-         assert( mulle_concurrent_hashmap_lookup( &map, i) == (void *) (i * 10));
+         assert( mulle_concurrent_hashmap_lookup( &map, i) == (void *) (intptr_t) (i * 10));
       }
 
       for( i = 1; i <= 100; i++)
-         assert( mulle_concurrent_hashmap_lookup( &map, i) == (void *) (i * 10));
+         assert( mulle_concurrent_hashmap_lookup( &map, i) == (void *) (intptr_t) (i * 10));
 
       assert( ! mulle_concurrent_hashmap_lookup( &map, 101));
 

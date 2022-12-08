@@ -262,10 +262,10 @@ void  *_mulle_concurrent_pointerarrayreverseenumerator_next( struct mulle_concur
 
 #define mulle_concurrent_pointerarray_for( array, item)                                                                   \
    for( struct mulle_concurrent_pointerarrayenumerator rover__ ## item = mulle_concurrent_pointerarray_enumerate( array); \
-      item = _mulle_concurrent_pointerarrayenumerator_next( &rover__ ## item);)
+      (item = _mulle_concurrent_pointerarrayenumerator_next( &rover__ ## item));)
 
-#define mulle_concurrent_pointerarray_for_reverse( array, item)                                                                         \
-   for( struct mulle_concurrent_pointerarrayreverseenumerator rover__ ## item = mulle_concurrent_pointerarray_reverseenumerate( array); \
-      item = _mulle_concurrent_pointerarrayreverseenumerator_next( &rover__ ## item);)
+#define mulle_concurrent_pointerarray_for_reverse( array, n, item)                                                                         \
+   for( struct mulle_concurrent_pointerarrayreverseenumerator rover__ ## item = mulle_concurrent_pointerarray_reverseenumerate( array, n); \
+      (item = _mulle_concurrent_pointerarrayreverseenumerator_next( &rover__ ## item));)
 
 #endif /* mulle_concurrent_pointerarray_h */
