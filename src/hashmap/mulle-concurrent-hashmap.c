@@ -593,6 +593,7 @@ static inline void   assert_hash_value( intptr_t hash, void *value)
    assert( value != MULLE_CONCURRENT_INVALID_POINTER);
 }
 
+
 //  return value:
 //
 //     MULLE_CONCURRENT_NO_POINTER      : means it did insert
@@ -668,6 +669,7 @@ int  _mulle_concurrent_hashmap_insert( struct mulle_concurrent_hashmap *map,
    struct _mulle_concurrent_hashmapstorage   *p;
    unsigned int                              n;
    unsigned int                              max;
+   int                                       rval;
 
    assert_hash_value( hash, value);
 
@@ -685,18 +687,15 @@ retry:
       goto retry;
    }
 
-   switch( _mulle_concurrent_hashmapstorage_insert( p, hash, value))
+   rval = _mulle_concurrent_hashmapstorage_insert( p, hash, value);
+   if( rval == EBUSY)
    {
-   case EEXIST :
-      return( EEXIST);
-
-   case EBUSY  :
       if( _mulle_concurrent_hashmap_migrate_storage( map, p))
          return( ENOMEM);
       goto retry;
    }
 
-   return( 0);
+   return( rval);
 }
 
 
@@ -723,22 +722,20 @@ int  _mulle_concurrent_hashmap_remove( struct mulle_concurrent_hashmap *map,
                                        void *value)
 {
    struct _mulle_concurrent_hashmapstorage   *p;
+   int                                       rval;
 
    assert_hash_value( hash, value);
 
 retry:
-   p = _mulle_atomic_pointer_read( &map->storage.pointer);
-   switch( _mulle_concurrent_hashmapstorage_remove( p, hash, value))
+   p    = _mulle_atomic_pointer_read( &map->storage.pointer);
+   rval = _mulle_concurrent_hashmapstorage_remove( p, hash, value);
+   if( rval == EBUSY)
    {
-   case ENOENT :
-     return( ENOENT);
-
-   case EBUSY  :
       if( _mulle_concurrent_hashmap_migrate_storage( map, p))
          return( ENOMEM);
       goto retry;
    }
-   return( 0);
+   return( rval);
 }
 
 

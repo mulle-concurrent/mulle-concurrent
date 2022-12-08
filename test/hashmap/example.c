@@ -58,18 +58,13 @@ retry:
          printf( "%lu : %p\n", (unsigned long) hash, value);
       mulle_concurrent_hashmapenumerator_done( &rover);
 
-      switch( rval)
+      if( rval)
       {
-      case 0:
-         break;
+         if( rval == EBUSY)
+            goto retry;
 
-      case EBUSY:
-         goto retry;
-
-      default :
          fail( "mulle_concurrent_hashmapenumerator_next");
       }
-
    }
 
    mulle_concurrent_hashmap_done( &map);
