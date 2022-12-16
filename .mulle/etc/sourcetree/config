@@ -1,1 +1,1 @@
-mulle-aba;${MULLE__ABA_NODETYPE:-tar};no-all-load,no-cmake-searchpath,no-import,no-singlephase;0A5FA4B8-AB96-4A8A-A855-E40FCC951603;${MULLE_ABA_URL:-https://github.com/mulle-concurrent/mulle-aba/archive/${MULLE_TAG}.tar.gz};${MULLE__ABA_BRANCH};${MULLE__ABA_TAG:-latest};;
+mulle-aba;${MULLE__ABA_NODETYPE:-tar};no-all-load,no-cmake-searchpath,no-import,no-singlephase;0A5FA4B8-AB96-4A8A-A855-E40FCC951603;${MULLE__ABA_URL:-https://github.com/mulle-concurrent/mulle-aba/archive/${MULLE_TAG}.tar.gz};${MULLE__ABA_BRANCH};${MULLE__ABA_TAG:-latest};;
