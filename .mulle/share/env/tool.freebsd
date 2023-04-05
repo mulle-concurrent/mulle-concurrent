@@ -1,9 +1,0 @@
-ar
-as
-cc;optional
-clang;optional
-diff
-gcc;optional
-ld
-nm
-ranlib
