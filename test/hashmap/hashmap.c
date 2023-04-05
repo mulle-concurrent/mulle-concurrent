@@ -41,39 +41,72 @@
 #include <errno.h>
 
 
-#define FOREVER  0
+#define FOREVER   0
+//#define ENTERTAIN 1
 
 
-static void  insert_something( struct mulle_concurrent_hashmap *map)
+// sunos rand only does 16 bit randomnes, which makes this test never
+// finish, since we can't generate enough random hashes
+
+/* xorshift64s, variant A_1(12,25,27) with multiplier M_32 from line 3 of table 5 */
+static intptr_t xorshift64star( void)
+{
+    static uint64_t x = 1; /* initial seed must be nonzero, don't use a static variable for the state if multithreaded */
+    x ^= x >> 12;
+    x ^= x << 25;
+    x ^= x >> 27;
+    return (intptr_t) (x * 0x2545F4914F6CDD1DULL);
+}
+
+
+static int   insert_something( struct mulle_concurrent_hashmap *map)
 {
    intptr_t   hash;
    void       *value;
    int        rval;
 
-   hash  = rand() << 1;  // no uneven ids
-   value = (void *) (hash * 10);
+   do
+   {
+      hash  = xorshift64star() << 1;  // no uneven ids
+      value = (void *) (hash * 10);
+   }
+   while( hash == MULLE_CONCURRENT_NO_HASH ||
+          value == MULLE_CONCURRENT_NO_POINTER ||
+          value == MULLE_CONCURRENT_INVALID_POINTER);
+
    rval  = _mulle_concurrent_hashmap_insert( map, hash, value);
-   if( ! rval || rval == EEXIST)
-      return;
+   if( ! rval)
+      return( 1);
+   if( rval == EEXIST)
+      return( 0);
+
    perror( "mulle_concurrent_hashmap_insert");
    abort();
 }
 
 
-static void  delete_something( struct mulle_concurrent_hashmap *map)
+static int  delete_something( struct mulle_concurrent_hashmap *map)
 {
    intptr_t   hash;
    void      *value;
    int       rval;
 
-   hash  = rand() << 1;  // no uneven ids
-   value = (void *) (hash * 10);
-   rval  = _mulle_concurrent_hashmap_remove( map, hash, value);
+   do
+   {
+      hash  = xorshift64star() << 1;  // no uneven ids
+      value = (void *) (hash * 10);
+   }
+   while( hash == MULLE_CONCURRENT_NO_HASH ||
+          value == MULLE_CONCURRENT_NO_POINTER ||
+          value == MULLE_CONCURRENT_INVALID_POINTER);
+
+   rval = _mulle_concurrent_hashmap_remove( map, hash, value);
    if( rval == ENOMEM)
    {
       perror( "mulle_concurrent_hashmap_remove");
       abort();
    }
+   return( rval != ENOENT);
 }
 
 
@@ -82,10 +115,16 @@ static void  lookup_something( struct mulle_concurrent_hashmap *map)
    intptr_t   hash;
    void      *value;
 
-   hash  = rand();
+   do
+   {
+      hash = xorshift64star();
+   }
+   while( hash == MULLE_CONCURRENT_NO_HASH);
+
    value = _mulle_concurrent_hashmap_lookup( map, hash);
    if( ! value)
       return;
+
    assert( ! (hash & 0x1));
    assert( value == (void *) (hash * 10));
 }
@@ -121,30 +160,40 @@ retry:
 //
 static void  tester( struct mulle_concurrent_hashmap *map)
 {
-   int   todo;
+   int            todo;
+   unsigned int   size;
+   unsigned int   count;
+   unsigned int   inserts;
+   unsigned int   deletes;
 
    mulle_aba_register();
-
-   while( mulle_concurrent_hashmap_get_size( map) < 1024 * 1024)
+   inserts=0;
+   deletes=0;
+   while( (size = mulle_concurrent_hashmap_get_size( map)) < 1024 * 1024)
    {
-      todo = rand() % 1000;
-      if( todo == 1)   // 1 % chance of enumerate
+      todo = xorshift64star() % 997; //  prime number
+      if( todo == 1)   // 0.1 % chance of enumerate
       {
+#if ENTERTAIN
+         count = mulle_concurrent_hashmap_count( map);
+         fprintf( stderr, "Size %0u of %0u (+%u,-%u) enumerate\n", count, size, inserts, deletes);
+#endif
          enumerate_something( map);
          continue;
       }
 
-      if( todo < 100)    // 10 % chance of delete
+      if( todo < 200 + 1)  // 20 % chance of insert
       {
-         delete_something( map);
+         inserts += insert_something( map);
          continue;
       }
 
-      if( todo < 200)    // 20 % chance of insert
+      if( todo < 100 + 200 + 1)    // 10% chance of delete
       {
-         insert_something( map);
+         deletes += delete_something( map);
          continue;
       }
+
 
       lookup_something( map);
    }

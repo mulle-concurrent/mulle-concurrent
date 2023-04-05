@@ -1,0 +1,26 @@
+{
+   "name" : "mulle-concurrent",
+   "version" : "2.2.13",
+   "description" : "A lock- and wait-free hashtable (and an array too), written in C",
+   "keywords" : [],
+   "license" : "BSD-3-Clause",
+   "repo" : "mulle-concurrent/mulle-concurrent",
+   "src" : [
+      "src/generic/include-private.h",
+      "src/generic/include.h",
+      "src/hashmap/mulle-concurrent-hashmap.c",
+      "src/hashmap/mulle-concurrent-hashmap.h",
+      "src/mulle-concurrent-standalone.c",
+      "src/mulle-concurrent-types.h",
+      "src/mulle-concurrent.h",
+      "src/pointerarray/mulle-concurrent-pointerarray.c",
+      "src/pointerarray/mulle-concurrent-pointerarray.h",
+      "src/reflect/_mulle-concurrent-include-private.h",
+      "src/reflect/_mulle-concurrent-include.h",
+      "src/reflect/_mulle-concurrent-provide.h",
+      "src/reflect/_mulle-concurrent-versioncheck.h"
+   ],
+   "dependencies" : {
+      "mulle-concurrent/mulle-aba": "*"
+   }
+}

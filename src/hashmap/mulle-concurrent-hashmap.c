@@ -421,6 +421,7 @@ int  _mulle_concurrent_hashmap_init( struct mulle_concurrent_hashmap *map,
    assert( EINVAL != 1 && EINVAL != 0);
    assert( ENOMEM != 1 && ENOMEM != 0);
    assert( ECANCELED != 1 && ECANCELED != 0);
+   assert( EBUSY != 1 && EBUSY != 0);
 
    if( ! allocator)
       allocator = &mulle_default_allocator;
