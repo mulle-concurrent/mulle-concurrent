@@ -1,15 +1,6 @@
 inotifywait;remove
-fswatch;optional
-ar
-as
-cc;optional
-clang;optional
-scan-build;optional
-diff
-gcc;optional
-dsymutil;optional
+fswatch
+dsymutil
 install_name_tool
-ld
-nm
 otool
 ranlib
