@@ -1,0 +1,23 @@
+{
+   project =
+   {
+      description="📶 A lock- and wait-free hashtable (and an array too), written in C";
+      domain="github";
+      name="mulle-concurrent";
+      user="mulle-concurrent";
+      repo="mulle-concurrent";
+      homepage="https://github.com/mulle-concurrent/mulle-concurrent";
+      license="BSD-3-Clause"
+   };
+   dependencies =
+   (
+      {
+         description="🚮 A lock-free, cross-platform solution to the ABA problem";
+         domain="github";
+         name="mulle-aba";
+         repo="mulle-aba";
+         url="https://github.com/mulle-concurrent/mulle-aba";
+         user="mulle-concurrent";
+      }
+   )
+}
