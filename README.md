@@ -14,6 +14,15 @@ in multi-threaded environments.
 | ![Mulle kybernetiK tag](https://img.shields.io/github/tag//mulle-concurrent.svg?branch=release) [![Build Status](https://github.com//mulle-concurrent/workflows/CI/badge.svg?branch=release)](//github.com//mulle-concurrent/actions)| [RELEASENOTES](RELEASENOTES.md) |
 
 
+## API
+
+| Data Structure                                    | Description
+| --------------------------------------------------|-----------------------------------
+| [`mulle-concurrent-hashmap`](dox/API_HASHMAP.md)  | A wait and lock free hashmap
+| [`mulle-concurrent-pointerarray`](dox/API_POINTERARRAY.md)  | A wait and lock free array
+
+
+
 
 
 
@@ -21,10 +30,17 @@ in multi-threaded environments.
 
 ## Add
 
+**This project is a component of the [mulle-core](//github.com/mulle-core/mulle-core) library. As such you usually will *not* add or install it
+individually, unless you specifically do not want to link against
+`mulle-core`.**
+
+
+### Add as an individual component
+
 Use [mulle-sde](//github.com/mulle-sde) to add mulle-concurrent to your project:
 
 ``` sh
-mulle-sde add github:/
+mulle-sde add github:mulle-concurrent/mulle-concurrent
 ```
 
 To only add the sources of mulle-concurrent with dependency
@@ -32,10 +48,10 @@ sources use [clib](https://github.com/clibs/clib):
 
 
 ``` sh
-clib install --out src/ /
+clib install --out src/mulle-concurrent mulle-concurrent/mulle-concurrent
 ```
 
-Add `-isystem src/` to your `CFLAGS` and compile all the sources that were downloaded with your project.
+Add `-isystem src/mulle-concurrent` to your `CFLAGS` and compile all the sources that were downloaded with your project.
 
 
 ## Install

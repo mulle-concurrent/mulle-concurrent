@@ -159,7 +159,7 @@ static int   _mulle_concurrent_pointerarraystorage_add( struct _mulle_concurrent
          return( 0);
       }
 
-      if( found == REDIRECT_VALUE)
+      if( MULLE_C_UNLIKELY( found == REDIRECT_VALUE))
          return( EBUSY);
    }
 }
@@ -358,7 +358,7 @@ void  _mulle_concurrent_pointerarray_add( struct mulle_concurrent_pointerarray *
 retry:
    p    = _mulle_atomic_pointer_read( &array->storage.pointer);
    rval = _mulle_concurrent_pointerarraystorage_add( p, value);
-   if( rval == EBUSY || rval == ENOSPC)
+   if( MULLE_C_UNLIKELY( rval == EBUSY || rval == ENOSPC))
    {
       _mulle_concurrent_pointerarray_migrate_storage( array, p);
       goto retry;
@@ -398,7 +398,7 @@ void  *_mulle_concurrent_pointerarrayenumerator_next( struct mulle_concurrent_po
    unsigned int   n;
 
    n = mulle_concurrent_pointerarray_get_count( rover->array);
-   if( rover->index >= n)
+   if( MULLE_C_UNLIKELY( rover->index >= n))
       return( MULLE_CONCURRENT_NO_POINTER);
 
    value = _mulle_concurrent_pointerarray_get( rover->array, rover->index);
@@ -413,7 +413,7 @@ void   *_mulle_concurrent_pointerarrayreverseenumerator_next( struct mulle_concu
 {
    void   *value;
 
-   if( ! rover->index)
+   if( MULLE_C_UNLIKELY( ! rover->index))
       return( MULLE_CONCURRENT_NO_POINTER);
 
    value = _mulle_concurrent_pointerarray_get( rover->array, --rover->index);

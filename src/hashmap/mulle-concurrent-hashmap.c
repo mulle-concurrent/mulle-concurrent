@@ -126,7 +126,6 @@ static void   *_mulle_concurrent_hashmapstorage_lookup( struct _mulle_concurrent
    for(;;)
    {
       entry = &p->entries[ index & (unsigned int) p->mask];
-
       if( entry->hash == MULLE_CONCURRENT_NO_HASH)
          return( MULLE_CONCURRENT_NO_POINTER);
 
@@ -199,7 +198,7 @@ static void   *_mulle_concurrent_hashmapstorage_register( struct _mulle_concurre
          found = __mulle_atomic_pointer_cas( &entry->value, value, MULLE_CONCURRENT_NO_POINTER);
          if( found != MULLE_CONCURRENT_NO_POINTER)
          {
-            if( found == REDIRECT_VALUE)
+            if( MULLE_C_UNLIKELY( found == REDIRECT_VALUE))
                return( MULLE_CONCURRENT_INVALID_POINTER);  // EBUSY
             return( found);
          }
@@ -253,7 +252,7 @@ static int   _mulle_concurrent_hashmapstorage_insert( struct _mulle_concurrent_h
          found = __mulle_atomic_pointer_cas( &entry->value, value, MULLE_CONCURRENT_NO_POINTER);
          if( found != MULLE_CONCURRENT_NO_POINTER)
          {
-            if( found == REDIRECT_VALUE)
+            if( MULLE_C_UNLIKELY( found == REDIRECT_VALUE))
                return( EBUSY);
             return( EEXIST);
          }
@@ -303,7 +302,7 @@ static int   _mulle_concurrent_hashmapstorage_put( struct _mulle_concurrent_hash
             found = __mulle_atomic_pointer_cas( &entry->value, value, expect);
             if( found == expect)
                return( 0);
-            if( found == REDIRECT_VALUE)
+            if( MULLE_C_UNLIKELY( found == REDIRECT_VALUE))
                return( EBUSY);
             expect = found;
          }
@@ -314,7 +313,7 @@ static int   _mulle_concurrent_hashmapstorage_put( struct _mulle_concurrent_hash
          found = __mulle_atomic_pointer_cas( &entry->value, value, MULLE_CONCURRENT_NO_POINTER);
          if( found != MULLE_CONCURRENT_NO_POINTER)
          {
-            if( found == REDIRECT_VALUE)
+            if( MULLE_C_UNLIKELY( found == REDIRECT_VALUE))
                return( EBUSY);
             return( EEXIST);
          }
@@ -353,7 +352,7 @@ static int
       if( entry->hash == hash)
       {
          found = __mulle_atomic_pointer_cas( &entry->value, MULLE_CONCURRENT_NO_POINTER, value);
-         if( found == REDIRECT_VALUE)
+         if( MULLE_C_UNLIKELY( found == REDIRECT_VALUE))
             return( EBUSY);
          return( found == value ? 0 : ENOENT);
       }
@@ -379,7 +378,7 @@ static void
    p      = src->entries;
    p_last = &src->entries[ src->mask];
 
-   for( ;p <= p_last; p++)
+   for( ; p <= p_last; p++)
    {
       if( ! p->hash)
          continue;
@@ -389,7 +388,7 @@ static void
       {
          if( value == MULLE_CONCURRENT_NO_POINTER)
             break;
-         if( value == REDIRECT_VALUE)
+         if( MULLE_C_UNLIKELY( value == REDIRECT_VALUE))
             break;
 
          // it's important that we copy over first so
@@ -492,7 +491,7 @@ static int  _mulle_concurrent_hashmap_migrate_storage( struct mulle_concurrent_h
       // acquire new storage
       alloced = _mulle_concurrent_alloc_hashmapstorage( ((unsigned int) p->mask + 1) * 2,
                                                         allocator);
-      if( ! alloced)
+      if( MULLE_C_UNLIKELY( ! alloced))
          return( ENOMEM);
 
       // make this the next world, assume that's still set to 'p' (SIC)
@@ -532,7 +531,7 @@ void  *_mulle_concurrent_hashmap_lookup( struct mulle_concurrent_hashmap *map,
 retry:
    p     = _mulle_atomic_pointer_read( &map->storage.pointer);
    value = _mulle_concurrent_hashmapstorage_lookup( p, hash);
-   if( value == REDIRECT_VALUE)
+   if( MULLE_C_UNLIKELY( value == REDIRECT_VALUE))
    {
       if( _mulle_concurrent_hashmap_migrate_storage( map, p))
          return( (void *) MULLE_CONCURRENT_NO_POINTER);
@@ -564,7 +563,7 @@ retry:
          return( 0);
 
       value = _mulle_atomic_pointer_read( &entry->value);
-      if( value == REDIRECT_VALUE)
+      if( MULLE_C_UNLIKELY( value == REDIRECT_VALUE))
       {
          if( _mulle_concurrent_hashmap_migrate_storage( map, p))
             return( ENOMEM);
@@ -689,7 +688,7 @@ retry:
    }
 
    rval = _mulle_concurrent_hashmapstorage_insert( p, hash, value);
-   if( rval == EBUSY)
+   if( MULLE_C_UNLIKELY( rval == EBUSY))
    {
       if( _mulle_concurrent_hashmap_migrate_storage( map, p))
          return( ENOMEM);
@@ -730,7 +729,7 @@ int  _mulle_concurrent_hashmap_remove( struct mulle_concurrent_hashmap *map,
 retry:
    p    = _mulle_atomic_pointer_read( &map->storage.pointer);
    rval = _mulle_concurrent_hashmapstorage_remove( p, hash, value);
-   if( rval == EBUSY)
+   if( MULLE_C_UNLIKELY( rval == EBUSY))
    {
       if( _mulle_concurrent_hashmap_migrate_storage( map, p))
          return( ENOMEM);
@@ -767,12 +766,12 @@ int  _mulle_concurrent_hashmapenumerator_next( struct mulle_concurrent_hashmapen
 
    rval = _mulle_concurrent_hashmap_search_next( rover->map, &rover->mask, &rover->index, &hash, &value);
 
-   if( rval != 1)
+   if( MULLE_C_UNLIKELY( rval != 1))
       return( rval);
 
-   if( p_hash)
+   if( MULLE_C_LIKELY( p_hash != NULL))
       *p_hash = hash;
-   if( p_value)
+   if( MULLE_C_LIKELY( p_value != NULL))
       *p_value = value;
 
    return( 1);
