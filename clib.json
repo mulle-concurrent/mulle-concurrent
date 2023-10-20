@@ -1,7 +1,7 @@
 {
    "name" : "mulle-concurrent",
-   "version" : "2.2.14",
-   "description" : "A lock- and wait-free hashtable (and an array too), written in C",
+   "version" : "2.2.15",
+   "description" : "📶 A lock- and wait-free hashtable (and an array too), written in C",
    "keywords" : [],
    "license" : "BSD-3-Clause",
    "repo" : "mulle-concurrent/mulle-concurrent",
