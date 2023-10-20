@@ -9,6 +9,13 @@
  *
  *      mulle-sde environment set MULLE_MATCH_TO_C_RUN DISABLE
  */
+#ifndef mulle_concurrent_provide_h__
+#define mulle_concurrent_provide_h__
+
+
 #include "mulle-concurrent-hashmap.h"
 #include "mulle-concurrent-types.h"
 #include "mulle-concurrent-pointerarray.h"
+
+
+#endif
