@@ -11,7 +11,7 @@ in multi-threaded environments.
 
 | Release Version                                       | Release Notes
 |-------------------------------------------------------|--------------
-| ![Mulle kybernetiK tag](https://img.shields.io/github/tag//mulle-concurrent.svg?branch=release) [![Build Status](https://github.com//mulle-concurrent/workflows/CI/badge.svg?branch=release)](//github.com//mulle-concurrent/actions)| [RELEASENOTES](RELEASENOTES.md) |
+| ![Mulle kybernetiK tag](https://img.shields.io/github/tag/mulle-concurrent/mulle-concurrent.svg?branch=release) [![Build Status](https://github.com/mulle-concurrent/mulle-concurrent/workflows/CI/badge.svg?branch=release)](//github.com/mulle-concurrent/mulle-concurrent/actions)| [RELEASENOTES](RELEASENOTES.md) |
 
 
 ## API
@@ -62,7 +62,7 @@ Use [mulle-sde](//github.com/mulle-sde) to build and install mulle-concurrent an
 
 ``` sh
 mulle-sde install --prefix /usr/local \
-   https://github.com///archive/latest.tar.gz
+   https://github.com/mulle-concurrent/mulle-concurrent/archive/latest.tar.gz
 ```
 
 ### Manual Installation
@@ -72,6 +72,8 @@ Install the requirements:
 | Requirements                                 | Description
 |----------------------------------------------|-----------------------
 | [mulle-aba](https://github.com/mulle-concurrent/mulle-aba)             | 🚮 A lock-free, cross-platform solution to the ABA problem
+
+Download the latest [tar](https://github.com/mulle-concurrent/mulle-concurrent/archive/refs/tags/latest.tar.gz) or [zip](https://github.com/mulle-concurrent/mulle-concurrent/archive/refs/tags/latest.zip) archive and unpack it.
 
 Install **mulle-concurrent** into `/usr/local` with [cmake](https://cmake.org):
 
