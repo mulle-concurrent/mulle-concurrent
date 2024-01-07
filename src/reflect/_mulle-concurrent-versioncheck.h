@@ -7,10 +7,10 @@
 
 #if defined( MULLE__ABA_VERSION)
 # ifndef MULLE__ABA_VERSION_MIN
-#  define MULLE__ABA_VERSION_MIN  ((3 << 20) | (1 << 8) | 0)
+#  define MULLE__ABA_VERSION_MIN  ((3UL << 20) | (1 << 8) | 0)
 # endif
 # ifndef MULLE__ABA_VERSION_MAX
-#  define MULLE__ABA_VERSION_MAX  ((4 << 20) | (0 << 8) | 0)
+#  define MULLE__ABA_VERSION_MAX  ((4UL << 20) | (0 << 8) | 0)
 # endif
 # if MULLE__ABA_VERSION < MULLE__ABA_VERSION_MIN
 #  error "mulle-aba is too old"

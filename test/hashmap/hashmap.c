@@ -214,7 +214,7 @@ static void  multi_threaded_test( unsigned int n_threads)
    mulle_aba_init( &mulle_testallocator);
    mulle_allocator_set_aba( &mulle_testallocator,
                             mulle_aba_get_global(),
-                            (mulle_allocator_aba_t) _mulle_aba_free_owned_pointer);
+                            (mulle_allocator_aba_t *) _mulle_aba_free_owned_pointer);
    mulle_aba_register();
 
    mulle_concurrent_hashmap_init( &map, 0, &mulle_testallocator);
@@ -252,7 +252,7 @@ static void  single_threaded_test( void)
    mulle_aba_init( &mulle_testallocator);
    mulle_allocator_set_aba( &mulle_testallocator,
                             mulle_aba_get_global(),
-                            (mulle_allocator_aba_t) _mulle_aba_free);
+                            (mulle_allocator_aba_t *) _mulle_aba_free);
    mulle_aba_register();
 
    mulle_concurrent_hashmap_init( &map, 0, &mulle_testallocator);

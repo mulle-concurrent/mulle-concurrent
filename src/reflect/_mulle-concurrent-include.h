@@ -14,15 +14,18 @@
 #ifndef _mulle_concurrent_include_h__
 #define _mulle_concurrent_include_h__
 
-// You can tweak the following #include with these commands.
-// (Use 0A5FA4B8-AB96-4A8A-A855-E40FCC951603 instead of mulle-aba if there are duplicate entries)
-//    remove #include:: `mulle-sde dependency mark mulle-aba no-header`
-//    rename:              `mulle-sde dependency|library set mulle-aba include whatever.h`
-//    reorder:             `mulle-sde dependency move mulle-aba <up|down>`
-//    toggle #include:    `mulle-sde dependency mark mulle-aba [no-]import`
-//    toggle public:       `mulle-sde dependency mark mulle-aba [no-]public`
-//    toggle optional:     `mulle-sde dependency mark mulle-aba [no-]require`
-//    remove for platform: `mulle-sde dependency mark mulle-aba no-platform-<uname>`
+// To remove the following dependency (headers and library) completely:
+//   `mulle-sde dependency remove mulle-aba`
+// (Use 0A5FA4B8-AB96-4A8A-A855-E40FCC951603 instead of mulle-aba, if there are duplicate entries)
+//
+// You can tweak the following #include with these commands:
+//    remove #include: `mulle-sde dependency mark mulle-aba no-header`
+//    rename              : `mulle-sde dependency|library set mulle-aba include whatever.h`
+//    reorder             : `mulle-sde dependency move mulle-aba <up|down>`
+//    toggle #include: `mulle-sde dependency mark mulle-aba [no-]import`
+//    toggle public       : `mulle-sde dependency mark mulle-aba [no-]public`
+//    toggle optional     : `mulle-sde dependency mark mulle-aba [no-]require`
+//    remove for platform : `mulle-sde dependency mark mulle-aba no-platform-<uname>`
 //        (use `mulle-sourcetree-to-c --unames` to list known values)
 #include <mulle-aba/mulle-aba.h>   // mulle-aba
 
