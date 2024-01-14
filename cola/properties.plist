@@ -7,7 +7,7 @@
       user="mulle-concurrent";
       repo="mulle-concurrent";
       homepage="https://github.com/mulle-concurrent/mulle-concurrent";
-      license="BSD-3-Clause"
+      license="BSD-3-Clause";
    };
    dependencies =
    (
@@ -19,5 +19,5 @@
          url="https://github.com/mulle-concurrent/mulle-aba";
          user="mulle-concurrent";
       }
-   )
+   );
 }
