@@ -288,10 +288,18 @@ int  _mulle_concurrent_hashmapenumerator_next( struct mulle_concurrent_hashmapen
                                                intptr_t *hash,
                                                void **value);
 
-
-#define mulle_concurrent_hashmap_for( array, hash, item, rval)                                                        \
-   for( struct mulle_concurrent_hashmapenumerator rover__ ## item = mulle_concurrent_hashmap_enumerate( array); \
-      (rval = _mulle_concurrent_hashmapenumerator_next( &rover__ ## item, hash, item)) == 1;)
+#define mulle_concurrent_hashmap_for( name, hash, value, rval)                                                              \
+   assert( sizeof( hash) == sizeof( intptr_t));                                                                             \
+   assert( sizeof( value) == sizeof( void *));                                                                              \
+   for( struct mulle_concurrent_hashmapenumerator                                                                           \
+           rover__ ## hash ## __ ## value = mulle_concurrent_hashmap_enumerate( name),                                      \
+           *rover__  ## hash ## __ ## value ## __i = (void *) 0;                                                            \
+        ! rover__  ## hash ## __ ## value ## __i;                                                                           \
+        rover__ ## hash ## __ ## value ## __i = (mulle_concurrent_hashmapenumerator_done( &rover__ ## hash ## __ ## value), \
+                                              (void *) 1))                                                                  \
+      while( (rval = _mulle_concurrent_hashmapenumerator_next( &rover__ ## hash ## __ ## value,                             \
+                                                       (intptr_t *) &hash,                                                  \
+                                                       (void **) &value)) == 1)
 
 
 #endif /* mulle_concurrent_hashmap_h */

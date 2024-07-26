@@ -248,6 +248,7 @@ static void  single_threaded_test( void)
    struct mulle_concurrent_hashmapenumerator   rover;
    unsigned int                                i;
    void                                        *value;
+   int                                         rval;
 
    mulle_aba_init( &mulle_testallocator);
    mulle_allocator_set_aba( &mulle_testallocator,
@@ -283,6 +284,16 @@ static void  single_threaded_test( void)
          assert( i <= 100);
       }
       mulle_concurrent_hashmapenumerator_done( &rover);
+      assert( i == 100);
+
+      // same as above just with a for loop
+      i = 0;
+      mulle_concurrent_hashmap_for( &map, hash, value, rval)
+      {
+         assert( value == (void *) (hash * 10));
+         ++i;
+         assert( i <= 100);
+      }
       assert( i == 100);
 
       mulle_concurrent_hashmap_remove( &map, 50, (void *) (50 * 10));
