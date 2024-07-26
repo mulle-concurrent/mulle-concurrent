@@ -54,6 +54,13 @@ if( IDE_SUPPORT)
          )
          set_target_properties( mulle_sde_reflect PROPERTIES EXCLUDE_FROM_ALL ON)
 
+         add_custom_target( mulle_sde_clean_target
+            COMMENT "Clean a specific target and then craft dependency folder"
+            COMMAND "${MULLE_SDE}" clean --gui && "${MULLE_SDE}" craft
+            VERBATIM
+         )
+         set_target_properties( mulle_sde_clean_target PROPERTIES EXCLUDE_FROM_ALL ON)
+
          add_custom_target( mulle_sde_clean_all
             COMMENT "Clean all and craft dependency folder"
             COMMAND "${MULLE_SDE}" craft -C
