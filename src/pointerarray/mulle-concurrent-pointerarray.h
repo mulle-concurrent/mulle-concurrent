@@ -260,12 +260,24 @@ MULLE__CONCURRENT_GLOBAL
 void  *_mulle_concurrent_pointerarrayreverseenumerator_next( struct mulle_concurrent_pointerarrayreverseenumerator *rover);
 
 
-#define mulle_concurrent_pointerarray_for( array, item)                                                                   \
-   for( struct mulle_concurrent_pointerarrayenumerator rover__ ## item = mulle_concurrent_pointerarray_enumerate( array); \
-      (item = _mulle_concurrent_pointerarrayenumerator_next( &rover__ ## item));)
+#define mulle_concurrent_pointerarray_for( name, item)                                                     \
+   assert( sizeof( item) == sizeof( void *));                                                              \
+   for( struct mulle_concurrent_pointerarrayenumerator                                                     \
+           rover__ ## item = mulle_concurrent_pointerarray_enumerate( name),                               \
+           *rover__  ## item ## __i = (void *) 0;                                                          \
+        ! rover__  ## item ## __i;                                                                         \
+        rover__ ## item ## __i = (mulle_concurrent_pointerarrayenumerator_done( &rover__ ## item),         \
+                                              (void *) 1))                                                 \
+      while( (item = _mulle_concurrent_pointerarrayenumerator_next( &rover__ ## item)))
 
-#define mulle_concurrent_pointerarray_for_reverse( array, n, item)                                                                         \
-   for( struct mulle_concurrent_pointerarrayreverseenumerator rover__ ## item = mulle_concurrent_pointerarray_reverseenumerate( array, n); \
-      (item = _mulle_concurrent_pointerarrayreverseenumerator_next( &rover__ ## item));)
+#define mulle_concurrent_pointerarray_for_reverse( name, n, item)                                          \
+   assert( sizeof( item) == sizeof( void *));                                                              \
+   for( struct mulle_concurrent_pointerarrayreverseenumerator                                              \
+           rover__ ## item = mulle_concurrent_pointerarray_reverseenumerate( name, (n)),                   \
+           *rover__  ## item ## __i = (void *) 0;                                                          \
+        ! rover__  ## item ## __i;                                                                         \
+        rover__ ## item ## __i = (mulle_concurrent_pointerarrayreverseenumerator_done( &rover__ ## item),  \
+                                              (void *) 1))                                                 \
+      while( (item = _mulle_concurrent_pointerarrayreverseenumerator_next( &rover__ ## item)))
 
 #endif /* mulle_concurrent_pointerarray_h */

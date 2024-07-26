@@ -38,13 +38,13 @@ if( EXECUTABLE_NAME AND LINK_PHASE)
    #
    if( CREATE_MOTD_EXE)
       if( NOT TARGET "__cleanmotd__")
-         add_custom_target( "__cleanmotd__" ALL
-            COMMAND "test" "!" "-f" "${CMAKE_BINARY_DIR}/.motd" "||" "rm" "${CMAKE_BINARY_DIR}/.motd"
+         add_custom_target( "__cleanmotd__"
+            COMMAND env "PATH=/usr/bin:/bin" "test" "!" "-f" "${CMAKE_BINARY_DIR}/.motd"
+                        "||" "rm" "${CMAKE_BINARY_DIR}/.motd"
             COMMENT "Remove old motd file for mulle-craft"
             VERBATIM
          )
       endif()
-      add_dependencies( "${EXECUTABLE_NAME}" "__cleanmotd__")
 
       add_custom_target( "_${EXECUTABLE_NAME}__motd__" ALL
          COMMAND ${CMAKE_COMMAND} -E env "MULLE_VIRTUAL_ROOT=${MULLE_VIRTUAL_ROOT}"
@@ -59,6 +59,7 @@ if( EXECUTABLE_NAME AND LINK_PHASE)
       )
 
       add_dependencies( "_${EXECUTABLE_NAME}__motd__" ${EXECUTABLE_NAME})
+      add_dependencies( "_${EXECUTABLE_NAME}__motd__" "__cleanmotd__")
    else()
       message( WARNING "Tool \"mulle-create-build-motd\" not found")
    endif()
