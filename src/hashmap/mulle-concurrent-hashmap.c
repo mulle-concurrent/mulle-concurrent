@@ -330,6 +330,48 @@ static int   _mulle_concurrent_hashmapstorage_put( struct _mulle_concurrent_hash
 }
 
 
+// TODO: this looks good on paper, but needs more testing
+static int   _mulle_concurrent_hashmapstorage_patch( struct _mulle_concurrent_hashmapstorage *p,
+                                                     intptr_t hash,
+                                                     void *value,
+                                                     void *expect)
+{
+   struct _mulle_concurrent_hashvaluepair   *entry;
+   void                                     *found;
+   unsigned int                             index;
+#ifndef NDEBUG
+   unsigned int                             sentinel;
+
+   sentinel = (unsigned int) hash + (unsigned int) p->mask + 1;
+#endif
+
+   assert( value);
+   assert( value != expect);
+
+   index = (unsigned int) hash;
+
+   for(;;)
+   {
+      entry = &p->entries[ index & (unsigned int) p->mask];
+      if( entry->hash == hash)
+      {
+         found = __mulle_atomic_pointer_cas( &entry->value, value, expect);
+         if( found == expect)
+            return( 0);
+         if( MULLE_C_UNLIKELY( found == REDIRECT_VALUE))
+            return( EBUSY);
+         return( EEXIST);
+      }
+
+      if( entry->hash == MULLE_CONCURRENT_NO_HASH)
+         return( ENOENT);
+
+      ++index;
+      assert( index != sentinel);  // can't happen we always leave space
+   }
+}
+
+
 static int
 	_mulle_concurrent_hashmapstorage_remove( struct _mulle_concurrent_hashmapstorage *p,
                                             intptr_t hash,
@@ -711,6 +753,54 @@ int  mulle_concurrent_hashmap_insert( struct mulle_concurrent_hashmap *map,
       return( EINVAL);
 
    return( _mulle_concurrent_hashmap_insert( map, hash, value));
+}
+
+
+
+#pragma mark - patch
+
+
+int  _mulle_concurrent_hashmap_patch( struct mulle_concurrent_hashmap *map,
+                                      intptr_t hash,
+                                      void *value,
+                                      void *expect)
+{
+   struct _mulle_concurrent_hashmapstorage   *p;
+   int                                       rval;
+
+   assert_hash_value( hash, value);
+
+retry:
+   p = _mulle_atomic_pointer_read( &map->storage.pointer);
+   assert( p);
+
+   rval = _mulle_concurrent_hashmapstorage_patch( p, hash, value, expect);
+   if( MULLE_C_UNLIKELY( rval == EBUSY))
+   {
+      if( _mulle_concurrent_hashmap_migrate_storage( map, p))
+         return( ENOMEM);
+      goto retry;
+   }
+
+   return( rval);
+}
+
+
+int  mulle_concurrent_hashmap_patch( struct mulle_concurrent_hashmap *map,
+                                     intptr_t hash,
+                                     void *value,
+                                     void *expect)
+{
+   if( ! map)
+      return( EINVAL);
+   if( hash == MULLE_CONCURRENT_NO_HASH)
+      return( EINVAL);
+   if( value == MULLE_CONCURRENT_NO_POINTER || value == MULLE_CONCURRENT_INVALID_POINTER)
+      return( EINVAL);
+   if( expect == MULLE_CONCURRENT_NO_POINTER || value == MULLE_CONCURRENT_INVALID_POINTER)
+      return( EINVAL);
+
+   return( _mulle_concurrent_hashmap_patch( map, hash, value, expect));
 }
 
 

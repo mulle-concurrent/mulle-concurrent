@@ -158,6 +158,30 @@ int   mulle_concurrent_hashmap_insert( struct mulle_concurrent_hashmap *map,
                                        intptr_t hash,
                                        void *value);
 
+// ****WARNING*** EXPERIMENTAL: COULD BE BUGGY NOT AS WELL TESTED AS THE
+//                              OTHER FUNCTIONS
+//
+// This function is supposed to change the value of an existing entry.
+//
+// expect must be != value
+//
+// Return value (rval):
+//   0      : OK, patched
+//   EEXIST : found entry with other expected value
+//   ENOENT : no entry found
+//   EINVAL : invalid argument
+//   ENOMEM : must be out of memory
+//
+// Do not use hash=0
+// Do not use value=0 or value=INTPTR_MIN
+//
+MULLE__CONCURRENT_GLOBAL
+int   mulle_concurrent_hashmap_patch( struct mulle_concurrent_hashmap *map,
+                                       intptr_t hash,
+                                       void *value,
+                                       void *expect);
+
+
 
 // if rval == NULL, not found
 
@@ -272,6 +296,12 @@ MULLE__CONCURRENT_GLOBAL
 int  _mulle_concurrent_hashmap_insert( struct mulle_concurrent_hashmap *map,
                                        intptr_t hash,
                                        void *value);
+
+MULLE__CONCURRENT_GLOBAL
+int  _mulle_concurrent_hashmap_patch( struct mulle_concurrent_hashmap *map,
+                                      intptr_t hash,
+                                      void *value,
+                                      void *expect);
 
 MULLE__CONCURRENT_GLOBAL
 void  *_mulle_concurrent_hashmap_lookup( struct mulle_concurrent_hashmap *map,

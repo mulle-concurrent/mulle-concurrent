@@ -22,7 +22,8 @@ if( IDE_SUPPORT)
          #
          # If there is (likely) a sourcetree, we need to build dependencies now
          # because otherwise the include( DEPENDENCIES) fails.
-         #
+         # IDE support in subdirectoy makes no sense (IMO) therefore
+         # not CMAKE_CURRENT_SOURCE_DIR
          if( IS_DIRECTORY "${PROJECT_SOURCE_DIR}/.mulle/etc/sourcetree" OR
              IS_DIRECTORY "${PROJECT_SOURCE_DIR}/.mulle/share/sourcetree")
             #

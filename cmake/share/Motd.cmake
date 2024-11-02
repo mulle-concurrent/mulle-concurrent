@@ -39,8 +39,8 @@ if( EXECUTABLE_NAME AND LINK_PHASE)
    if( CREATE_MOTD_EXE)
       if( NOT TARGET "__cleanmotd__")
          add_custom_target( "__cleanmotd__"
-            COMMAND env "PATH=/usr/bin:/bin" "test" "!" "-f" "${CMAKE_BINARY_DIR}/.motd"
-                        "||" "rm" "${CMAKE_BINARY_DIR}/.motd"
+            COMMAND env "PATH=/usr/bin:/bin" "test" "!" "-f" "${CMAKE_CURRENT_BINARY_DIR}/.motd"
+                        "||" "rm" "${CMAKE_CURRENT_BINARY_DIR}/.motd"
             COMMENT "Remove old motd file for mulle-craft"
             VERBATIM
          )
@@ -52,7 +52,7 @@ if( EXECUTABLE_NAME AND LINK_PHASE)
                         $ENV{CREATE_BUILD_MOTD_FLAGS}
                         "--append"
                      "executable"
-                        "${CMAKE_BINARY_DIR}"
+                        "${CMAKE_CURRENT_BINARY_DIR}"
                         "${EXECUTABLE_NAME}"
          COMMENT "Append to motd file for mulle-craft"
          VERBATIM
