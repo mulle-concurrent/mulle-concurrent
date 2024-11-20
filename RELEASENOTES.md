@@ -1,3 +1,12 @@
+## 2.3.0
+
+ add some missing files
+
+* experimental function `mulle_concurrent_hashmap_patch` added. It should work, but its not been well tested, so beware!
+
+* improved iterator macros
+
+
 ### 2.2.15
 
 * Various small improvements
