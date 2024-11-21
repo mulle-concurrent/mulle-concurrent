@@ -33,7 +33,7 @@ jobs:
 
     - uses: actions/checkout@v4
 
-    - uses: mulle-sde/github-ci@v1
+    - uses: mulle-sde/github-ci@v2
 
     - name: Dump Project Environment
       run:  |
