@@ -432,7 +432,7 @@ int   _mulle_concurrent_pointerarray_find( struct mulle_concurrent_pointerarray 
 
    found = 0;
    rover = mulle_concurrent_pointerarray_enumerate( array);
-   while( value = _mulle_concurrent_pointerarrayenumerator_next( &rover))
+   while( (value = _mulle_concurrent_pointerarrayenumerator_next( &rover)))
       if( value == search)
       {
          found = 1;
@@ -452,7 +452,7 @@ int   mulle_concurrent_pointerarray_map( struct mulle_concurrent_pointerarray *l
    void                                            *value;
 
    rover = mulle_concurrent_pointerarray_enumerate( list);
-   while( value = _mulle_concurrent_pointerarrayenumerator_next( &rover))
+   while( (value = _mulle_concurrent_pointerarrayenumerator_next( &rover)))
       (*f)( value, userinfo);
    mulle_concurrent_pointerarrayenumerator_done( &rover);
 
