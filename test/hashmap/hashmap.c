@@ -288,7 +288,7 @@ static void  single_threaded_test( void)
 
       // same as above just with a for loop
       i = 0;
-      mulle_concurrent_hashmap_for( &map, hash, value, rval)
+      mulle_concurrent_hashmap_for( &map, hash, value)
       {
          assert( value == (void *) (hash * 10));
          ++i;
