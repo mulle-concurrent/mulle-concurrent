@@ -1,3 +1,10 @@
+# 3.0.0
+
+
+*  **BREAKING** `mulle_concurrent_hashmap_for` is now `mulle_concurrent_hashmap_for_rval`
+*  **BREAKING** `mulle_concurrent_hashmap_for` now does not use rval parameter anymore
+
+
 ## 2.3.0
 
  add some missing files
