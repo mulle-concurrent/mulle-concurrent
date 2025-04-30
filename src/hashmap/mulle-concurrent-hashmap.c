@@ -633,6 +633,9 @@ static inline void   assert_hash_value( intptr_t hash, void *value)
    assert( hash != MULLE_CONCURRENT_NO_HASH);
    assert( value != MULLE_CONCURRENT_NO_POINTER);
    assert( value != MULLE_CONCURRENT_INVALID_POINTER);
+
+   MULLE_C_UNUSED( hash);
+   MULLE_C_UNUSED( value);
 }
 
 
