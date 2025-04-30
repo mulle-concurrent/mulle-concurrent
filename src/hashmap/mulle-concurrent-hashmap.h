@@ -262,6 +262,7 @@ static inline int
 static inline void
    mulle_concurrent_hashmapenumerator_done( struct mulle_concurrent_hashmapenumerator *rover)
 {
+   MULLE_C_UNUSED( rover);
 }
 
 

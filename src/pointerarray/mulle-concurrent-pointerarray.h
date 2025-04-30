@@ -210,11 +210,13 @@ static inline void  *mulle_concurrent_pointerarrayreverseenumerator_next( struct
 
 static inline void  mulle_concurrent_pointerarrayenumerator_done( struct mulle_concurrent_pointerarrayenumerator *rover)
 {
+   MULLE_C_UNUSED( rover);
 }
 
 
 static inline void  mulle_concurrent_pointerarrayreverseenumerator_done( struct mulle_concurrent_pointerarrayreverseenumerator *rover)
 {
+   MULLE_C_UNUSED( rover);
 }
 
 
