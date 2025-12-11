@@ -200,7 +200,7 @@ void  _mulle_concurrent_pointerarray_init( struct mulle_concurrent_pointerarray 
    if( ! allocator)
       allocator = &mulle_default_allocator;
 
-   assert( allocator->abafree && allocator->abafree != (int (*)()) abort);
+   assert( allocator->abafree && (int (*)(void)) allocator->abafree != (int (*)(void)) abort);
 
    array->allocator = allocator;
    if( size == 0)

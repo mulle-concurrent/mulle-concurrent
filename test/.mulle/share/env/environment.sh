@@ -12,6 +12,19 @@ then
    MULLE_VIRTUAL_ROOT="`PATH=/bin:/usr/bin pwd -P`"
    echo "Using ${MULLE_VIRTUAL_ROOT} as MULLE_VIRTUAL_ROOT for \
 your convenience" >&2
+   export MULLE_VIRTUAL_ROOT
+fi
+
+if [ -z "${MULLE_VIRTUAL_ROOT_ID}" ]
+then
+   #
+   # create an identifier that changes with the location, the project is in
+   # usefule for related directories, that are placed outside of the
+   # project like maybe KITCHEN_DIR
+   #
+   MULLE_VIRTUAL_ROOT_ID="$(shasum -a 256 <<< "${MULLE_VIRTUAL_ROOT}")"
+   MULLE_VIRTUAL_ROOT_ID="${MULLE_VIRTUAL_ROOT_ID:1:12}"
+   export MULLE_VIRTUAL_ROOT_ID
 fi
 
 if [ -z "${MULLE_UNAME}" ]
@@ -19,6 +32,7 @@ then
    MULLE_UNAME="`PATH=/bin:/usr/bin uname -s 2> /dev/null | tr '[:upper:]' '[:lower:]'`"
    MULLE_UNAME="${MULLE_UNAME:-unknown}"
    echo "Using ${MULLE_UNAME} as MULLE_UNAME for your convenience" >&2
+   export MULLE_UNAME
 fi
 
 #
@@ -139,7 +153,7 @@ case "${MULLE_SHELL_MODE}" in
          alias C="mulle-sde clean; mulle-sde craft"
          alias c="mulle-sde craft"
          alias CC="mulle-sde clean all; mulle-sde craft"
-         alias l="mulle-sde list --files"
+         alias l="mulle-sde files"
          alias r="mulle-sde reflect"
          alias T="mulle-sde test craft ; mulle-sde test"
          alias t="mulle-sde test rerun --serial"
