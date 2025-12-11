@@ -25,7 +25,7 @@ else()
          ${CMAKE_STATIC_LIBRARY_PREFIX}mulle-aba${CMAKE_DEBUG_POSTFIX}${CMAKE_STATIC_LIBRARY_SUFFIX}
          ${CMAKE_STATIC_LIBRARY_PREFIX}mulle-aba${CMAKE_STATIC_LIBRARY_SUFFIX}
          mulle-aba
-         NO_CMAKE_SYSTEM_PATH NO_SYSTEM_ENVIRONMENT_PATH
+         NO_CMAKE_SYSTEM_PATH NO_SYSTEM_ENVIRONMENT_PATH NO_CMAKE_FIND_ROOT_PATH
       )
       if( NOT MULLE__ABA_LIBRARY AND NOT DEPENDENCY_IGNORE_SYSTEM_LIBARIES)
          find_library( MULLE__ABA_LIBRARY NAMES
@@ -86,7 +86,9 @@ else()
          endforeach()
       else()
          # Disable with: `mulle-sourcetree mark mulle-aba no-require-link`
-         message( SEND_ERROR "MULLE__ABA_LIBRARY was not found")
+         message( SEND_ERROR "MULLE__ABA_LIBRARY was not found in ${CMAKE_STATIC_LIBRARY_PREFIX}mulle-aba${CMAKE_DEBUG_POSTFIX}${CMAKE_STATIC_LIBRARY_SUFFIX}
+${CMAKE_STATIC_LIBRARY_PREFIX}mulle-aba${CMAKE_STATIC_LIBRARY_SUFFIX}
+mulle-aba")
       endif()
    endif()
 endif()

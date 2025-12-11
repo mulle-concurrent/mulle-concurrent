@@ -467,7 +467,7 @@ int  _mulle_concurrent_hashmap_init( struct mulle_concurrent_hashmap *map,
    if( ! allocator)
       allocator = &mulle_default_allocator;
 
-   assert( allocator->abafree && allocator->abafree != (int (*)()) abort);
+   assert( allocator->abafree && (int (*)(void)) allocator->abafree != (int (*)(void)) abort);
 
    _mulle_atomic_pointer_nonatomic_write( &map->allocator, allocator);
    if( size == 0)
