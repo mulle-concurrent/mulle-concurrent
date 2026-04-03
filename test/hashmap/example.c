@@ -55,7 +55,7 @@ int   main(int argc, const char * argv[])
 retry:
       rover = mulle_concurrent_hashmap_enumerate( &map);
       while( (rval = mulle_concurrent_hashmapenumerator_next( &rover, &hash, &value)) == 1)
-         printf( "%lu : %p\n", (unsigned long) hash, value);
+         printf( "%lu : 0x%tx\n", (unsigned long) hash, (intptr_t) value);
       mulle_concurrent_hashmapenumerator_done( &rover);
 
       if( rval)

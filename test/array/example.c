@@ -36,7 +36,7 @@ int   main( int argc, const char * argv[])
       for( i = 0; i < n; i++)
       {
          value = mulle_concurrent_pointerarray_get( &array, i);
-         printf( "%p\n", value);
+         printf( "%td\n", (intptr_t) value);
       }
    }
 
