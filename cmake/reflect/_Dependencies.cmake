@@ -12,6 +12,21 @@ if( MULLE_TRACE_INCLUDE)
 endif()
 
 #
+# Set library preference based on BUILD_SHARED_LIBS
+#
+if( BUILD_SHARED_LIBS)
+   set( MULLE_PREFERRED_LIBRARY_PREFIX "${CMAKE_SHARED_LIBRARY_PREFIX}")
+   set( MULLE_PREFERRED_LIBRARY_SUFFIX "${CMAKE_SHARED_LIBRARY_SUFFIX}")
+   set( MULLE_FALLBACK_LIBRARY_PREFIX "${CMAKE_STATIC_LIBRARY_PREFIX}")
+   set( MULLE_FALLBACK_LIBRARY_SUFFIX "${CMAKE_STATIC_LIBRARY_SUFFIX}")
+else()
+   set( MULLE_PREFERRED_LIBRARY_PREFIX "${CMAKE_STATIC_LIBRARY_PREFIX}")
+   set( MULLE_PREFERRED_LIBRARY_SUFFIX "${CMAKE_STATIC_LIBRARY_SUFFIX}")
+   set( MULLE_FALLBACK_LIBRARY_PREFIX "${CMAKE_SHARED_LIBRARY_PREFIX}")
+   set( MULLE_FALLBACK_LIBRARY_SUFFIX "${CMAKE_SHARED_LIBRARY_SUFFIX}")
+endif()
+
+#
 # Generated from sourcetree: 0A5FA4B8-AB96-4A8A-A855-E40FCC951603;mulle-aba;no-all-load,no-cmake-searchpath,no-import,no-singlephase;
 # Disable with : `mulle-sourcetree mark mulle-aba no-link`
 # Disable for this platform: `mulle-sourcetree mark mulle-aba no-cmake-platform-${MULLE_UNAME}`
@@ -22,15 +37,19 @@ if( COLLECT_DEPENDENCY_LIBRARIES_AS_NAMES)
 else()
    if( NOT MULLE__ABA_LIBRARY)
       find_library( MULLE__ABA_LIBRARY NAMES
-         ${CMAKE_STATIC_LIBRARY_PREFIX}mulle-aba${CMAKE_DEBUG_POSTFIX}${CMAKE_STATIC_LIBRARY_SUFFIX}
-         ${CMAKE_STATIC_LIBRARY_PREFIX}mulle-aba${CMAKE_STATIC_LIBRARY_SUFFIX}
+         ${MULLE_PREFERRED_LIBRARY_PREFIX}mulle-aba${CMAKE_DEBUG_POSTFIX}${MULLE_PREFERRED_LIBRARY_SUFFIX}
+         ${MULLE_PREFERRED_LIBRARY_PREFIX}mulle-aba${MULLE_PREFERRED_LIBRARY_SUFFIX}
+         ${MULLE_FALLBACK_LIBRARY_PREFIX}mulle-aba${CMAKE_DEBUG_POSTFIX}${MULLE_FALLBACK_LIBRARY_SUFFIX}
+         ${MULLE_FALLBACK_LIBRARY_PREFIX}mulle-aba${MULLE_FALLBACK_LIBRARY_SUFFIX}
          mulle-aba
          NO_CMAKE_SYSTEM_PATH NO_SYSTEM_ENVIRONMENT_PATH NO_CMAKE_FIND_ROOT_PATH
       )
       if( NOT MULLE__ABA_LIBRARY AND NOT DEPENDENCY_IGNORE_SYSTEM_LIBARIES)
          find_library( MULLE__ABA_LIBRARY NAMES
-            ${CMAKE_STATIC_LIBRARY_PREFIX}mulle-aba${CMAKE_DEBUG_POSTFIX}${CMAKE_STATIC_LIBRARY_SUFFIX}
-            ${CMAKE_STATIC_LIBRARY_PREFIX}mulle-aba${CMAKE_STATIC_LIBRARY_SUFFIX}
+            ${MULLE_PREFERRED_LIBRARY_PREFIX}mulle-aba${CMAKE_DEBUG_POSTFIX}${MULLE_PREFERRED_LIBRARY_SUFFIX}
+            ${MULLE_PREFERRED_LIBRARY_PREFIX}mulle-aba${MULLE_PREFERRED_LIBRARY_SUFFIX}
+            ${MULLE_FALLBACK_LIBRARY_PREFIX}mulle-aba${CMAKE_DEBUG_POSTFIX}${MULLE_FALLBACK_LIBRARY_SUFFIX}
+            ${MULLE_FALLBACK_LIBRARY_PREFIX}mulle-aba${MULLE_FALLBACK_LIBRARY_SUFFIX}
             mulle-aba
          )
       endif()
@@ -63,22 +82,25 @@ else()
             # use explicit path to avoid "surprises"
             if( IS_DIRECTORY "${_TMP_MULLE__ABA_DIR}")
                list( INSERT CMAKE_MODULE_PATH 0 "${_TMP_MULLE__ABA_DIR}")
-               # we only want top level INHERIT_OBJC_LOADERS, so disable them
-               if( NOT NO_INHERIT_OBJC_LOADERS)
-                  set( NO_INHERIT_OBJC_LOADERS OFF)
+               # we only want top level INHERIT_OBJC_DEPS, so disable them
+               if( NOT NO_INHERIT_OBJC_DEPS)
+                  set( NO_INHERIT_OBJC_DEPS OFF)
                endif()
-               list( APPEND _TMP_INHERIT_OBJC_LOADERS ${NO_INHERIT_OBJC_LOADERS})
-               set( NO_INHERIT_OBJC_LOADERS ON)
+               list( APPEND _TMP_INHERIT_OBJC_DEPS ${NO_INHERIT_OBJC_DEPS})
+               set( NO_INHERIT_OBJC_DEPS ON)
                #
                include( "${_TMP_MULLE__ABA_DIR}/DependenciesAndLibraries.cmake" OPTIONAL)
                #
-               list( GET _TMP_INHERIT_OBJC_LOADERS -1 NO_INHERIT_OBJC_LOADERS)
-               list( REMOVE_AT _TMP_INHERIT_OBJC_LOADERS -1)
+               list( GET _TMP_INHERIT_OBJC_DEPS -1 NO_INHERIT_OBJC_DEPS)
+               list( REMOVE_AT _TMP_INHERIT_OBJC_DEPS -1)
                list( REMOVE_ITEM CMAKE_MODULE_PATH "${_TMP_MULLE__ABA_DIR}")
                #
                unset( MULLE__ABA_DEFINITIONS)
+               unset( MULLE__ABA_RENDEZVOUS_GLOBALS)
                include( "${_TMP_MULLE__ABA_DIR}/Definitions.cmake" OPTIONAL)
                list( APPEND INHERITED_DEFINITIONS ${MULLE__ABA_DEFINITIONS})
+               include( "${_TMP_MULLE__ABA_DIR}/Definitions.cmake" OPTIONAL)
+               list( APPEND RENDEZVOUS_GLOBALS ${MULLE__ABA_RENDEZVOUS_GLOBALS})
                break()
             else()
                message( STATUS "${_TMP_MULLE__ABA_DIR} not found")
@@ -86,8 +108,10 @@ else()
          endforeach()
       else()
          # Disable with: `mulle-sourcetree mark mulle-aba no-require-link`
-         message( SEND_ERROR "MULLE__ABA_LIBRARY was not found in ${CMAKE_STATIC_LIBRARY_PREFIX}mulle-aba${CMAKE_DEBUG_POSTFIX}${CMAKE_STATIC_LIBRARY_SUFFIX}
-${CMAKE_STATIC_LIBRARY_PREFIX}mulle-aba${CMAKE_STATIC_LIBRARY_SUFFIX}
+         message( SEND_ERROR "MULLE__ABA_LIBRARY was not found in ${MULLE_PREFERRED_LIBRARY_PREFIX}mulle-aba${CMAKE_DEBUG_POSTFIX}${MULLE_PREFERRED_LIBRARY_SUFFIX}
+${MULLE_PREFERRED_LIBRARY_PREFIX}mulle-aba${MULLE_PREFERRED_LIBRARY_SUFFIX}
+${MULLE_FALLBACK_LIBRARY_PREFIX}mulle-aba${CMAKE_DEBUG_POSTFIX}${MULLE_FALLBACK_LIBRARY_SUFFIX}
+${MULLE_FALLBACK_LIBRARY_PREFIX}mulle-aba${MULLE_FALLBACK_LIBRARY_SUFFIX}
 mulle-aba")
       endif()
    endif()

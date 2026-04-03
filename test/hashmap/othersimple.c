@@ -18,7 +18,7 @@ static void   test( void)
    {
       mulle_concurrent_hashmap_insert( &map, 100000, (void *) 0x1848);
       value =  mulle_concurrent_hashmap_lookup( &map, 100000);
-      printf( "%p\n", value);
+      printf( "0x%tx\n", (intptr_t) value);
 
       value =  mulle_concurrent_hashmap_lookup( &map, 123456);
       printf( "%s\n", value == (void *) 0x1848 ? "unexpected" : "expected");
@@ -27,7 +27,7 @@ static void   test( void)
       rover = mulle_concurrent_hashmap_enumerate( &map);
       while( mulle_concurrent_hashmapenumerator_next( &rover, &hash, &value) == 1)
       {
-         printf( "%ld %p\n", hash, value);
+         printf( "%lu 0x%tx\n", (unsigned long) hash, (intptr_t) value);
       }
       mulle_concurrent_hashmapenumerator_done( &rover);
 

@@ -21,7 +21,7 @@
 
 #include "_mulle-concurrent-include.h"
 
-#ifdef MULLE__CONCURRENT_BUILD
+#if defined( MULLE__CONCURRENT_BUILD) || defined( MULLE__CORE_BUILD)
 # define MULLE__CONCURRENT_GLOBAL    MULLE_C_GLOBAL
 #else
 # if defined( MULLE_CONCURRENT_INCLUDE_DYNAMIC) || (defined( MULLE_INCLUDE_DYNAMIC) && ! defined( MULLE_CONCURRENT_INCLUDE_STATIC))

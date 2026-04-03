@@ -1,5 +1,5 @@
 # mulle-sde Debug Crashes Guidelines
-<!-- Keywords: debug, crash, stacktrace  -->
+<!-- Keywords: debug, debugging, crash, stacktrace  -->
 
 
 ## Workflow
@@ -45,3 +45,10 @@ For other debugging options check out
 ``` bash
 mulle-sde debug help
 ```
+
+## Winedbg
+
+If you get asserts in winedb about `wine/dlls/ntdll/unix/server.c` !status
+then consider rebooting, is definitely helped once.
+
+

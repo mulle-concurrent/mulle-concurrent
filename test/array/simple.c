@@ -19,11 +19,11 @@ static void   test( void)
 
       mulle_concurrent_pointerarray_add( &map, value);
       value = mulle_concurrent_pointerarray_get( &map, 0);
-      printf( "%p\n", value);
+      printf( "0x%tx\n", (intptr_t) value);
 
       rover = mulle_concurrent_pointerarray_enumerate( &map);
       while( value = mulle_concurrent_pointerarrayenumerator_next( &rover))
-         printf( "%p\n", value);
+         printf( "0x%tx\n", (intptr_t) value);
       mulle_concurrent_pointerarrayenumerator_done( &rover);
    }
    mulle_concurrent_pointerarray_done( &map);
