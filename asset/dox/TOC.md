@@ -1,23 +1,186 @@
 # mulle-concurrent Library Documentation for AI
-<!-- Keywords: lock-free, concurrent-structures -->
-
+<!-- Keywords: lockfree, waitfree, hashmap, pointerarray, concurrent, C -->
 ## 1. Introduction & Purpose
 
-**mulle-concurrent** is a library providing lock-free and wait-free data structures for multi-threaded C environments. Its primary purpose is to enable high-performance concurrent access to shared data structures without the overhead and contention of traditional locking mechanisms. The library is particularly valuable for "hotly" contested data structures in multi-threaded applications where processes spend significant time locking and unlocking central resources.
-
-The library provides two core data structures: `mulle_concurrent_hashmap` (a wait-free and lock-free hashtable) and `mulle_concurrent_pointerarray` (a wait-free and lock-free pointer array that can only grow). Both structures are designed to be accessed safely by multiple threads simultaneously without traditional synchronization primitives.
-
-**mulle-concurrent** is a foundational component of the `mulle-core` library ecosystem. It depends on `mulle-aba` for solving the ABA problem in concurrent data structures. The design philosophy draws heavily from Preshing on Programming's work on resizable concurrent maps and implements true wait-free semantics as defined by concurrencyfreaks.blogspot.de.
+- mulle-concurrent provides wait-free, lock-free concurrent data structures in C: primarily a resizable hashmap and a growable pointer array.
+- Solves contention in multithreaded environments where low-latency, non-blocking operations are required.
+- Key features: wait-free register/insert/lookup/remove for hashmap, lock-free add/get/find and enumerators for pointerarray, optional custom allocator integration, ABA handling via mulle-aba.
+- Relationship: component often used as part of mulle-core; depends on mulle-aba and mulle-allocator conventions.
 
 ## 2. Key Concepts & Design Philosophy
 
-### Wait-Free and Lock-Free Guarantees
+- Wait-free designs: operations aim to complete in a finite number of steps regardless of other threads.
+- Resizable concurrent map inspired by Preshing's resizable concurrent map but implemented to be wait-free.
+- Atomic storage units (mulle_atomic_pointer_t) and atomic unions for versioned storage swaps.
+- ABA problem management via mulle-aba; many APIs expect caller to initialize/register ABA.
+- Enumerators are "limited multi-threaded": safe for single-threaded use or when no concurrent removals/growth occur; enumerators will signal mutation via error codes.
 
-The library implements wait-free data structures, meaning that every operation completes in a bounded number of steps regardless of other thread activity. This is stronger than lock-free (which only guarantees system-wide progress) and provides predictable performance characteristics even under heavy contention.
+## 3. Core API & Data Structures
 
-### ABA Problem Resolution
+### 3.1. [mulle-concurrent.h]
+- Purpose: umbrella header; exposes public headers: types, hashmap, pointerarray.
+- Usage: include <mulle-concurrent/mulle-concurrent.h> for main API.
 
-The library relies on `mulle-aba` (Automatic Backup and Aging) for memory reclamation. Threads must register with the ABA system before accessing concurrent data structures (`mulle_aba_register()`) and unregister when done (`mulle_aba_unregister()`). This ensures safe memory reclamation without reference counting or garbage collection overhead.
+### 3.2. [mulle-concurrent-types.h]
+- Defines sentinel values and small constants:
+  - MULLE_CONCURRENT_NO_HASH (0)
+  - MULLE_CONCURRENT_INVALID_POINTER ((void*) INTPTR_MIN)
+  - MULLE_CONCURRENT_NO_POINTER ((void*) 0)
+- Use these to interpret return values and special states.
+
+### 3.3. [mulle-concurrent-hashmap.h]
+
+struct mulle_concurrent_hashmap
+- Purpose: wait-free, resizable hashmap storing (hash -> value) pairs.
+- Key fields (opaque in practice): storage (atomic pointer to storage), next_storage (for resizing), allocator (optional).
+- Lifecycle:
+  - mulle_concurrent_hashmap_init(map, size, allocator) : initialize; returns 0 or errno codes (EINVAL/ENOMEM).
+  - mulle_concurrent_hashmap_done(map) : destroy/cleanup.
+- Core operations (multi-threaded):
+  - mulle_concurrent_hashmap_register(map, hash, value) -> returns inserted value or existing value / sentinel codes.
+  - mulle_concurrent_hashmap_insert(map, hash, value) -> 0 on success, EEXIST/EINVAL/ENOMEM on error.
+  - mulle_concurrent_hashmap_patch(map, hash, value, expect) -> conditional update (experimental).
+  - mulle_concurrent_hashmap_lookup(map, hash) -> value or NULL if not found.
+  - mulle_concurrent_hashmap_remove(map, hash, value) -> 0 on removed, ENOENT/EINVAL/ENOMEM on error.
+- Inspection:
+  - mulle_concurrent_hashmap_get_size(map) -> current storage size (buckets allocated).
+  - mulle_concurrent_hashmap_count(map) -> count of entries.
+- Enumerators:
+  - struct mulle_concurrent_hashmapenumerator (map, index, mask)
+  - mulle_concurrent_hashmap_enumerate(map), mulle_concurrent_hashmapenumerator_next(rover, &hash, &value)
+  - Convenience macros: mulle_concurrent_hashmap_for and mulle_concurrent_hashmap_for_rval
+- Important constraints:
+  - Do not use hash == 0.
+  - Do not use value == 0 or MULLE_CONCURRENT_INVALID_POINTER.
+
+### 3.4. [mulle-concurrent-pointerarray.h]
+
+struct mulle_concurrent_pointerarray
+- Purpose: wait/lock-free growable array of void* pointers.
+- Key fields: storage, next_storage, allocator.
+- Lifecycle:
+  - mulle_concurrent_pointerarray_init(array, size, allocator) -> returns 0 or errno codes.
+  - mulle_concurrent_pointerarray_done(array)
+- Core operations (multi-threaded):
+  - mulle_concurrent_pointerarray_add(array, value) -> add value (may reallocate/reserve atomically).
+  - mulle_concurrent_pointerarray_get(array, index) -> returns value or NULL.
+  - mulle_concurrent_pointerarray_find(array, value) -> index or error.
+- Inspection:
+  - mulle_concurrent_pointerarray_get_size(array) -> allocated size
+  - mulle_concurrent_pointerarray_get_count(array) -> number of stored elements
+- Enumerators:
+  - mulle_concurrent_pointerarray_enumerate(array) and reverse enumerate variant
+  - mulle_concurrent_pointerarrayenumerator_next() returns items until exhausted.
+  - Convenience macros: mulle_concurrent_pointerarray_for, mulle_concurrent_pointerarray_for_reverse
+- Threading: add/get/find are safe concurrently; enumerators are intended for single-threaded consumption or with no concurrent destructive modifications.
+
+### 3.5. [include.h]
+- Purpose: central include glue: exposes MULLE__CONCURRENT_GLOBAL macro and pulls generated include files.
+
+## 4. Performance Characteristics
+
+- Typical expected complexity (average-case):
+  - Hashmap insert/lookup/remove: O(1) amortized (resizing when necessary).
+  - Pointerarray add/get: O(1) for add (amortized), O(1) get.
+- Resizing/growing is atomic and non-blocking for callers; there is copy/rehash work during growth but designed to avoid blocking other threads.
+- Memory vs speed trade-offs: waiting threads may observe internal copies; using custom allocators can reduce allocation overhead.
+- Thread-safety:
+  - Core operations are implemented to be wait-free or lock-free (library aims for wait-free semantics).
+  - Enumerators are limited: concurrent removals or growth may cause enumerator to return ECANCELLED/EBUSY.
+
+## 5. AI Usage Recommendations & Patterns
+
+- Best Practices:
+  - Always call mulle_aba_init(...) and mulle_aba_register() in threads that access these structures when ABA is required.
+  - Use provided lifecycle functions (init/done). Do not manipulate internal storage directly.
+  - Treat returned pointers from lookup as borrowed; do not free them unless you own them.
+  - Prefer using enumerator macros for simple loops (mulle_concurrent_hashmap_for, mulle_concurrent_pointerarray_for).
+- Common Pitfalls:
+  - Never use hash == 0. Never use value == NULL or MULLE_CONCURRENT_INVALID_POINTER as payload.
+  - Enumerators are not robust against concurrent mutation (they will signal via specific errno return values).
+  - Do not assume deterministic iteration order.
+- Idiomatic usage:
+  - Provide an allocator if memory management or ABA ownership must be tracked by the embedding project.
+  - Use register/insert semantics depending on whether duplicates should be detected or replaced.
+
+## 6. Integration Examples
+
+### Example 1: Creating and using a hashmap (from test/example.c)
+
+```c
+#include <mulle-concurrent/mulle-concurrent.h>
+#include <errno.h>
+
+int main(void)
+{
+   struct mulle_concurrent_hashmap  map;
+   void                             *v;
+
+   mulle_aba_init( NULL);
+   mulle_aba_register();
+
+   mulle_concurrent_hashmap_init( &map, 0, NULL);
+
+   mulle_concurrent_hashmap_insert( &map, 0x1, (void *) 1848);
+   mulle_concurrent_hashmap_insert( &map, 0x2, (void *) 1849);
+
+   v = mulle_concurrent_hashmap_lookup( &map, 0x2);
+   /* v == (void*)1849 */
+
+   mulle_concurrent_hashmap_remove( &map, 0x2, v);
+
+   mulle_concurrent_hashmap_done( &map);
+
+   mulle_aba_unregister();
+   mulle_aba_done();
+
+   return( 0);
+}
+```
+
+### Example 2: Using pointerarray with multi-thread test patterns (from test/array/example)
+
+```c
+#include <mulle-concurrent/mulle-concurrent.h>
+#include <mulle-testallocator/mulle-testallocator.h>
+#include <assert.h>
+
+void use_pointerarray(void)
+{
+   struct mulle_concurrent_pointerarray  array;
+
+   mulle_aba_init( &mulle_testallocator);
+   mulle_allocator_set_aba( &mulle_testallocator,
+                            mulle_aba_get_global(),
+                            (mulle_allocator_aba_t *) _mulle_aba_free_owned_pointer);
+   mulle_aba_register();
+
+   mulle_concurrent_pointerarray_init( &array, 0, &mulle_testallocator);
+
+   _mulle_concurrent_pointerarray_add( &array, (void *) 10);
+   assert( mulle_concurrent_pointerarray_get( &array, 0) == (void *) 10);
+
+   mulle_concurrent_pointerarray_done( &array);
+
+   mulle_aba_unregister();
+   mulle_aba_done();
+}
+```
+
+## 7. Dependencies
+
+- Direct runtime / build dependencies to be aware of:
+  - mulle-aba (ABA handling, required by tests and often for safe usage)
+  - mulle-allocator / custom allocator interface (optional allocator parameter)
+- The project is distributed as a component of mulle-core; integrate via mulle-sde or clib where appropriate.
+
+
+---
+
+References:
+- Public headers: src/mulle-concurrent.h, src/hashmap/mulle-concurrent-hashmap.h, src/pointerarray/mulle-concurrent-pointerarray.h, src/mulle-concurrent-types.h
+- Tests: test/hashmap/example.c, test/array/example.c (useful concrete examples)
+
 
 ### Volatile Nature in Multi-threaded Environments
 
