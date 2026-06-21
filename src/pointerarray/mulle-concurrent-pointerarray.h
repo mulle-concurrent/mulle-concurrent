@@ -39,6 +39,7 @@
 #include "include.h"
 
 #include <errno.h>
+#include "mulle-concurrent-types.h"
 
 
 struct _mulle_concurrent_pointerarraystorage;
@@ -61,6 +62,33 @@ struct mulle_concurrent_pointerarray
 
 #pragma mark - single-threaded
 
+MULLE__CONCURRENT_GLOBAL
+void  _mulle_concurrent_pointerarray_init( struct mulle_concurrent_pointerarray *array,
+                                           unsigned int size,
+                                           struct mulle_allocator *allocator);
+
+MULLE__CONCURRENT_GLOBAL
+void  _mulle_concurrent_pointerarray_done( struct mulle_concurrent_pointerarray *array);
+
+MULLE__CONCURRENT_GLOBAL
+unsigned int  _mulle_concurrent_pointerarray_get_size( struct mulle_concurrent_pointerarray *array);
+
+MULLE__CONCURRENT_GLOBAL
+unsigned int  _mulle_concurrent_pointerarray_get_count( struct mulle_concurrent_pointerarray *array);
+
+MULLE__CONCURRENT_GLOBAL
+void  *_mulle_concurrent_pointerarray_get( struct mulle_concurrent_pointerarray *array,
+                                           unsigned int index);
+
+MULLE__CONCURRENT_GLOBAL
+void  _mulle_concurrent_pointerarray_add( struct mulle_concurrent_pointerarray *array,
+                                          void *value);
+
+
+MULLE__CONCURRENT_GLOBAL
+int   _mulle_concurrent_pointerarray_find( struct mulle_concurrent_pointerarray *array,
+                                           void *search);
+
 // Returns:
 //   0      : OK
 //   EINVAL : invalid argument
@@ -70,10 +98,6 @@ static inline int  mulle_concurrent_pointerarray_init( struct mulle_concurrent_p
                                                        unsigned int size,
                                                        struct mulle_allocator *allocator)
 {
-   MULLE__CONCURRENT_GLOBAL
-   void  _mulle_concurrent_pointerarray_init( struct mulle_concurrent_pointerarray *array,
-                                              unsigned int size,
-                                              struct mulle_allocator *allocator);
    if( ! array)
       return( EINVAL);
 
@@ -84,9 +108,6 @@ static inline int  mulle_concurrent_pointerarray_init( struct mulle_concurrent_p
 
 static inline void  mulle_concurrent_pointerarray_done( struct mulle_concurrent_pointerarray *array)
 {
-   MULLE__CONCURRENT_GLOBAL
-   void  _mulle_concurrent_pointerarray_done( struct mulle_concurrent_pointerarray *array);
-
    if( array)
       _mulle_concurrent_pointerarray_done( array);
 }
@@ -94,9 +115,6 @@ static inline void  mulle_concurrent_pointerarray_done( struct mulle_concurrent_
 
 static inline unsigned int  mulle_concurrent_pointerarray_get_size( struct mulle_concurrent_pointerarray *array)
 {
-   MULLE__CONCURRENT_GLOBAL
-   unsigned int  _mulle_concurrent_pointerarray_get_size( struct mulle_concurrent_pointerarray *array);
-
    if( ! array)
       return( 0);
    return( _mulle_concurrent_pointerarray_get_size( array));
@@ -105,9 +123,6 @@ static inline unsigned int  mulle_concurrent_pointerarray_get_size( struct mulle
 
 static inline unsigned int  mulle_concurrent_pointerarray_get_count( struct mulle_concurrent_pointerarray *array)
 {
-   MULLE__CONCURRENT_GLOBAL
-   unsigned int  _mulle_concurrent_pointerarray_get_count( struct mulle_concurrent_pointerarray *array);
-
    if( ! array)
       return( 0);
    return( _mulle_concurrent_pointerarray_get_count( array));
@@ -121,25 +136,40 @@ static inline unsigned int  mulle_concurrent_pointerarray_get_count( struct mull
 //   EINVAL : invalid argument
 //   ENOMEM : out of memory
 //
-MULLE__CONCURRENT_GLOBAL
-int  mulle_concurrent_pointerarray_add( struct mulle_concurrent_pointerarray *array,
-                                        void *value);
 
 static inline void  *mulle_concurrent_pointerarray_get( struct mulle_concurrent_pointerarray *array,
                                           unsigned int i)
 {
-   MULLE__CONCURRENT_GLOBAL
-   void  *_mulle_concurrent_pointerarray_get( struct mulle_concurrent_pointerarray *array,
-                                              unsigned int index);
    if( ! array)
       return( NULL);
    return( _mulle_concurrent_pointerarray_get( array, i));
 }
 
 
-MULLE__CONCURRENT_GLOBAL
-int  mulle_concurrent_pointerarray_find( struct mulle_concurrent_pointerarray *array,
-                                         void *value);
+
+static inline int  mulle_concurrent_pointerarray_add( struct mulle_concurrent_pointerarray *array,
+                                                      void *value)
+{
+   if( ! array)
+      return( EINVAL);
+   if( value == MULLE_CONCURRENT_NO_POINTER || value == MULLE_CONCURRENT_INVALID_POINTER)
+      return( EINVAL);
+
+   _mulle_concurrent_pointerarray_add( array, value);
+   return( 0);
+}
+
+
+static inline int  mulle_concurrent_pointerarray_find( struct mulle_concurrent_pointerarray *array,
+                                                       void *value)
+{
+   if( ! array)
+      return( EINVAL);
+   if( value == MULLE_CONCURRENT_NO_POINTER || value == MULLE_CONCURRENT_INVALID_POINTER)
+      return( EINVAL);
+   return( _mulle_concurrent_pointerarray_find( array, value));
+}
+
 
 #pragma mark - enumerator
 
@@ -154,6 +184,14 @@ struct mulle_concurrent_pointerarrayreverseenumerator
    struct mulle_concurrent_pointerarray   *array;
    unsigned int                           index;
 };
+
+
+MULLE__CONCURRENT_GLOBAL
+void   *_mulle_concurrent_pointerarrayenumerator_next( struct mulle_concurrent_pointerarrayenumerator *rover);
+
+MULLE__CONCURRENT_GLOBAL
+void   *_mulle_concurrent_pointerarrayreverseenumerator_next( struct mulle_concurrent_pointerarrayreverseenumerator *rover);
+
 
 //
 // the specific retuned enumerator is only useable for the calling thread
@@ -182,15 +220,13 @@ static inline struct mulle_concurrent_pointerarrayreverseenumerator
 }
 
 
+
 // Returns:
 //   1      : OK
 //   0      : nothing left
 //   EINVAL : invalid argument
 static inline void  *mulle_concurrent_pointerarrayenumerator_next( struct mulle_concurrent_pointerarrayenumerator *rover)
 {
-   MULLE__CONCURRENT_GLOBAL
-   void   *_mulle_concurrent_pointerarrayenumerator_next( struct mulle_concurrent_pointerarrayenumerator *rover);
-
    if( ! rover)
       return(  NULL);
    return( _mulle_concurrent_pointerarrayenumerator_next( rover));
@@ -199,9 +235,6 @@ static inline void  *mulle_concurrent_pointerarrayenumerator_next( struct mulle_
 
 static inline void  *mulle_concurrent_pointerarrayreverseenumerator_next( struct mulle_concurrent_pointerarrayreverseenumerator *rover)
 {
-   MULLE__CONCURRENT_GLOBAL
-   void   *_mulle_concurrent_pointerarrayreverseenumerator_next( struct mulle_concurrent_pointerarrayreverseenumerator *rover);
-
    if( ! rover)
       return( NULL);
    return( _mulle_concurrent_pointerarrayreverseenumerator_next( rover));
@@ -228,39 +261,6 @@ int   mulle_concurrent_pointerarray_map( struct mulle_concurrent_pointerarray *l
                                         void *userinfo);
 
 #pragma mark - various functions, no parameter checks
-
-MULLE__CONCURRENT_GLOBAL
-void  _mulle_concurrent_pointerarray_init( struct mulle_concurrent_pointerarray *array,
-                                          unsigned int size,
-                                          struct mulle_allocator *allocator);
-MULLE__CONCURRENT_GLOBAL
-void  _mulle_concurrent_pointerarray_done( struct mulle_concurrent_pointerarray *array);
-
-MULLE__CONCURRENT_GLOBAL
-unsigned int  _mulle_concurrent_pointerarray_get_size( struct mulle_concurrent_pointerarray *array);
-
-MULLE__CONCURRENT_GLOBAL
-unsigned int  _mulle_concurrent_pointerarray_get_count( struct mulle_concurrent_pointerarray *array);
-
-MULLE__CONCURRENT_GLOBAL
-void  _mulle_concurrent_pointerarray_add( struct mulle_concurrent_pointerarray *array,
-                                         void *value);
-
-MULLE__CONCURRENT_GLOBAL
-void  *_mulle_concurrent_pointerarray_get( struct mulle_concurrent_pointerarray *array,
-                                           unsigned int i);
-
-MULLE__CONCURRENT_GLOBAL
-int  _mulle_concurrent_pointerarray_find( struct mulle_concurrent_pointerarray *array,
-                                          void *value);
-
-MULLE__CONCURRENT_GLOBAL
-void   *_mulle_concurrent_pointerarrayenumerator_next( struct mulle_concurrent_pointerarrayenumerator *rover);
-
-
-MULLE__CONCURRENT_GLOBAL
-void  *_mulle_concurrent_pointerarrayreverseenumerator_next( struct mulle_concurrent_pointerarrayreverseenumerator *rover);
-
 
 #define mulle_concurrent_pointerarray_for( name, item)                                                     \
    assert( sizeof( item) == sizeof( void *));                                                              \

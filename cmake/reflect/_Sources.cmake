@@ -13,6 +13,7 @@ endif()
 set( SOURCES
 src/hashmap/mulle-concurrent-hashmap.c
 src/pointerarray/mulle-concurrent-pointerarray.c
+src/pointerset/mulle-concurrent-pointerset.c
 )
 
 #

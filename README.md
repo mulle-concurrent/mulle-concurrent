@@ -26,6 +26,84 @@ in multi-threaded environments.
 
 
 
+## Usage
+
+mulle-concurrent data structures require
+[mulle-aba](//github.com/mulle-concurrent/mulle-aba) for safe concurrent memory
+reclamation. You must initialize mulle-aba once per process and **register every
+thread** that accesses mulle-concurrent data structures.
+
+``` c
+#include <mulle-concurrent/mulle-concurrent.h>
+
+int   main( int argc, char *argv[])
+{
+   struct mulle_concurrent_hashmap   map;
+
+   mulle_aba_init( NULL);                          // once per process
+   mulle_aba_register();                           // register main thread
+
+   mulle_concurrent_hashmap_init( &map, 0, NULL);
+
+   // ... use the hashmap ...
+
+   mulle_concurrent_hashmap_done( &map);
+
+   mulle_aba_unregister();                         // unregister main thread
+   mulle_aba_done();                               // once per process
+   return( 0);
+}
+```
+
+### Multi-threaded setup
+
+**Every participating thread** must call `mulle_aba_register` before accessing
+any mulle-concurrent data structure and `mulle_aba_unregister` before exiting.
+Forgetting to do so will crash.
+
+With `mulle_thread` you can automate the unregister with a TSS destructor:
+
+``` c
+#include <mulle-concurrent/mulle-concurrent.h>
+
+static mulle_thread_tss_t   aba_tss_key;
+
+
+static void   aba_thread_destructor( void *value)
+{
+   mulle_aba_unregister();
+}
+
+
+// call once from main before spawning threads
+static void   aba_setup_thread_cleanup( void)
+{
+   mulle_thread_tss_create( aba_thread_destructor, &aba_tss_key);
+}
+
+
+// call at the start of each thread function
+static void   aba_register_thread( void)
+{
+   mulle_aba_register();
+   mulle_thread_tss_set( aba_tss_key, (void *) 1);  // non-NULL triggers destructor
+}
+```
+
+Then your thread function becomes:
+
+``` c
+static void   *my_worker( void *arg)
+{
+   struct mulle_concurrent_hashmap   *map = arg;
+
+   aba_register_thread();
+
+   // ... safely use map ...
+
+   return( NULL);  // destructor calls mulle_aba_unregister automatically
+}
+```
 
 
 

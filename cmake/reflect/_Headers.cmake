@@ -16,6 +16,7 @@ src/generic
 src/hashmap
 src
 src/pointerarray
+src/pointerset
 )
 
 #
@@ -56,5 +57,6 @@ src/hashmap/mulle-concurrent-hashmap.h
 src/mulle-concurrent.h
 src/mulle-concurrent-types.h
 src/pointerarray/mulle-concurrent-pointerarray.h
+src/pointerset/mulle-concurrent-pointerset.h
 )
 
