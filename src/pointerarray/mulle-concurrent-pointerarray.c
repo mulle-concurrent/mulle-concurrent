@@ -366,29 +366,6 @@ retry:
 }
 
 
-int  mulle_concurrent_pointerarray_add( struct mulle_concurrent_pointerarray *array,
-                                        void *value)
-{
-   if( ! array)
-      return( EINVAL);
-   if( value == MULLE_CONCURRENT_NO_POINTER || value == MULLE_CONCURRENT_INVALID_POINTER)
-      return( EINVAL);
-
-   _mulle_concurrent_pointerarray_add( array, value);
-   return( 0);
-}
-
-
-int  mulle_concurrent_pointerarray_find( struct mulle_concurrent_pointerarray *array,
-                                         void *value)
-{
-   if( ! array)
-      return( EINVAL);
-   if( value == MULLE_CONCURRENT_NO_POINTER || value == MULLE_CONCURRENT_INVALID_POINTER)
-      return( EINVAL);
-   return( _mulle_concurrent_pointerarray_find( array, value));
-}
-
 
 #pragma mark - not so concurrent enumerator
 

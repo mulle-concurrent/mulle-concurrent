@@ -86,6 +86,46 @@ struct mulle_concurrent_hashmap
 #pragma mark - single-threaded
 
 
+#pragma mark - various functions, no parameter checks
+
+MULLE__CONCURRENT_GLOBAL
+int  _mulle_concurrent_hashmap_init( struct mulle_concurrent_hashmap *map,
+                                     unsigned int size,
+                                     struct mulle_allocator *allocator);
+MULLE__CONCURRENT_GLOBAL
+void  _mulle_concurrent_hashmap_done( struct mulle_concurrent_hashmap *map);
+
+MULLE__CONCURRENT_GLOBAL
+unsigned int  _mulle_concurrent_hashmap_get_size( struct mulle_concurrent_hashmap *map);
+
+
+MULLE__CONCURRENT_GLOBAL
+void   *_mulle_concurrent_hashmap_register( struct mulle_concurrent_hashmap *map,
+                                            intptr_t hash,
+                                            void *value);
+
+MULLE__CONCURRENT_GLOBAL
+int  _mulle_concurrent_hashmap_insert( struct mulle_concurrent_hashmap *map,
+                                       intptr_t hash,
+                                       void *value);
+
+MULLE__CONCURRENT_GLOBAL
+int  _mulle_concurrent_hashmap_patch( struct mulle_concurrent_hashmap *map,
+                                      intptr_t hash,
+                                      void *value,
+                                      void *expect);
+
+MULLE__CONCURRENT_GLOBAL
+void  *_mulle_concurrent_hashmap_lookup( struct mulle_concurrent_hashmap *map,
+                                         intptr_t hash);
+
+MULLE__CONCURRENT_GLOBAL
+int  _mulle_concurrent_hashmap_remove( struct mulle_concurrent_hashmap *map,
+                                       intptr_t hash,
+                                       void *value);
+
+
+
 // Returns:
 //   0      : OK
 //   EINVAL : invalid argument
@@ -96,10 +136,6 @@ static inline int
                                   unsigned int size,
                                   struct mulle_allocator *allocator)
 {
-   MULLE__CONCURRENT_GLOBAL
-   int  _mulle_concurrent_hashmap_init( struct mulle_concurrent_hashmap *map,
-                                        unsigned int size,
-                                        struct mulle_allocator *allocator);
    if( ! map)
       return( EINVAL);
    return( _mulle_concurrent_hashmap_init( map, size, allocator));
@@ -109,9 +145,6 @@ static inline int
 static inline void
    mulle_concurrent_hashmap_done( struct mulle_concurrent_hashmap *map)
 {
-   MULLE__CONCURRENT_GLOBAL
-   void  _mulle_concurrent_hashmap_done( struct mulle_concurrent_hashmap *map);
-
    if( map)
       _mulle_concurrent_hashmap_done( map);
 }
@@ -120,9 +153,6 @@ static inline void
 static inline unsigned int
    mulle_concurrent_hashmap_get_size( struct mulle_concurrent_hashmap *map)
 {
-   MULLE__CONCURRENT_GLOBAL
-   unsigned int  _mulle_concurrent_hashmap_get_size( struct mulle_concurrent_hashmap *map);
-
    if( ! map)
       return( 0);
    return( _mulle_concurrent_hashmap_get_size( map));
@@ -189,10 +219,6 @@ static inline void
    *mulle_concurrent_hashmap_lookup( struct mulle_concurrent_hashmap *map,
                                      intptr_t hash)
 {
-   MULLE__CONCURRENT_GLOBAL
-   void  *_mulle_concurrent_hashmap_lookup( struct mulle_concurrent_hashmap *map,
-                                           intptr_t hash);
-
    if( ! map)
       return( NULL);
    return( _mulle_concurrent_hashmap_lookup( map, hash));
@@ -219,6 +245,11 @@ struct mulle_concurrent_hashmapenumerator
    unsigned int                      mask;
 };
 
+
+MULLE__CONCURRENT_GLOBAL
+int  _mulle_concurrent_hashmapenumerator_next( struct mulle_concurrent_hashmapenumerator *rover,
+                                               intptr_t *hash,
+                                               void **value);
 
 //
 // the specific retuned enumerator is only useable for the calling thread
@@ -249,10 +280,6 @@ static inline int
                                            intptr_t *hash,
                                            void **value)
 {
-   MULLE__CONCURRENT_GLOBAL
-   int  _mulle_concurrent_hashmapenumerator_next( struct mulle_concurrent_hashmapenumerator *rover,
-                                                 intptr_t *hash,
-                                                 void **value);
    if( ! rover)
       return( EINVAL);
    return( _mulle_concurrent_hashmapenumerator_next( rover, hash, value));
@@ -275,49 +302,6 @@ MULLE__CONCURRENT_GLOBAL
 unsigned int   mulle_concurrent_hashmap_count( struct mulle_concurrent_hashmap *map);
 
 
-#pragma mark - various functions, no parameter checks
-
-MULLE__CONCURRENT_GLOBAL
-int  _mulle_concurrent_hashmap_init( struct mulle_concurrent_hashmap *map,
-                                     unsigned int size,
-                                     struct mulle_allocator *allocator);
-MULLE__CONCURRENT_GLOBAL
-void  _mulle_concurrent_hashmap_done( struct mulle_concurrent_hashmap *map);
-
-MULLE__CONCURRENT_GLOBAL
-unsigned int  _mulle_concurrent_hashmap_get_size( struct mulle_concurrent_hashmap *map);
-
-
-MULLE__CONCURRENT_GLOBAL
-void   *_mulle_concurrent_hashmap_register( struct mulle_concurrent_hashmap *map,
-                                            intptr_t hash,
-                                            void *value);
-
-MULLE__CONCURRENT_GLOBAL
-int  _mulle_concurrent_hashmap_insert( struct mulle_concurrent_hashmap *map,
-                                       intptr_t hash,
-                                       void *value);
-
-MULLE__CONCURRENT_GLOBAL
-int  _mulle_concurrent_hashmap_patch( struct mulle_concurrent_hashmap *map,
-                                      intptr_t hash,
-                                      void *value,
-                                      void *expect);
-
-MULLE__CONCURRENT_GLOBAL
-void  *_mulle_concurrent_hashmap_lookup( struct mulle_concurrent_hashmap *map,
-                                         intptr_t hash);
-
-MULLE__CONCURRENT_GLOBAL
-int  _mulle_concurrent_hashmap_remove( struct mulle_concurrent_hashmap *map,
-                                       intptr_t hash,
-                                       void *value);
-
-
-MULLE__CONCURRENT_GLOBAL
-int  _mulle_concurrent_hashmapenumerator_next( struct mulle_concurrent_hashmapenumerator *rover,
-                                               intptr_t *hash,
-                                               void **value);
 
 #define mulle_concurrent_hashmap_for_rval( name, hash, value, rval)                                                         \
    assert( sizeof( hash) == sizeof( intptr_t));                                                                             \

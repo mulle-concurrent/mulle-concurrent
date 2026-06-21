@@ -16,6 +16,7 @@
 #include "mulle-concurrent-hashmap.h"
 #include "mulle-concurrent-types.h"
 #include "mulle-concurrent-pointerarray.h"
+#include "mulle-concurrent-pointerset.h"
 
 
 #endif

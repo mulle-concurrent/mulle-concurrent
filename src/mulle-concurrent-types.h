@@ -40,11 +40,11 @@
 
 //
 // if you don't like those values, you 'should' be able to redefine those
-// this file is not exposed (yet)
 //
 #define MULLE_CONCURRENT_NO_HASH           0
 
 #define MULLE_CONCURRENT_INVALID_POINTER   ((void *) INTPTR_MIN)
 #define MULLE_CONCURRENT_NO_POINTER        ((void *) 0)
+#define MULLE_CONCURRENT_TOMBSTONE_POINTER ((void *) INTPTR_MAX)
 
 #endif /* mulle_concurrent_types_h */

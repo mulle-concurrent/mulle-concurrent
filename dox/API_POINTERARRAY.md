@@ -37,7 +37,7 @@ int   mulle_concurrent_pointerarray_init( struct mulle_concurrent_pointerarray *
 ```
 
 Initialize `array`, with a starting `size` of elements. `allocator` will be
-used to allocate and free memory during the lifetime of `array`.  You can pass in
+used to allocate and free memory during the lifetime of `array`.  You can pass in NULLS
 for `allocator` to use the default. This needs to be called in **single-threaded** fashion.
 
 ##### Return Values:

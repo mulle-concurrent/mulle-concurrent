@@ -41,6 +41,7 @@
 #include "mulle-concurrent-types.h"
 #include "mulle-concurrent-hashmap.h"
 #include "mulle-concurrent-pointerarray.h"
+#include "mulle-concurrent-pointerset.h"
 
 #ifdef __has_include
 # if __has_include( "_mulle-concurrent-versioncheck.h")

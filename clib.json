@@ -16,6 +16,8 @@
       "src/mulle-concurrent.h",
       "src/pointerarray/mulle-concurrent-pointerarray.c",
       "src/pointerarray/mulle-concurrent-pointerarray.h",
+      "src/pointerset/mulle-concurrent-pointerset.c",
+      "src/pointerset/mulle-concurrent-pointerset.h",
       "src/reflect/_mulle-concurrent-include-private.h",
       "src/reflect/_mulle-concurrent-include.h",
       "src/reflect/_mulle-concurrent-provide.h",
