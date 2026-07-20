@@ -1,10 +1,10 @@
 # mulle-concurrent Library Documentation for AI
-<!-- Keywords: lockfree, waitfree, hashmap, pointerarray, concurrent, C -->
+<!-- Keywords: lockfree, waitfree, hashmap, pointerarray, pointerset, concurrent, C -->
 ## 1. Introduction & Purpose
 
-- mulle-concurrent provides wait-free, lock-free concurrent data structures in C: primarily a resizable hashmap and a growable pointer array.
+- mulle-concurrent provides wait-free, lock-free concurrent data structures in C: a resizable hashmap, a growable pointer array, and a pointer set.
 - Solves contention in multithreaded environments where low-latency, non-blocking operations are required.
-- Key features: wait-free register/insert/lookup/remove for hashmap, lock-free add/get/find and enumerators for pointerarray, optional custom allocator integration, ABA handling via mulle-aba.
+- Key features: wait-free register/insert/lookup/remove for hashmap, lock-free add/get/find and enumerators for pointerarray, wait-free insert/register/member/remove for pointerset with single-word-per-slot linear probing, optional custom allocator integration, ABA handling via mulle-aba.
 - Relationship: component often used as part of mulle-core; depends on mulle-aba and mulle-allocator conventions.
 
 ## 2. Key Concepts & Design Philosophy
@@ -14,6 +14,7 @@
 - Atomic storage units (mulle_atomic_pointer_t) and atomic unions for versioned storage swaps.
 - ABA problem management via mulle-aba; many APIs expect caller to initialize/register ABA.
 - Enumerators are "limited multi-threaded": safe for single-threaded use or when no concurrent removals/growth occur; enumerators will signal mutation via error codes.
+- Pointerset uses linear probing with single-word-per-slot storage and tombstones for removal tracking; tombstones are cleaned up during migration.
 
 ## 3. Core API & Data Structures
 
@@ -26,6 +27,7 @@
   - MULLE_CONCURRENT_NO_HASH (0)
   - MULLE_CONCURRENT_INVALID_POINTER ((void*) INTPTR_MIN)
   - MULLE_CONCURRENT_NO_POINTER ((void*) 0)
+  - MULLE_CONCURRENT_TOMBSTONE_POINTER ((void*) INTPTR_MAX)
 - Use these to interpret return values and special states.
 
 ### 3.3. [mulle-concurrent-hashmap.h]
@@ -74,7 +76,35 @@ struct mulle_concurrent_pointerarray
   - Convenience macros: mulle_concurrent_pointerarray_for, mulle_concurrent_pointerarray_for_reverse
 - Threading: add/get/find are safe concurrently; enumerators are intended for single-threaded consumption or with no concurrent destructive modifications.
 
-### 3.5. [include.h]
+### 3.5. [mulle-concurrent-pointerset.h]
+
+struct mulle_concurrent_pointerset
+- Purpose: wait-free set of void* pointers using linear probing with single-word-per-slot layout. No separate hash needed — the pointer itself is hashed internally.
+- Key fields (opaque): storage, next_storage, allocator.
+- Lifecycle:
+  - mulle_concurrent_pointerset_init(set, size, allocator) : initialize; returns 0 or EINVAL/ENOMEM.
+  - mulle_concurrent_pointerset_done(set) : destroy/cleanup.
+- Core operations (multi-threaded):
+  - mulle_concurrent_pointerset_insert(set, ptr) -> 0 on success, EEXIST/EINVAL/ENOMEM on error.
+  - mulle_concurrent_pointerset_register(set, ptr) -> NO_POINTER if inserted, INVALID_POINTER on error (check errno), or ptr if already present.
+  - mulle_concurrent_pointerset_member(set, ptr) -> 1 if present, 0 if not.
+  - mulle_concurrent_pointerset_remove(set, ptr) -> 0 on removed, ENOENT/EINVAL/ENOMEM on error.
+- Inspection:
+  - mulle_concurrent_pointerset_get_size(set) -> current storage size.
+  - mulle_concurrent_pointerset_get_allocator(set) -> current allocator.
+  - mulle_concurrent_pointerset_count(set) -> count of entries (via enumeration).
+  - mulle_concurrent_pointerset_lookup_any(set) -> arbitrary pointer from set, or NULL if empty.
+- Reset:
+  - mulle_concurrent_pointerset_reset(set) -> done + re-init with same size and allocator.
+- Enumerators:
+  - struct mulle_concurrent_pointerset_enumerator (set, index, mask)
+  - mulle_concurrent_pointerset_enumerate(set), mulle_concurrent_pointerset_enumerator_next(rover, &ptr)
+  - Convenience macro: mulle_concurrent_pointerset_for
+- Important constraints:
+  - Do not use NULL, INTPTR_MIN, or INTPTR_MAX (TOMBSTONE) as pointer values.
+  - Uses linear probing with tombstones for removal; tombstones are cleaned up during migration.
+
+### 3.6. [include.h]
 - Purpose: central include glue: exposes MULLE__CONCURRENT_GLOBAL macro and pulls generated include files.
 
 ## 4. Performance Characteristics
@@ -178,8 +208,8 @@ void use_pointerarray(void)
 ---
 
 References:
-- Public headers: src/mulle-concurrent.h, src/hashmap/mulle-concurrent-hashmap.h, src/pointerarray/mulle-concurrent-pointerarray.h, src/mulle-concurrent-types.h
-- Tests: test/hashmap/example.c, test/array/example.c (useful concrete examples)
+- Public headers: src/mulle-concurrent.h, src/hashmap/mulle-concurrent-hashmap.h, src/pointerarray/mulle-concurrent-pointerarray.h, src/pointerset/mulle-concurrent-pointerset.h, src/mulle-concurrent-types.h
+- Tests: test/hashmap/example.c, test/array/example.c, test/pointerset/pointerset.c (useful concrete examples)
 
 
 ### Volatile Nature in Multi-threaded Environments
@@ -196,11 +226,13 @@ The library uses special pointer values for internal state management:
 - `MULLE_CONCURRENT_NO_POINTER` (NULL)
 - `MULLE_CONCURRENT_INVALID_POINTER` ((void *) INTPTR_MIN)
 
-User code must not use these values for data. Hash values must not be zero (`MULLE_CONCURRENT_NO_HASH`).
+User code must not use these values for data. Hash values must not be zero (`MULLE_CONCURRENT_NO_HASH`). The pointerset additionally forbids `MULLE_CONCURRENT_TOMBSTONE_POINTER` (INTPTR_MAX) as a user value.
 
-### Growing-Only Data Structures
+### Growing-Only and Accumulation Designs
 
 The `mulle_concurrent_pointerarray` exemplifies a design decision to simplify concurrency: the array can only grow, never shrink. This limitation enables simpler, faster concurrent access without complex synchronization.
+
+The `mulle_concurrent_pointerset` grows via migration when (tombstones + live entries) reach 50% load. Tombstones accumulate from removals and are dropped during migration. Heavy remove usage without migration can trigger premature reallocation.
 
 ## 3. Core API & Data Structures
 
@@ -209,8 +241,9 @@ The `mulle_concurrent_pointerarray` exemplifies a design decision to simplify co
 #### Constants
 
 - **`MULLE_CONCURRENT_NO_HASH`** (0): Invalid hash value sentinel, must not be used as actual hash
-- **`MULLE_CONCURRENT_INVALID_POINTER`** ((void *) INTPTR_MIN): Internal sentinel for invalid pointer
+- **`MULLE_CONCURRENT_INVALID_POINTER`** ((void *) INTPTR_MIN): Internal sentinel for invalid pointer / REDIRECT during migration
 - **`MULLE_CONCURRENT_NO_POINTER`** ((void *) 0): Internal sentinel for absent value (NULL)
+- **`MULLE_CONCURRENT_TOMBSTONE_POINTER`** ((void *) INTPTR_MAX): Internal sentinel for removed slots in pointerset (tombstone marker)
 
 ### 3.2. `mulle-concurrent-hashmap.h`
 
@@ -361,12 +394,90 @@ All core functions have `_prefixed` variants for performance when parameters are
 
 - **`mulle_concurrent_pointerarrayreverseenumerator_done(rover)`**: Conventional cleanup (currently no-op).
 
-### 3.4. `mulle-concurrent.h`
+### 3.4. `mulle-concurrent-pointerset.h`
+
+#### `struct mulle_concurrent_pointerset`
+
+**Purpose:** A wait-free, lock-free set of `void *` pointers using linear probing with a single-word-per-slot layout. The pointer value itself is hashed internally — no separate hash key needed. Designed for high-performance concurrent membership tracking.
+
+**Key Fields:**
+- `storage`: Current storage (atomic pointer to `_mulle_concurrent_pointersetstorage`)
+- `next_storage`: Next storage during migration/growth (atomic pointer)
+- `allocator`: Memory allocator for dynamic allocations (atomic pointer)
+
+**Internal Structures:**
+- `struct _mulle_concurrent_pointersetstorage`: Storage structure containing `n_used` (empty + tombstone slots consumed), `mask`, and an `entries` array of `mulle_atomic_pointer_t`.
+
+**Slot States (linear probing):**
+- `NULL` (EMPTY): Probe chain stops here
+- `INTPTR_MIN` (REDIRECT): Migration in progress, retry needed
+- `INTPTR_MAX` (TOMBSTONE): Removed slot, probe chain continues
+- Anything else: Live pointer
+
+**Design Rationale — Tombstones**: With linear probing, pointers that hash to the same slot form chains. Removing a pointer by writing NULL would break the chain; a tombstone says "something was here, keep probing" and preserves correctness. Tombstones are NOT reused for new inserts (would require a non-atomic two-phase protocol), but are dropped for free during migration (they are simply not copied to new storage).
+
+**Lifecycle Functions (Single-threaded):**
+
+- **`mulle_concurrent_pointerset_init(set, size, allocator)`**: Initialize set with initial capacity. Returns 0 on success, EINVAL for invalid arguments, ENOMEM on allocation failure.
+
+- **`mulle_concurrent_pointerset_done(set)`**: Free all resources. Must be called single-threaded.
+
+**Core Operations (Multi-threaded Safe):**
+
+- **`mulle_concurrent_pointerset_insert(set, ptr)`**: Insert pointer into set. Returns 0 on success, EEXIST if already present, EINVAL for invalid arguments, ENOMEM on allocation failure. Do not pass NULL, INTPTR_MIN, or INTPTR_MAX as ptr.
+
+- **`mulle_concurrent_pointerset_register(set, ptr)`**: Insert or retrieve existing pointer. Returns `MULLE_CONCURRENT_NO_POINTER` if inserted, `MULLE_CONCURRENT_INVALID_POINTER` on error (check errno), or the existing pointer if already present.
+
+- **`mulle_concurrent_pointerset_member(set, ptr)`**: Test membership. Returns 1 if ptr is in the set, 0 if not (including on invalid arguments). **NOTE**: ptr=NULL returns 0 silently, unlike other functions which return EINVAL.
+
+- **`mulle_concurrent_pointerset_remove(set, ptr)`**: Remove pointer from set. Returns 0 on success, ENOENT if not found, EINVAL for invalid arguments, ENOMEM on allocation failure. Do not pass NULL, INTPTR_MIN, or INTPTR_MAX as ptr.
+
+**Inspection Functions:**
+
+- **`mulle_concurrent_pointerset_get_size(set)`**: Get current capacity (backing storage size). Snapshot value.
+
+- **`mulle_concurrent_pointerset_get_allocator(set)`**: Get the allocator used by the set. Returns NULL if set is NULL.
+
+- **`mulle_concurrent_pointerset_count(set)`**: Count entries via enumeration. Expensive; retries automatically on ECANCELED. Result is a snapshot.
+
+- **`mulle_concurrent_pointerset_lookup_any(set)`**: Return any pointer from set, or NULL if empty.
+
+**Reset:**
+
+- **`mulle_concurrent_pointerset_reset(set)`**: Clear the set by combining done+init with the same size and allocator. Efficient reuse without freeing memory.
+
+**Unsafe Variants:**
+
+All core functions have `_prefixed` variants (e.g., `_mulle_concurrent_pointerset_init`) that skip NULL pointer validation.
+
+**Convenience Macros:**
+
+- **`mulle_concurrent_pointerset_for(set, ptr)`**: Enumerate all pointers in for-loop style.
+
+#### `struct mulle_concurrent_pointerset_enumerator`
+
+**Purpose:** Iterator for traversing set entries. Thread-local, must not be shared.
+
+**Key Fields:**
+- `set`: Pointer to the set being enumerated
+- `index`: Current iteration index
+- `mask`: Storage mask captured at enumeration start (for mutation detection)
+
+**Operations:**
+
+- **`mulle_concurrent_pointerset_enumerate(set)`**: Create enumerator. Returns `struct mulle_concurrent_pointerset_enumerator` by value.
+
+- **`mulle_concurrent_pointerset_enumerator_next(rover, ptr)`**: Get next pointer. Returns 1 for success (ptr filled), 0 for completion, ECANCELED if set mutated during iteration, ENOMEM on allocation failure, EINVAL for invalid arguments.
+
+- **`mulle_concurrent_pointerset_enumerator_done(rover)`**: Conventional cleanup (currently no-op).
+
+### 3.5. `mulle-concurrent.h`
 
 Main header that includes all subcomponents:
 - `mulle-concurrent-types.h`
 - `mulle-concurrent-hashmap.h`
 - `mulle-concurrent-pointerarray.h`
+- `mulle-concurrent-pointerset.h`
 - Version check headers
 
 **Version Constant:**
@@ -401,6 +512,23 @@ Main header that includes all subcomponents:
 
 **Memory reclamation:** Old storage freed via `mulle-aba` during growth operations.
 
+### mulle_concurrent_pointerset
+
+- **Insert:** O(1) average case, wait-free with linear probing and atomic CAS
+- **Register:** O(1) average case, same as insert but returns existing pointer on collision
+- **Member:** O(1) average case, read-only linear probe — wait-free, no writes
+- **Remove:** O(1) average case, wait-free CAS to tombstone value
+- **Resize/Migration:** Amortized O(n), performed when (tombstones + live entries) >= 50% capacity
+- **Enumerate:** O(capacity), scans entire storage skipping empty and tombstone slots
+- **Count:** O(capacity), via full enumeration with automatic retry on ECANCELED
+- **Space:** O(capacity) where capacity >= count, grows by doubling. Tombstones consume capacity but are dropped during migration.
+
+**Thread-safety:** Wait-free for insert, register, member, and remove. Enumeration may be interrupted by mutations (ECANCELED). Migration copies live entries to new storage; old tombstone-accumulated storage is freed via mulle-aba.
+
+**Tombstone accumulation:** Tombstones are not reused for inserts (to avoid race conditions) and accumulate until migration, triggering migration sooner in remove-heavy workloads. Each migration drops all tombstones, keeping per-slot overhead bounded.
+
+**Memory reclamation:** Old storage freed via `mulle-aba` during migration operations.
+
 ### General Characteristics
 
 - **No locks or mutexes:** All synchronization via atomic operations (CAS, atomic loads/stores)
@@ -425,7 +553,7 @@ Main header that includes all subcomponents:
 
 6. **Prefer unsafe variants when safe:** Use `_prefixed` functions (e.g., `_mulle_concurrent_hashmap_insert`) when parameters are guaranteed non-NULL for better performance.
 
-7. **Use convenience macros:** The `mulle_concurrent_hashmap_for` and `mulle_concurrent_pointerarray_for` macros handle enumerator lifecycle correctly.
+7. **Use convenience macros:** The `mulle_concurrent_hashmap_for`, `mulle_concurrent_pointerarray_for`, and `mulle_concurrent_pointerset_for` macros handle enumerator lifecycle correctly.
 
 8. **Accept snapshot semantics:** Functions like `get_count()` and `get_size()` return snapshots. Do not rely on precise values in multi-threaded scenarios.
 
@@ -433,13 +561,15 @@ Main header that includes all subcomponents:
 
 10. **Match hash/value on remove:** The hashmap `remove` function requires both hash AND value to match. This prevents accidental removal of updated entries.
 
+11. **Use pointerset for membership tracking:** For sets of pointers where only presence matters (no associated value), use `mulle_concurrent_pointerset` — it stores only one word per slot vs the hashmap's two words (hash + value), and hashes the pointer internally so no separate hash key is needed.
+
 ### Common Pitfalls
 
 1. **Forgetting ABA registration:** Accessing concurrent structures without calling `mulle_aba_register()` first can cause crashes or memory corruption.
 
 2. **Using zero hash:** The hashmap treats zero as an invalid hash sentinel. Always ensure hashes are non-zero.
 
-3. **Storing NULL pointers:** NULL and INTPTR_MIN are reserved values and will cause undefined behavior if stored.
+3. **Storing sentinel pointers:** NULL, INTPTR_MIN, and INTPTR_MAX are reserved values and will cause undefined behavior if stored. For pointerset, INTPTR_MAX (TOMBSTONE) is also forbidden as a user value.
 
 4. **Concurrent init/done:** Calling lifecycle functions while other threads access the structure causes crashes.
 
@@ -454,6 +584,10 @@ Main header that includes all subcomponents:
 9. **Forgetting patch is experimental:** The `mulle_concurrent_hashmap_patch()` function is less tested. Prefer remove+insert for production code unless you need atomic update semantics.
 
 10. **Using wrong value in remove:** If a hash/value pair has been updated, removal with the old value will fail with ENOENT.
+
+11. **Pointerset member with NULL:** `mulle_concurrent_pointerset_member(set, NULL)` returns 0 silently without setting errno, unlike other functions. Always pass valid pointers for membership tests.
+
+12. **Pointerset tombstone accumulation:** In remove-heavy workloads, tombstones accumulate and trigger early migration. Use `mulle_concurrent_pointerset_reset()` to clear and reuse the set if accumulation becomes a problem.
 
 ### Idiomatic Usage
 
@@ -810,6 +944,126 @@ int   main( int argc, char *argv[])
    // Check for leaks (test allocator will report any)
    mulle_testallocator_reset();
    
+    return( 0);
+}
+```
+
+### Example 7: Basic Pointerset Usage - Insert, Member, Remove, Enumerate
+
+```c
+#include <mulle-concurrent/mulle-concurrent.h>
+#include <stdio.h>
+#include <assert.h>
+#include <errno.h>
+
+int   main( int argc, char *argv[])
+{
+   struct mulle_concurrent_pointerset   set;
+   void                                 *p1 = (void *) 0x1000;
+   void                                 *p2 = (void *) 0x2000;
+   void                                 *p3 = (void *) 0x3000;
+   void                                 *result;
+   int                                  rval;
+
+   mulle_aba_init( NULL);
+   mulle_aba_register();
+
+   mulle_concurrent_pointerset_init( &set, 0, NULL);
+
+   // Insert pointers
+   rval = mulle_concurrent_pointerset_insert( &set, p1);
+   assert( rval == 0);
+
+   rval = mulle_concurrent_pointerset_insert( &set, p2);
+   assert( rval == 0);
+
+   // Duplicate insert returns EEXIST
+   rval = mulle_concurrent_pointerset_insert( &set, p1);
+   assert( rval == EEXIST);
+
+   // Test membership
+   assert( mulle_concurrent_pointerset_member( &set, p1) == 1);
+   assert( mulle_concurrent_pointerset_member( &set, p2) == 1);
+   assert( mulle_concurrent_pointerset_member( &set, p3) == 0);
+
+   // Register (insert-or-return-existing semantics)
+   result = mulle_concurrent_pointerset_register( &set, p3);
+   assert( result == MULLE_CONCURRENT_NO_POINTER);  // newly inserted
+
+   result = mulle_concurrent_pointerset_register( &set, p3);
+   assert( result == p3);  // already present
+
+   // Count
+   printf( "Set contains %u entries\n",
+           mulle_concurrent_pointerset_count( &set));
+
+   // Remove
+   rval = mulle_concurrent_pointerset_remove( &set, p1);
+   assert( rval == 0);
+   assert( mulle_concurrent_pointerset_member( &set, p1) == 0);
+
+   // Remove non-existent
+   rval = mulle_concurrent_pointerset_remove( &set, p1);
+   assert( rval == ENOENT);
+
+   // Enumerate using convenience macro
+   mulle_concurrent_pointerset_for( &set, result)
+   {
+      printf( "Found pointer: %p\n", result);
+   }
+
+   mulle_concurrent_pointerset_done( &set);
+
+   mulle_aba_unregister();
+   mulle_aba_done();
+
+   return( 0);
+}
+```
+
+### Example 8: Pointerset with Growth (Migration) and Reset
+
+```c
+#include <mulle-concurrent/mulle-concurrent.h>
+#include <stdio.h>
+#include <assert.h>
+
+int   main( int argc, char *argv[])
+{
+   struct mulle_concurrent_pointerset   set;
+   unsigned int                         i;
+   uintptr_t                            base = 0x10000;
+
+   mulle_aba_init( NULL);
+   mulle_aba_register();
+
+   // Start with small capacity to force migration
+   mulle_concurrent_pointerset_init( &set, 4, NULL);
+
+   // Insert 200 pointers — will auto-migrate as 50% load factor is hit
+   for( i = 1; i <= 200; i++)
+      mulle_concurrent_pointerset_insert( &set, (void *) (base + i * 16));
+
+   printf( "After insert: count=%u, size=%u\n",
+           mulle_concurrent_pointerset_count( &set),
+           mulle_concurrent_pointerset_get_size( &set));
+
+   // Remove half
+   for( i = 1; i <= 100; i++)
+      mulle_concurrent_pointerset_remove( &set, (void *) (base + i * 16));
+
+   printf( "After remove: count=%u, size=%u\n",
+           mulle_concurrent_pointerset_count( &set),
+           mulle_concurrent_pointerset_get_size( &set));
+
+   // Reset to clear tombstone accumulation
+   mulle_concurrent_pointerset_reset( &set);
+
+   mulle_concurrent_pointerset_done( &set);
+
+   mulle_aba_unregister();
+   mulle_aba_done();
+
    return( 0);
 }
 ```
