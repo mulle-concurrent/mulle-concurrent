@@ -34,7 +34,7 @@
 #ifndef mulle_concurrent_h__
 #define mulle_concurrent_h__
 
-#define MULLE__CONCURRENT_VERSION  ((3UL << 20) | (1 << 8) | 0)
+#define MULLE__CONCURRENT_VERSION  ((3UL << 20) | (2 << 8) | 0)
 
 #include "include.h"
 
