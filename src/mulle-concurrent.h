@@ -1,9 +1,10 @@
 //
-//  mulle_concurrent.h
+//  mulle-concurrent.h
 //  mulle-concurrent
 //
-//  Created by Nat! on 07.03.16.
-//  Copyright © 2016 Mulle kybernetiK. All rights reserved.
+//  Copyright (c) 2018 Nat! - Mulle kybernetiK.
+//  All rights reserved.
+//
 //
 //  Redistribution and use in source and binary forms, with or without
 //  modification, are permitted provided that the following conditions are met:
