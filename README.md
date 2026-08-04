@@ -26,6 +26,12 @@ in multi-threaded environments.
 
 
 
+
+## Documentation & Guides
+
+* [API Summary](asset/dox/api/toc)
+* [Coder Guide](asset/howto/coder/mulle-concurrent)
+
 ## Usage
 
 mulle-concurrent data structures require
