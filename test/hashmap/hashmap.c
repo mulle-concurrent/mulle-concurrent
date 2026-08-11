@@ -103,7 +103,7 @@ static int  delete_something( struct mulle_concurrent_hashmap *map)
    rval = _mulle_concurrent_hashmap_remove( map, hash, value);
    if( rval == ENOMEM)
    {
-      perror( "mulle_concurrent_hashmap_remove");
+      perror( "mulle_concurrent_hashmap_remove must not return ENOMEM in fact it can't get it");
       abort();
    }
    return( rval != ENOENT);

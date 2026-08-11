@@ -24,11 +24,8 @@ The following operations are fine in multi-threaded environments:
 
 
 
-
-
-
-
-### `mulle_concurrent_pointerarray_init`
+All allocation is **fail-fast**: the mulle allocator contract is *success or
+abort*, so `init` and `add` never return an allocation error.### `mulle_concurrent_pointerarray_init`
 
 ```
 int   mulle_concurrent_pointerarray_init( struct mulle_concurrent_pointerarray *array,
@@ -44,7 +41,6 @@ for `allocator` to use the default. This needs to be called in **single-threaded
 
 *   0      : OK
 *   EINVAL : invalid argument
-*   ENOMEM : out of memory
 
 
 ### `mulle_concurrent_pointerarray_done`
@@ -75,7 +71,6 @@ not get dereferenced by the pointerarray.
 
 *   0      : OK
 *   EINVAL : invalid argument
-*   ENOMEM : out of memory
 
 
 ### `mulle_concurrent_pointerarray_get`
@@ -85,11 +80,12 @@ void   *mulle_concurrent_pointerarray_get( struct mulle_concurrent_pointerarray 
                                            unsigned int index)
 ```
 
-Get value at `index` of array.
+Get value at `index` of array. The array cannot contain `NULL`, so `NULL`
+is returned when `array` is `NULL` or `index` is outside the current count.
 
 ##### Return Values:
 
-*   NULL  : not found (invalid argument)
+*   NULL  : `array` is `NULL` or `index` is out of range
 *   otherwise the value
 
 
@@ -128,9 +124,9 @@ The following operations should be executed by a single thread only, but the env
 struct mulle_concurrent_pointerarrayenumerator  mulle_concurrent_pointerarray_enumerate( struct mulle_concurrent_pointerarray *array)
 ```
 
-Enumerate a pointerarray (0 to n-1). This works reliably even in multi-threaded
-environments. The enumerator itself should not be shared with other
-threads though.
+Enumerate a pointerarray (0 to n-1). Passing `NULL` produces an empty
+enumerator. This works reliably even in multi-threaded environments. The
+enumerator itself should not be shared with other threads though.
 
 Here is a simple usage example:
 
@@ -187,8 +183,9 @@ struct mulle_concurrent_pointerarrayreverseenumerator  mulle_concurrent_pointera
 ```
 
 Reverse enumerate a pointerarray (n-1 to 0). You have to supply the `n`.
-This works reliably even in multi-threaded environments, but the enumerator
-itself should not be shared with other threads though.
+Passing `NULL` produces an empty enumerator. This works reliably even in
+multi-threaded environments, but the enumerator itself should not be shared
+with other threads though.
 
 
 ### `mulle_concurrent_pointerarrayreverseenumerator_next`

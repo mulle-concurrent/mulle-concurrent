@@ -99,6 +99,37 @@ if( LIBRARY_SOURCES OR OTHER_LIBRARY_OBJECT_FILES OR OTHER_${LIBRARY_UPCASE_IDEN
       if( BUILD_SHARED_LIBS)
          set_property( TARGET ${LIBRARY_COMPILE_TARGET} PROPERTY POSITION_INDEPENDENT_CODE TRUE)
       endif()
+
+      #
+      # add_subdirectory support:
+      #
+      # An OBJECT library does not link, so it does not pick up the usage
+      # requirements (include directories, definitions) of our dependencies
+      # by itself. When a dependency resolved to a cmake target - which is
+      # what happens when it was pulled in with add_subdirectory - link
+      # against it. This gives us its INTERFACE_INCLUDE_DIRECTORIES, which
+      # for a mulle project is the single amalgamated header directory set up
+      # by InstallCMakeInclude, and it establishes the build order, so the
+      # headers are in place before we compile.
+      #
+      # In a mulle-craft build the dependencies are files, not targets, and
+      # their headers come from DEPENDENCY_DIR, so nothing happens here.
+      #
+      foreach( _dep_lib
+               ${DEPENDENCY_LIBRARIES}
+               ${OPTIONAL_DEPENDENCY_LIBRARIES}
+               ${ALL_LOAD_DEPENDENCY_LIBRARIES}
+               ${ALL_LOAD_OPTIONAL_DEPENDENCY_LIBRARIES}
+               ${FORCE_ALL_LOAD_DEPENDENCY_LIBRARIES}
+               ${STARTUP_DEPENDENCY_LIBRARIES}
+               ${STARTUP_ALL_LOAD_DEPENDENCY_LIBRARIES}
+               ${FORCE_STARTUP_ALL_LOAD_DEPENDENCY_LIBRARIES})
+         if( TARGET "${_dep_lib}")
+            message( STATUS "${LIBRARY_COMPILE_TARGET} inherits usage requirements of target \"${_dep_lib}\"")
+            target_link_libraries( ${LIBRARY_COMPILE_TARGET} PRIVATE "${_dep_lib}")
+         endif()
+      endforeach()
+      unset( _dep_lib)
    else()
       set( LIBRARY_COMPILE_TARGET "${LIBRARY_NAME}")
       set( LIBRARY_LINK_TARGET "${LIBRARY_NAME}")
@@ -173,7 +204,7 @@ if( LIBRARY_SOURCES OR OTHER_LIBRARY_OBJECT_FILES OR OTHER_${LIBRARY_UPCASE_IDEN
          if( SHARED_UNRESOLVED_SYMBOLS)
             if( APPLE)
                target_link_libraries( "${LIBRARY_NAME}"
-                  "-undefined dynamic_lookup"
+                  PRIVATE "-undefined dynamic_lookup"
                )
             endif()
          endif()
@@ -192,7 +223,7 @@ if( LIBRARY_SOURCES OR OTHER_LIBRARY_OBJECT_FILES OR OTHER_${LIBRARY_UPCASE_IDEN
          include( PostSharedLibrary OPTIONAL) # additional hook
 
          target_link_libraries( "${LIBRARY_NAME}"
-            ${SHARED_LIBRARY_LIST}
+            PRIVATE ${SHARED_LIBRARY_LIST}
          )
 
          #
@@ -202,6 +233,51 @@ if( LIBRARY_SOURCES OR OTHER_LIBRARY_OBJECT_FILES OR OTHER_${LIBRARY_UPCASE_IDEN
          # set_target_properties( "${LIBRARY_NAME}" PROPERTIES SOVERSION 1)
          #
       endif()
+
+      #
+      # INTERFACE propagation for add_subdirectory consumers.
+      #
+      # In that world our dependencies resolve to cmake targets, and they have
+      # to be exported transitively so that a simple
+      # target_link_libraries( app PRIVATE <library>) suffices.
+      #
+      # In a mulle-craft build the dependencies are files, not targets, and
+      # are already linked in via PRIVATE above. They must not be re-exported:
+      # absolute paths would leak into consumer link lines.
+      #
+      set( _INTERFACE_LIBS )
+      foreach( _item
+         ${DEPENDENCY_LIBRARIES}
+         ${DEPENDENCY_FRAMEWORKS}
+         ${OPTIONAL_DEPENDENCY_LIBRARIES}
+         ${ALL_LOAD_DEPENDENCY_LIBRARIES}
+         ${ALL_LOAD_OPTIONAL_DEPENDENCY_LIBRARIES}
+         ${FORCE_ALL_LOAD_DEPENDENCY_LIBRARIES}
+         ${STARTUP_DEPENDENCY_LIBRARIES}
+         ${STARTUP_ALL_LOAD_DEPENDENCY_LIBRARIES}
+         ${FORCE_STARTUP_ALL_LOAD_DEPENDENCY_LIBRARIES}
+         ${OS_SPECIFIC_LIBRARIES}
+         ${OS_SPECIFIC_FRAMEWORKS}
+      )
+         if( TARGET "${_item}")
+            list( APPEND _INTERFACE_LIBS "${_item}")
+         endif()
+      endforeach()
+      unset( _item)
+
+      if( _INTERFACE_LIBS)
+         target_link_libraries( "${LIBRARY_NAME}" INTERFACE ${_INTERFACE_LIBS})
+      endif()
+      unset( _INTERFACE_LIBS)
+
+      #
+      # MEMO: We deliberately do NOT export INCLUDE_DIRS here, one INTERFACE
+      #       include directory per constituent. InstallCMakeInclude already
+      #       exports a single amalgamated "${CMAKE_BINARY_DIR}/include", which
+      #       mirrors the layout an installed dependency has. Exporting the
+      #       source directories too would add dozens of -I options per
+      #       consumer and would leak our source layout.
+      #
 
       set( INSTALL_LIBRARY_TARGETS
          "${LIBRARY_NAME}"
