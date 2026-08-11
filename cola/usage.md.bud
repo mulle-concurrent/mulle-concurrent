@@ -77,3 +77,94 @@ static void   *my_worker( void *arg)
 }
 ```
 
+
+## Lifecycle checklist
+
+`init` and `done` must be externally serialized, and every thread that touches
+a mulle-concurrent data structure must be registered with mulle-aba. The
+complete process looks like this:
+
+1. **Initialize mulle-aba once per process** — `mulle_aba_init( allocator)`.
+2. **Configure the allocator for ABA reclamation** — if you pass a custom
+   allocator, wire it up with `mulle_allocator_set_aba()` so that old storage
+   can be freed safely.
+3. **Register every participating thread** — `mulle_aba_register()` before the
+   first access, `mulle_aba_unregister()` when the thread is done. In a
+   thread pool, use the TSS destructor recipe from *Multi-threaded setup*
+   above to make this automatic.
+4. **`init` your structures** — in a single-threaded context, before any
+   worker threads start.
+5. **Use the structures** — from any registered thread.
+6. **Stop the world** — ensure no thread accesses the structures anymore
+   (join the workers / drain the pool) before you tear anything down.
+7. **`done` your structures** — in a single-threaded context, after the stop.
+8. **Unregister the threads and finish mulle-aba** — `mulle_aba_done()` once
+   per process, after all accesses have ceased.
+
+Destroying a structure while a reader is still active is not recoverable. If
+a thread accesses a structure without being registered, the process will
+crash.
+
+
+## Concurrency semantics
+
+* **Point operations are wait-free** — `register`, `insert`, `lookup`,
+  `remove`, `add`, `get`, `member` complete in a bounded number of steps
+  regardless of contention. Growth and migration are cooperative: any thread
+  that observes a REDIRECT slot helps finish the migration and then retries
+  its own operation.
+* **`count`, `get_size`, `get_count` and `lookup_any` are snapshots** — they
+  return a value from some point in time during the call and may be stale if
+  the structure is mutated concurrently. Use them for diagnostics and
+  heuristics, not for correctness decisions.
+* **Enumeration is "limited multi-threaded"** — an enumerator is only usable
+  by the calling thread. For the hashmap and pointerset, concurrent mutation
+  (insert/remove/growth) may interrupt the enumeration; the enumerator then
+  returns `ECANCELLED` and you retry the whole enumeration from the start.
+  Retrying may yield duplicates or miss entries that changed in between —
+  that is expected. The pointerarray is append-only, so its enumerators work
+  reliably even while other threads add values.
+* **`remove` on a hashmap requires the matching value** — the pair (hash,
+  value) must match, so a removed entry cannot be resurrected by a newer
+  value. The slot is left as a tombstone: the hash stays claimed (so probe
+  chains through it keep working) but the value is marked removed. A later
+  `register`/`insert` of the same key refills the tombstone in place;
+  tombstones for keys that are not re-registered are dropped at the next
+  migration.
+* **Hashmap `register`/`insert` never return a foreign key's value** — a
+  slot is claimed by CASing its hash, and only the thread holding that claim
+  may write its value, so two different keys can never collide on one
+  slot's value.
+* **Pointerset tombstones accumulate** — a remove-heavy workload migrates
+  early; use `mulle_concurrent_pointerset_reset()` to reclaim. The hashmap's
+  tombstones do not need this: migration sizing accounts for them, so a
+  remove/register churn workload compacts instead of growing without bound.
+* **`init` and `done` are single-threaded** — no other thread may access the
+  structure while either runs. See the *Lifecycle checklist*.
+
+
+## Reserved pointer values
+
+The containers store `void *` pointers and reserve a few values for internal
+use. **Never store any of these values as payload.**
+
+| Value                 | Constant                            | Meaning                           | Rejected by
+|-----------------------|-------------------------------------|-----------------------------------|-------------------
+| `0` (hash)            | `MULLE_CONCURRENT_NO_HASH`          | invalid hash sentinel             | hashmap insert/register/remove
+| `NULL`                | `MULLE_CONCURRENT_NO_POINTER`       | "no value" sentinel / empty slot  | all structures
+| `(void *) INTPTR_MIN` | `MULLE_CONCURRENT_INVALID_POINTER`  | REDIRECT marker during migration  | all structures
+| `(void *) INTPTR_MAX` | `MULLE_CONCURRENT_TOMBSTONE_POINTER`| tombstone of a removed slot       | hashmap, pointerset
+
+The values are defined in `src/mulle-concurrent-types.h`. They are
+compile-time constants derived from the platform's `intptr_t`, so the
+reserved set is fixed per architecture. Passing a reserved value to an
+operation that rejects it returns `EINVAL`.
+
+
+## Memory allocation
+
+All allocation is **fail-fast**: the mulle allocator contract is *success or
+abort*. When the default allocator cannot satisfy an allocation it prints an
+error and aborts the process. The API therefore only reports allocation
+failure by aborting; do not write code that depends on recovering from it.
+

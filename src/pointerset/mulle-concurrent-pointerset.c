@@ -103,6 +103,7 @@ static inline unsigned int   _pointerset_hash( void *ptr)
 
 #pragma mark - storage alloc/free
 
+MULLE_C_NONNULL_RETURN
 static struct _mulle_concurrent_pointersetstorage *
    _mulle_concurrent_alloc_pointersetstorage( unsigned int n,
                                               struct mulle_allocator *allocator)
@@ -321,7 +322,6 @@ int  _mulle_concurrent_pointerset_init( struct mulle_concurrent_pointerset *set,
    struct _mulle_concurrent_pointersetstorage   *storage;
 
    assert( EINVAL != 1 && EINVAL != 0);
-   assert( ENOMEM != 1 && ENOMEM != 0);
    assert( ECANCELED != 1 && ECANCELED != 0);
    assert( EBUSY != 1 && EBUSY != 0);
 
@@ -370,7 +370,7 @@ unsigned int  _mulle_concurrent_pointerset_get_size( struct mulle_concurrent_poi
 }
 
 
-static int
+static void
    _mulle_concurrent_pointerset_migrate_storage( struct mulle_concurrent_pointerset *set,
                                                  struct _mulle_concurrent_pointersetstorage *p)
 {
@@ -387,9 +387,6 @@ static int
    {
       alloced = _mulle_concurrent_alloc_pointersetstorage( ((unsigned int) p->mask + 1) * 2,
                                                            allocator);
-      if( MULLE_C_UNLIKELY( ! alloced))
-         return( ENOMEM);
-
       q = __mulle_atomic_pointer_cas( &set->next_storage.pointer, alloced, p);
       if( q != p)
       {
@@ -405,8 +402,6 @@ static int
    previous = __mulle_atomic_pointer_cas( &set->storage.pointer, q, p);
    if( previous == p && ! _mulle_concurrent_pointersetstorage_is_const( previous))
       _mulle_allocator_abafree( allocator, previous);
-
-   return( 0);
 }
 
 
@@ -427,22 +422,14 @@ retry:
 
    if( n >= max)
    {
-      if( _mulle_concurrent_pointerset_migrate_storage( set, p))
-      {
-         errno = ENOMEM;
-         return( MULLE_CONCURRENT_INVALID_POINTER);
-      }
+      _mulle_concurrent_pointerset_migrate_storage( set, p);
       goto retry;
    }
 
    result = _mulle_concurrent_pointersetstorage_register( p, ptr);
    if( result == MULLE_CONCURRENT_INVALID_POINTER)
    {
-      if( _mulle_concurrent_pointerset_migrate_storage( set, p))
-      {
-         errno = ENOMEM;
-         return( MULLE_CONCURRENT_INVALID_POINTER);
-      }
+      _mulle_concurrent_pointerset_migrate_storage( set, p);
       goto retry;
    }
    return( result);
@@ -478,16 +465,14 @@ retry:
 
    if( n >= max)
    {
-      if( _mulle_concurrent_pointerset_migrate_storage( set, p))
-         return( ENOMEM);
+      _mulle_concurrent_pointerset_migrate_storage( set, p);
       goto retry;
    }
 
    rval = _mulle_concurrent_pointersetstorage_insert( p, ptr);
    if( MULLE_C_UNLIKELY( rval == EBUSY))
    {
-      if( _mulle_concurrent_pointerset_migrate_storage( set, p))
-         return( ENOMEM);
+      _mulle_concurrent_pointerset_migrate_storage( set, p);
       goto retry;
    }
    return( rval);
@@ -526,8 +511,7 @@ retry:
    rval = _mulle_concurrent_pointersetstorage_remove( p, ptr);
    if( MULLE_C_UNLIKELY( rval == EBUSY))
    {
-      if( _mulle_concurrent_pointerset_migrate_storage( set, p))
-         return( ENOMEM);
+      _mulle_concurrent_pointerset_migrate_storage( set, p);
       goto retry;
    }
    return( rval);
@@ -571,8 +555,7 @@ retry:
 
       if( MULLE_C_UNLIKELY( value == REDIRECT_VALUE))
       {
-         if( _mulle_concurrent_pointerset_migrate_storage( set, p))
-            return( ENOMEM);
+         _mulle_concurrent_pointerset_migrate_storage( set, p);
          goto retry;
       }
 
@@ -589,6 +572,9 @@ retry:
 int  _mulle_concurrent_pointerset_enumerator_next( struct mulle_concurrent_pointerset_enumerator *rover,
                                                    void **ptr)
 {
+   if( ! rover || ! rover->set)
+      return( 0);
+
    return( _mulle_concurrent_pointerset_search_next( rover->set,
                                                      &rover->mask,
                                                      &rover->index,

@@ -1,7 +1,7 @@
 {
    project =
    {
-      description="📶 A lock- and wait-free hashtable (and an array too), written in C";
+      description="📶 A lock- and wait-free hashtable, pointer array and pointer set, written in C";
       domain="github";
       name="mulle-concurrent";
       version="3.2.0";

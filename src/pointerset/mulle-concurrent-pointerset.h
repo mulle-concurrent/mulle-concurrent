@@ -41,8 +41,8 @@
 //  Slot values:
 //    NULL              (MULLE_CONCURRENT_NO_POINTER)      - empty
 //    INTPTR_MIN        (MULLE_CONCURRENT_INVALID_POINTER) - REDIRECT (migration)
-//    (void *) -1       (MULLE_CONCURRENT_TOMBSTONE)       - removed
-//    anything else                                        - live pointer
+//    INTPTR_MAX        (MULLE_CONCURRENT_TOMBSTONE_POINTER) - removed
+//    anything else                                          - live pointer
 //
 #ifndef mulle_concurrent_pointerset_h__
 #define mulle_concurrent_pointerset_h__
@@ -190,7 +190,8 @@ void  *mulle_concurrent_pointerset_register( struct mulle_concurrent_pointerset 
 //   0      : inserted
 //   EEXIST : already present
 //   EINVAL : invalid argument
-//   ENOMEM : out of memory
+//
+// Allocation is fail-fast (success or abort), see README "Memory allocation".
 //
 MULLE__CONCURRENT_GLOBAL
 int   mulle_concurrent_pointerset_insert( struct mulle_concurrent_pointerset *set,
@@ -210,7 +211,8 @@ static inline int
 //   0      : removed
 //   ENOENT : not found
 //   EINVAL : invalid argument
-//   ENOMEM : out of memory
+//
+// Allocation is fail-fast (success or abort), see README "Memory allocation".
 //
 MULLE__CONCURRENT_GLOBAL
 int   mulle_concurrent_pointerset_remove( struct mulle_concurrent_pointerset *set,
@@ -231,6 +233,8 @@ int  _mulle_concurrent_pointerset_enumerator_next( struct mulle_concurrent_point
                                                    void **ptr);
 
 
+// Enumerating a NULL set produces an empty enumerator. The enumerator itself
+// is only usable by the calling thread.
 static inline struct mulle_concurrent_pointerset_enumerator
    mulle_concurrent_pointerset_enumerate( struct mulle_concurrent_pointerset *set)
 {
@@ -247,7 +251,6 @@ static inline struct mulle_concurrent_pointerset_enumerator
 //  1          : OK, *ptr filled
 //  0          : done
 //  ECANCELED  : mutation detected
-//  ENOMEM     : out of memory
 //
 static inline int
    mulle_concurrent_pointerset_enumerator_next( struct mulle_concurrent_pointerset_enumerator *rover,

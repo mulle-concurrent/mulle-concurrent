@@ -92,7 +92,9 @@ int   _mulle_concurrent_pointerarray_find( struct mulle_concurrent_pointerarray 
 // Returns:
 //   0      : OK
 //   EINVAL : invalid argument
-//   ENOMEM : out of memory
+//
+// Allocation is fail-fast: the allocator contract is success or abort, so
+// no allocation error is ever returned here.
 //
 static inline int  mulle_concurrent_pointerarray_init( struct mulle_concurrent_pointerarray *array,
                                                        unsigned int size,
@@ -131,12 +133,8 @@ static inline unsigned int  mulle_concurrent_pointerarray_get_count( struct mull
 
 #pragma mark - multi-threaded
 
-// Returns:
-//   0      : OK
-//   EINVAL : invalid argument
-//   ENOMEM : out of memory
+// Returns NULL when array is NULL or i is outside the current array count.
 //
-
 static inline void  *mulle_concurrent_pointerarray_get( struct mulle_concurrent_pointerarray *array,
                                           unsigned int i)
 {
@@ -194,7 +192,8 @@ void   *_mulle_concurrent_pointerarrayreverseenumerator_next( struct mulle_concu
 
 
 //
-// the specific retuned enumerator is only useable for the calling thread
+// The specific returned enumerator is only usable by the calling thread.
+// Enumerating a NULL array produces an empty enumerator.
 //
 static inline struct mulle_concurrent_pointerarrayenumerator
    mulle_concurrent_pointerarray_enumerate( struct mulle_concurrent_pointerarray *array)
@@ -208,6 +207,7 @@ static inline struct mulle_concurrent_pointerarrayenumerator
 }
 
 
+// Enumerating a NULL array produces an empty enumerator.
 static inline struct mulle_concurrent_pointerarrayreverseenumerator
    mulle_concurrent_pointerarray_reverseenumerate( struct mulle_concurrent_pointerarray *array, unsigned int n)
 {

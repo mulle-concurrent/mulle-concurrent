@@ -68,6 +68,7 @@ static const struct _mulle_concurrent_pointerarraystorage   empty_storage;
 
 
 // n must be a power of 2
+MULLE_C_NONNULL_RETURN
 static struct _mulle_concurrent_pointerarraystorage *
    _mulle_concurrent_alloc_pointerarraystorage( unsigned int n,
                                                 struct mulle_allocator *allocator)
@@ -106,7 +107,12 @@ static struct _mulle_concurrent_pointerarraystorage *
 static void   *_mulle_concurrent_pointerarraystorage_get( struct _mulle_concurrent_pointerarraystorage *p,
                                                           unsigned int i)
 {
-   assert( i < (unsigned int) (uintptr_t) _mulle_atomic_pointer_read( &p->n));
+   unsigned int   n;
+
+   n = (unsigned int) (uintptr_t) _mulle_atomic_pointer_read( &p->n);
+   if( i >= n)
+      return( MULLE_CONCURRENT_NO_POINTER);
+
    return( _mulle_atomic_pointer_read( &p->entries[ i]));
 }
 
@@ -374,6 +380,9 @@ void  *_mulle_concurrent_pointerarrayenumerator_next( struct mulle_concurrent_po
    void           *value;
    unsigned int   n;
 
+   if( ! rover || ! rover->array)
+      return( MULLE_CONCURRENT_NO_POINTER);
+
    n = mulle_concurrent_pointerarray_get_count( rover->array);
    if( MULLE_C_UNLIKELY( rover->index >= n))
       return( MULLE_CONCURRENT_NO_POINTER);
@@ -389,6 +398,9 @@ void  *_mulle_concurrent_pointerarrayenumerator_next( struct mulle_concurrent_po
 void   *_mulle_concurrent_pointerarrayreverseenumerator_next( struct mulle_concurrent_pointerarrayreverseenumerator *rover)
 {
    void   *value;
+
+   if( ! rover || ! rover->array)
+      return( MULLE_CONCURRENT_NO_POINTER);
 
    if( MULLE_C_UNLIKELY( ! rover->index))
       return( MULLE_CONCURRENT_NO_POINTER);

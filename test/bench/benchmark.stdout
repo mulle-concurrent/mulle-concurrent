@@ -1,0 +1,3 @@
+benchmark: hashmap write-heavy 4 threads: mulle-concurrent
+benchmark: pointerarray append 4 threads: mulle-concurrent
+PASSED

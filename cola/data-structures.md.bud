@@ -4,6 +4,7 @@
 | -----------------------------------------------------------|----------------|---------
 | [`mulle_concurrent_hashmap`](dox/API_HASHMAP.md)           | A growing, mutable map of pointers, indexed by a hash. A.k.a. hashtable, dictionary, maptable                              | [Example](test/hashmap/example.c)
 | [`mulle_concurrent_pointerarray`](dox/API_POINTERARRAY.md) | A growing array of pointers                                                     | [Example](test/array/example.c)
+| [`mulle_concurrent_pointerset`](dox/API_POINTERSET.md)     | A wait- and lock-free set of pointers                                           | [Example](test/pointerset/pointerset.c)
 
 
 

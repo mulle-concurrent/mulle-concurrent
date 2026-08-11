@@ -30,6 +30,11 @@ approached with caution:
 * `mulle_concurrent_hashmap_get_size`
 
 
+All allocation is **fail-fast**: the mulle allocator contract is *success or
+abort*. The `ENOMEM` returns listed below are defensive and cannot occur with
+a conforming allocator.
+
+
 ## single-threaded
 
 
@@ -90,14 +95,15 @@ static inline uint64_t   mulle_hash_avalanche64(uint64_t h)
 }
 ```
 
-`value` can be any `void *` except `NULL` or `(void *) INTPTR_MIN`.  It will
-not get dereferenced by the hashmap.
+`value` can be any `void *` except `NULL`, `(void *) INTPTR_MIN` or
+`(void *) INTPTR_MAX`. It will not get dereferenced by the hashmap.
 
 
 Return Values:
 
 *   0      : OK
 *   EEXIST : duplicate
+*   EINVAL : invalid argument (includes reserved `value`)
 *   ENOMEM : out of memory
 
 
@@ -113,9 +119,16 @@ Remove a `hash`, `value` pair. Read the description of
 `mulle_concurrent_hashmap_insert` for information about restrictions
 pertaining to both.
 
+Removing leaves the slot as a tombstone: the hash stays claimed so probe
+chains through it keep working, but the value no longer matches any lookup,
+count or enumeration. A later `insert`/`register` of the same key refills
+the tombstoned slot in place; unreused tombstones are dropped for free at
+the next migration.
+
 Return Values:
    0      : OK
    ENOENT : not found
+   EINVAL : invalid argument (includes reserved `value`)
    ENOMEM : out of memory
 
 
@@ -140,8 +153,10 @@ Return Values:
 struct mulle_concurrent_hashmapenumerator  mulle_concurrent_hashmap_enumerate( struct mulle_concurrent_hashmap *map)
 ```
 
-Enumerate a hashtable. See `mulle_concurrent_hashmapenumerator_next` for more details.
-It returns a `mulle_concurrent_hashmapenumerator`. This enumerator should not be jointly accessed by multiple threads.
+Enumerate a hashtable. Passing `NULL` produces an empty enumerator. See
+`mulle_concurrent_hashmapenumerator_next` for more details. It returns a
+`mulle_concurrent_hashmapenumerator`. This enumerator should not be jointly
+accessed by multiple threads.
 
 ---
 
