@@ -109,6 +109,7 @@ static void  reset_test( void)
 {
    struct mulle_concurrent_pointerset   set;
    unsigned int                         i;
+   unsigned int                         size;
 
    mulle_concurrent_pointerset_init( &set, 4, NULL);
 
@@ -122,9 +123,10 @@ static void  reset_test( void)
              "reset remove" );
    check( mulle_concurrent_pointerset_count( &set) == 50, "reset count" );
 
+   size = mulle_concurrent_pointerset_get_size( &set);
    mulle_concurrent_pointerset_reset( &set);
    check( mulle_concurrent_pointerset_count( &set) == 0, "reset empty" );
-   check( mulle_concurrent_pointerset_get_size( &set) == 4, "reset size restored" );
+   check( mulle_concurrent_pointerset_get_size( &set) == size, "reset size preserved" );
 
    check( mulle_concurrent_pointerset_insert( &set, (void *) 0x100) == 0, "reset reuse" );
    check( mulle_concurrent_pointerset_member( &set, (void *) 0x100) == 1, "reset member" );

@@ -127,18 +127,18 @@ crash.
 * **`remove` on a hashmap requires the matching value** — the pair (hash,
   value) must match, so a removed entry cannot be resurrected by a newer
   value. The slot is left as a tombstone: the hash stays claimed (so probe
-  chains through it keep working) but the value is marked removed. A later
-  `register`/`insert` of the same key refills the tombstone in place;
-  tombstones for keys that are not re-registered are dropped at the next
-  migration.
+  chains through it keep working) but the value is marked removed. The same
+  hash cannot be registered or inserted again in that storage generation;
+  `register` reports `EEXIST` and `insert` returns `EEXIST`. Migration drops
+  tombstones, after which the hash can be used again.
 * **Hashmap `register`/`insert` never return a foreign key's value** — a
-  slot is claimed by CASing its hash, and only the thread holding that claim
-  may write its value, so two different keys can never collide on one
+  slot is claimed by CASing its hash, and only operations with that matching
+  hash may write its value, so two different keys can never collide on one
   slot's value.
-* **Pointerset tombstones accumulate** — a remove-heavy workload migrates
-  early; use `mulle_concurrent_pointerset_reset()` to reclaim. The hashmap's
-  tombstones do not need this: migration sizing accounts for them, so a
-  remove/register churn workload compacts instead of growing without bound.
+* **Pointerset and hashmap tombstones accumulate** — removed slots are not
+  reused within a storage generation. Migration drops tombstones while
+  strictly growing the storage. For remove-heavy pointerset workloads,
+  `mulle_concurrent_pointerset_reset()` can reclaim them explicitly.
 * **`init` and `done` are single-threaded** — no other thread may access the
   structure while either runs. See the *Lifecycle checklist*.
 

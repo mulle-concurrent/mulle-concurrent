@@ -110,10 +110,10 @@ static struct _mulle_concurrent_pointersetstorage *
 {
    struct _mulle_concurrent_pointersetstorage  *p;
 
-   assert( n >= 2 && (n & (n - 1)) == 0);  // power of 2
-
    if( n < 4)
       n = 4;
+
+   assert( (n & (n - 1)) == 0);  // power of 2
 
    p = _mulle_allocator_calloc( allocator, 1,
          sizeof( struct _mulle_concurrent_pointersetstorage) +
