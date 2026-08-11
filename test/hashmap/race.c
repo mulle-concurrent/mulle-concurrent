@@ -75,8 +75,12 @@ static void  *owner( void *unused)
          return( (void *) 1);
       }
 
-      // now the key must be absent
+      // A tombstone can deny reuse until migration drops it. The migrator
+      // threads keep advancing generations, so retry on the next iteration.
+      errno  = 0;
       result = mulle_concurrent_hashmap_register( &g_map, g_key, g_value);
+      if( result == MULLE_CONCURRENT_INVALID_POINTER && errno == EEXIST)
+         continue;
       if( result != MULLE_CONCURRENT_NO_POINTER && result != g_value)
       {
          fail( "register stale at %d: returned %p (not NO_POINTER or %p)",

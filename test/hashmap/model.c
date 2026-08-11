@@ -116,6 +116,7 @@ static void  worker( struct worker_context *context)
       case 5:
       case 6:
          // register (insert if absent)
+         errno  = 0;
          result = mulle_concurrent_hashmap_register( map, key, value);
          if( result == MULLE_CONCURRENT_NO_POINTER)
          {
@@ -124,12 +125,19 @@ static void  worker( struct worker_context *context)
          }
          else
          {
-            // register returns the stored value, which may be a patched value
-            if( ! (result == model[ thread][ k] && model[ thread][ k] != NULL))
+            // An absent model value can still have a tombstone in this
+            // generation. Migration eventually drops it and permits reuse.
+            if( result == MULLE_CONCURRENT_INVALID_POINTER && errno == EEXIST)
+               check( model[ thread][ k] == NULL, "model register tombstone" );
+            else
             {
-               printf( "DBG thread %u k %u op %u: register returned %p, model %p\n",
-                       thread, k, op, result, model[ thread][ k]);
-               exit( 1);
+               // register returns the stored value, which may be patched
+               if( ! (result == model[ thread][ k] && model[ thread][ k] != NULL))
+               {
+                  printf( "DBG thread %u k %u op %u: register returned %p, model %p\n",
+                          thread, k, op, result, model[ thread][ k]);
+                  exit( 1);
+               }
             }
          }
          break;

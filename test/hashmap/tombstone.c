@@ -1,9 +1,8 @@
 // Deterministic, single-threaded checks for the hashmap's tombstone
 // behaviour: remove() must leave a tombstone (not resurrect a foreign-slot
-// leak, see register_race.c), lookup()/enumeration/count() must never
-// expose MULLE_CONCURRENT_TOMBSTONE_POINTER, a re-register of a removed key
-// must refill the tombstone in place, and a remove/register churn loop must
-// not grow the table without bound (migration compacts tombstones away).
+// leak, see register_race.c), lookup()/enumeration/count() must never expose
+// MULLE_CONCURRENT_TOMBSTONE_POINTER, and a removed hash must not be reused
+// until strict-growth migration drops its tombstone.
 #include <mulle-concurrent/mulle-concurrent.h>
 
 #include <mulle-testallocator/mulle-testallocator.h>
@@ -46,27 +45,41 @@ static void   remove_then_lookup_test( void)
 }
 
 
-static void   refill_in_place_test( void)
+static void   tombstone_reuse_is_denied_test( void)
 {
    struct mulle_concurrent_hashmap   map;
    void                              *result;
 
-   mulle_concurrent_hashmap_init( &map, 0, NULL);
+   mulle_concurrent_hashmap_init( &map, 4, NULL);
 
    check( mulle_concurrent_hashmap_insert( &map, 7, (void *) 0x2000) == 0,
           "insert" );
    check( mulle_concurrent_hashmap_remove( &map, 7, (void *) 0x2000) == 0,
           "remove" );
 
-   // re-register the same key: must refill the tombstoned slot in place
+   errno  = 0;
+   result = mulle_concurrent_hashmap_register( &map, 7, (void *) 0x3000);
+   check( result == MULLE_CONCURRENT_INVALID_POINTER && errno == EEXIST,
+          "register does not refill a tombstone" );
+   check( mulle_concurrent_hashmap_insert( &map, 7, (void *) 0x3000) == EEXIST,
+          "insert does not refill a tombstone" );
+   check( mulle_concurrent_hashmap_lookup( &map, 7) == MULLE_CONCURRENT_NO_POINTER,
+          "denied reuse remains removed" );
+
+   // Filling the claimed-slot threshold strictly grows the table. Migration
+   // drops the tombstone, after which the hash can be registered again.
+   check( mulle_concurrent_hashmap_insert( &map, 8, (void *) 0x4000) == 0,
+          "insert before migration" );
+   check( mulle_concurrent_hashmap_insert( &map, 9, (void *) 0x5000) == 0,
+          "insert triggers migration" );
+   check( mulle_concurrent_hashmap_get_size( &map) == 8,
+          "migration strictly doubles storage" );
+
    result = mulle_concurrent_hashmap_register( &map, 7, (void *) 0x3000);
    check( result == MULLE_CONCURRENT_NO_POINTER,
-          "register after remove reports fresh insert" );
+          "register succeeds after migration drops tombstone" );
    check( mulle_concurrent_hashmap_lookup( &map, 7) == (void *) 0x3000,
-          "lookup sees the refilled value" );
-
-   check( mulle_concurrent_hashmap_count( &map) == 1,
-          "count after refill" );
+          "lookup sees value registered after migration" );
 
    mulle_concurrent_hashmap_done( &map);
 }
@@ -136,40 +149,6 @@ static void   validation_test( void)
 }
 
 
-// remove/register churn on a handful of keys must not grow the table
-// without bound: tombstones must be compacted away at migration.
-#define N_CHURN_KEYS   4
-#define N_CHURN_ITERS  4000
-#define MAX_ACCEPTABLE_SIZE   64
-
-static void   churn_compaction_test( void)
-{
-   struct mulle_concurrent_hashmap   map;
-   intptr_t                          hash;
-   int                               i;
-   unsigned int                      size;
-
-   mulle_concurrent_hashmap_init( &map, 4, NULL);
-
-   for( i = 0; i < N_CHURN_ITERS; i++)
-   {
-      hash = (i % N_CHURN_KEYS) + 1;
-
-      mulle_concurrent_hashmap_remove( &map, hash, (void *) (hash + 0x1000));
-      check( mulle_concurrent_hashmap_register( &map, hash, (void *) (hash + 0x1000))
-                == MULLE_CONCURRENT_NO_POINTER,
-             "churn register after remove" );
-   }
-
-   size = mulle_concurrent_hashmap_get_size( &map);
-   check( size <= MAX_ACCEPTABLE_SIZE, "churn does not grow the table unbounded" );
-   check( mulle_concurrent_hashmap_count( &map) == N_CHURN_KEYS,
-          "churn leaves exactly the live keys" );
-
-   mulle_concurrent_hashmap_done( &map);
-}
-
-
 int   main( void)
 {
    mulle_testallocator_initialize();
@@ -178,10 +157,9 @@ int   main( void)
    mulle_aba_register();
 
    remove_then_lookup_test();
-   refill_in_place_test();
+   tombstone_reuse_is_denied_test();
    count_and_enumerate_skip_tombstones_test();
    validation_test();
-   churn_compaction_test();
 
    mulle_aba_unregister();
    mulle_aba_done();

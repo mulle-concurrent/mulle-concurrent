@@ -102,8 +102,7 @@ static inline intptr_t
 //    MULLE_CONCURRENT_INVALID_POINTER : storage is migrating (EBUSY)
 //    other                            : the value that is already there
 //
-static void  *_mulle_concurrent_hashmapstorage_fill( struct _mulle_concurrent_hashmapstorage *p,
-                                                     struct _mulle_concurrent_hashvaluepair *entry,
+static void  *_mulle_concurrent_hashmapstorage_fill( struct _mulle_concurrent_hashvaluepair *entry,
                                                      void *value)
 {
    void   *found;
@@ -113,21 +112,10 @@ static void  *_mulle_concurrent_hashmapstorage_fill( struct _mulle_concurrent_ha
       return( MULLE_CONCURRENT_NO_POINTER);
    if( MULLE_C_UNLIKELY( found == REDIRECT_VALUE))
       return( MULLE_CONCURRENT_INVALID_POINTER);
-   if( found != TOMBSTONE_VALUE)
-      return( found);
 
-   // our slot was removed earlier (by us or a peer with the same key),
-   // refill it in place. this is safe because the hash identifies the
-   // owner: the pointerset can't do this since it has no separate hash field.
-   found = __mulle_atomic_pointer_cas( &entry->value, value, TOMBSTONE_VALUE);
-   if( found == TOMBSTONE_VALUE)
-   {
-      _mulle_atomic_pointer_decrement( &p->n_tombstones);
-      return( MULLE_CONCURRENT_NO_POINTER);
-   }
-   if( MULLE_C_UNLIKELY( found == REDIRECT_VALUE))
-      return( MULLE_CONCURRENT_INVALID_POINTER);
-   return( found);              // a peer refilled it first
+   // Values never transition back from TOMBSTONE to live in this storage.
+   // This keeps the value state machine monotonic for bounded migration.
+   return( found);              // existing live value or TOMBSTONE_VALUE
 }
 
 #pragma mark - _mulle_concurrent_hashmapstorage
@@ -182,6 +170,9 @@ static unsigned int
    unsigned int   size;
    unsigned int   max;
 
+   // Start migration at half capacity. The unused half is the claim reserve
+   // for operations that passed the outer occupancy check concurrently; it
+   // preserves the virgin slot required to bound every linear probe.
    size = (unsigned int) p->mask + 1;
    max  = size - (size >> 1);
    return( max);
@@ -279,7 +270,7 @@ static void   *_mulle_concurrent_hashmapstorage_register( struct _mulle_concurre
       entry = &p->entries[ index & (unsigned int) p->mask];
 
       if( _mulle_concurrent_hashmapstorage_claim( p, entry, hash) == hash)
-         return( _mulle_concurrent_hashmapstorage_fill( p, entry, value));
+         return( _mulle_concurrent_hashmapstorage_fill( entry, value));
 
       ++index;
       assert( index != sentinel);  // can't happen we always leave space
@@ -318,7 +309,7 @@ static int   _mulle_concurrent_hashmapstorage_insert( struct _mulle_concurrent_h
 
       if( _mulle_concurrent_hashmapstorage_claim( p, entry, hash) == hash)
       {
-         found = _mulle_concurrent_hashmapstorage_fill( p, entry, value);
+         found = _mulle_concurrent_hashmapstorage_fill( entry, value);
          if( found == MULLE_CONCURRENT_NO_POINTER)
             return( 0);
          if( MULLE_C_UNLIKELY( found == MULLE_CONCURRENT_INVALID_POINTER))
@@ -340,15 +331,26 @@ static int   _mulle_concurrent_hashmapstorage_insert( struct _mulle_concurrent_h
 // have been removed there. copy is a best-effort "do not leave anyone
 // behind", not an overwrite.
 //
-static int   _mulle_concurrent_hashmapstorage_put( struct _mulle_concurrent_hashmapstorage *p,
+// p can itself be mid-migration (a slot we want can already be frozen to
+// REDIRECT by p's own copy cursor, if p was swapped in as map->storage and
+// is now being migrated away by other threads). When that happens, follow
+// the chain into map->next_storage and retry there instead of giving up:
+// that storage generation is fixed once it exists, so this recursion is
+// bounded by how many times the table has grown since our caller's copy
+// started, not by contention. This keeps put (and therefore copy, and
+// therefore migrate_storage) wait-free rather than merely lock-free.
+//
+static int   _mulle_concurrent_hashmapstorage_put( struct mulle_concurrent_hashmap *map,
+                                                   struct _mulle_concurrent_hashmapstorage *p,
                                                    intptr_t hash,
                                                    void *value)
 {
-   struct _mulle_concurrent_hashvaluepair   *entry;
-   void                                     *found;
-   unsigned int                             index;
+   struct _mulle_concurrent_hashmapstorage   *q;
+   struct _mulle_concurrent_hashvaluepair     *entry;
+   void                                        *found;
+   unsigned int                               index;
 #ifndef NDEBUG
-   unsigned int                             sentinel;
+   unsigned int                               sentinel;
 
    sentinel = (unsigned int) hash + (unsigned int) p->mask + 1;
 #endif
@@ -365,7 +367,13 @@ static int   _mulle_concurrent_hashmapstorage_put( struct _mulle_concurrent_hash
       {
          found = __mulle_atomic_pointer_cas( &entry->value, value, MULLE_CONCURRENT_NO_POINTER);
          if( MULLE_C_UNLIKELY( found == REDIRECT_VALUE))
-            return( EBUSY);
+         {
+            // 'p' is itself being migrated away and our slot is already
+            // frozen; the value belongs in whatever storage superseded 'p'
+            q = _mulle_atomic_pointer_read( &map->next_storage.pointer);
+            assert( q != p);
+            return( _mulle_concurrent_hashmapstorage_put( map, q, hash, value));
+         }
          return( 0);    // stored, or dst already holds a newer value/tombstone
       }
 
@@ -375,7 +383,9 @@ static int   _mulle_concurrent_hashmapstorage_put( struct _mulle_concurrent_hash
 }
 
 
-// TODO: this looks good on paper, but needs more testing
+// Experimental: repeated live-to-live replacement is not part of the
+// monotonic slot-state protocol used by the wait-free migration proof.
+// Keep patch outside workloads that rely on that progress guarantee.
 static int   _mulle_concurrent_hashmapstorage_patch( struct _mulle_concurrent_hashmapstorage *p,
                                                      intptr_t hash,
                                                      void *value,
@@ -462,20 +472,17 @@ static int
 
 
 //
-// copy freezes every slot it passes, so nothing can be stranded in the old
-// storage: a virgin/claim-in-flight slot is frozen to REDIRECT directly
-// (nothing to copy; an in-flight writer's value CAS then fails with
-// REDIRECT, which its caller turns into "help migrate, then retry", so it
-// redoes the insert in the new storage); a tombstoned slot is frozen to
-// REDIRECT and dropped (this is the tombstone cleanup); a live slot is put
-// into dst first, then frozen to REDIRECT ("no one gets left behind").
+// Copy freezes every source slot. A virgin or claim-in-flight slot is frozen
+// directly; a racing writer then observes REDIRECT and retries in the newer
+// generation. A tombstone is frozen and dropped. A live value is put into the
+// destination before its source slot is frozen ("no one gets left behind").
 //
-// returns 0, or EBUSY if dst could not take a live entry (dst is itself
-// migrating). on EBUSY the source slot is left as-is (not frozen), so the
-// entry stays reachable in the old storage for a retry.
+// put() follows REDIRECT through map->next_storage if the destination is
+// itself migrating, so copy fully drains the source in one pass.
 //
-static int
-   _mulle_concurrent_hashmapstorage_copy( struct _mulle_concurrent_hashmapstorage *dst,
+static void
+   _mulle_concurrent_hashmapstorage_copy( struct mulle_concurrent_hashmap *map,
+                                          struct _mulle_concurrent_hashmapstorage *dst,
                                           struct _mulle_concurrent_hashmapstorage *src)
 {
    struct _mulle_concurrent_hashvaluepair   *p;
@@ -483,7 +490,6 @@ static int
    intptr_t                                 hash;
    void                                     *actual;
    void                                     *value;
-   int                                       rval;
 
    p      = src->entries;
    p_last = &src->entries[ src->mask];
@@ -496,21 +502,28 @@ static int
    // written to, not even to freeze it.
    //
    if( _mulle_concurrent_hashmapstorage_is_const( src))
-      return( 0);
+      return;
 
    for( ; p <= p_last; p++)
    {
       hash = _mulle_concurrent_hashvaluepair_get_hash( p);
       if( hash == MULLE_CONCURRENT_NO_HASH)
       {
-         // virgin, or claimed but hash not yet visible to us: either way
-         // there is nothing live here yet. freeze it; a racing claimer's
-         // value CAS will fail with REDIRECT and retry in the new world.
-         __mulle_atomic_pointer_cas( &p->value, REDIRECT_VALUE, MULLE_CONCURRENT_NO_POINTER);
-         continue;
-      }
+         // Freeze a virgin slot. If this loses to a racing fill, hash-first
+         // publication guarantees that the fill's hash is visible now; carry
+         // the returned state into the ordinary copy/freeze path below.
+         actual = __mulle_atomic_pointer_cas( &p->value,
+                                               REDIRECT_VALUE,
+                                               MULLE_CONCURRENT_NO_POINTER);
+         if( actual == MULLE_CONCURRENT_NO_POINTER || actual == REDIRECT_VALUE)
+            continue;
 
-      value = _mulle_atomic_pointer_read( &p->value);
+         hash = _mulle_concurrent_hashvaluepair_get_hash( p);
+         assert( hash != MULLE_CONCURRENT_NO_HASH);
+         value = actual;
+      }
+      else
+         value = _mulle_atomic_pointer_read( &p->value);
       for(;;)
       {
          if( value == MULLE_CONCURRENT_NO_POINTER)
@@ -535,9 +548,7 @@ static int
 
          // it's important that we copy over first so
          // No One Gets Left Behind
-         rval = _mulle_concurrent_hashmapstorage_put( dst, hash, value);
-         if( MULLE_C_UNLIKELY( rval == EBUSY))
-            return( EBUSY);        // leave this slot unfrozen, retry later
+         _mulle_concurrent_hashmapstorage_put( map, dst, hash, value);
 
          actual = __mulle_atomic_pointer_cas( &p->value, REDIRECT_VALUE, value);
          if( actual == value)
@@ -546,7 +557,6 @@ static int
          value = actual;
       }
    }
-   return( 0);
 }
 
 
@@ -618,24 +628,13 @@ unsigned int  _mulle_concurrent_hashmap_get_size( struct mulle_concurrent_hashma
 static unsigned int
    _mulle_concurrent_hashmapstorage_get_migration_size( struct _mulle_concurrent_hashmapstorage *p)
 {
-   unsigned int   live;
-   unsigned int   n_hashs;
-   unsigned int   n_tombstones;
    unsigned int   size;
 
-   size         = (unsigned int) p->mask + 1;
-   n_hashs      = (unsigned int) (uintptr_t) _mulle_atomic_pointer_read( &p->n_hashs);
-   n_tombstones = (unsigned int) (uintptr_t) _mulle_atomic_pointer_read( &p->n_tombstones);
-   live         = n_tombstones < n_hashs ? n_hashs - n_tombstones : 0;
-
-   //
-   // migration must leave enough slack that every probe chain keeps a free
-   // slot. 25% occupancy is what unconditional doubling gives today, so
-   // only compact (same size, tombstones dropped) when the live entries
-   // fit into a quarter of the table
-   //
-   if( live * 4 <= size)
-      return( size);
+   // Strict growth bounds the number of storage generations an operation
+   // can encounter. Tombstones are dropped while live entries are copied.
+   size = (unsigned int) p->mask + 1;
+   if( size > (unsigned int) -1 / 2)
+      abort();
    return( size * 2);
 }
 
@@ -674,15 +673,10 @@ static void   _mulle_concurrent_hashmap_migrate_storage( struct mulle_concurrent
          q = alloced;
    }
 
-   // this thread can partake in copying
-   //
-   // if copy could not complete (EBUSY), 'q' is itself already migrating.
-   // 'q' can only be migrating after it became map->storage, which only
-   // happens after some thread's copy( q, p) completed. so a bail-out here
-   // implies 'p' was already fully drained by that thread: nothing is lost
-   // and there is no livelock.
-   if( _mulle_concurrent_hashmapstorage_copy( q, p) == EBUSY)
-      return;
+   // this thread can partake in copying. put() follows the REDIRECT chain
+   // on its own if 'q' is itself already being migrated away, so copy
+   // always fully drains 'p' in one pass here.
+   _mulle_concurrent_hashmapstorage_copy( map, q, p);
 
    // now update world, giving it the same value as 'next_world'
    previous = __mulle_atomic_pointer_cas( &map->storage.pointer, q, p);
@@ -804,6 +798,11 @@ retry:
    {
       _mulle_concurrent_hashmap_migrate_storage( map, p);
       goto retry;
+   }
+   if( result == TOMBSTONE_VALUE)
+   {
+      errno = EEXIST;
+      return( MULLE_CONCURRENT_INVALID_POINTER);
    }
 
    return( result);

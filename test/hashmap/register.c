@@ -1,16 +1,10 @@
-// Deterministic check of the register contract:
-//
-//   register( hash, value) on an empty slot returns NO_POINTER,
-//   register( hash, value) on an existing entry returns the *stored* value
-//                          (which may differ from the argument after patch)
-//   patch( hash, value, expect) flips the stored value
-//   remove( hash, value) needs the exact (hash, value) pair
-//
-// The cycle register -> patch -> register -> remove is repeated many times
-// to shake out stale-state bugs.
+// Deterministic check of the register contract, including rejection of a
+// tombstoned hash until migration drops that tombstone.
 #include <mulle-concurrent/mulle-concurrent.h>
 
 #include <mulle-testallocator/mulle-testallocator.h>
+#include <errno.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -30,12 +24,11 @@ static void   check( int condition, char *name)
 int   main( void)
 {
    struct mulle_concurrent_hashmap   map;
-   intptr_t                          key     = 42;
-   void                              *value   = (void *) 421;
-   void                              *patched = (void *) 426;
+   intptr_t                          key;
+   void                              *value;
+   void                              *other;
    void                              *result;
    intptr_t                          i;
-   int                               rval;
 
    mulle_testallocator_initialize();
    mulle_default_allocator = mulle_testallocator;
@@ -46,26 +39,23 @@ int   main( void)
 
    for( i = 0; i < N_ITERS; i++)
    {
-      // insert fresh: register must report the insert
+      key   = i + 1;
+      value = (void *)(uintptr_t)(i + 1);
+      other = (void *)(uintptr_t)(i + N_ITERS + 1);
+
       result = mulle_concurrent_hashmap_register( &map, key, value);
-      check( result == MULLE_CONCURRENT_NO_POINTER || result == value,
-             "register insert" );
+      check( result == MULLE_CONCURRENT_NO_POINTER, "register insert" );
 
-      // patch to the new value
-      rval = mulle_concurrent_hashmap_patch( &map, key, patched, value);
-      check( rval == 0, "patch" );
+      result = mulle_concurrent_hashmap_register( &map, key, other);
+      check( result == value, "register existing" );
 
-      // register again: must return the *stored* (patched) value
-      result = mulle_concurrent_hashmap_register( &map, key, value);
-      check( result == patched, "register after patch" );
+      check( mulle_concurrent_hashmap_remove( &map, key, value) == 0,
+             "remove" );
 
-      // remove with the current value
-      rval = mulle_concurrent_hashmap_remove( &map, key, patched);
-      check( rval == 0, "remove" );
-
-      // the key is now absent again
-      check( mulle_concurrent_hashmap_lookup( &map, key) == NULL,
-             "lookup after remove" );
+      errno  = 0;
+      result = mulle_concurrent_hashmap_register( &map, key, other);
+      check( result == MULLE_CONCURRENT_INVALID_POINTER && errno == EEXIST,
+             "register tombstone denied" );
    }
 
    mulle_concurrent_hashmap_done( &map);

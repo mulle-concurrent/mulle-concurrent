@@ -186,7 +186,7 @@ static inline unsigned int
 // Return value (rval):
 //
 //     MULLE_CONCURRENT_NO_POINTER      : means it did insert
-//     MULLE_CONCURRENT_INVALID_POINTER : error (check errno)
+//     MULLE_CONCURRENT_INVALID_POINTER : error (errno is EINVAL or EEXIST)
 //     other                            : value that was already registered
 //
 // Do not use hash=0

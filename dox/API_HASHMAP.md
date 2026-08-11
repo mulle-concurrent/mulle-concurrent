@@ -120,10 +120,11 @@ Remove a `hash`, `value` pair. Read the description of
 pertaining to both.
 
 Removing leaves the slot as a tombstone: the hash stays claimed so probe
-chains through it keep working, but the value no longer matches any lookup,
-count or enumeration. A later `insert`/`register` of the same key refills
-the tombstoned slot in place; unreused tombstones are dropped for free at
-the next migration.
+chains continue through it, while lookup, count and enumeration treat it as
+absent. The same hash cannot be inserted or registered again in that storage
+generation: `insert` returns `EEXIST`, while `register` returns
+`MULLE_CONCURRENT_INVALID_POINTER` and sets `errno` to `EEXIST`. Migration
+drops tombstones, after which the hash can be used again.
 
 Return Values:
    0      : OK

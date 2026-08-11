@@ -6,5 +6,6 @@
 | [`mulle-concurrent-pointerarray`](dox/API_POINTERARRAY.md)  | A wait and lock free array
 | [`mulle-concurrent-pointerset`](dox/API_POINTERSET.md)  | A wait and lock free set of pointers
 
-
+For the hashmap progress argument, see
+[Wait-free status of `mulle_concurrent_hashmap_register`](dox/WAIT-FREE-LOCK-FREE.md).
 
