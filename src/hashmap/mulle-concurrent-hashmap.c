@@ -282,8 +282,9 @@ static void   *_mulle_concurrent_hashmapstorage_register( struct _mulle_concurre
 // insert:
 //
 //  0      : did insert
-//  EEXIST : key already exists (can't replace currently)
-//  EBUSY  : this storage can't be written to
+//  EEXIST : key already exists (live value present)
+//  EBUSY  : this storage can't be written to (migration in progress)
+//  EAGAIN : slot is tombstoned, caller should do same-size migration and retry
 //
 static int   _mulle_concurrent_hashmapstorage_insert( struct _mulle_concurrent_hashmapstorage *p,
                                                       intptr_t hash,
@@ -314,6 +315,8 @@ static int   _mulle_concurrent_hashmapstorage_insert( struct _mulle_concurrent_h
             return( 0);
          if( MULLE_C_UNLIKELY( found == MULLE_CONCURRENT_INVALID_POINTER))
             return( EBUSY);
+         if( found == TOMBSTONE_VALUE)
+            return( EAGAIN);
          return( EEXIST);
       }
 
@@ -500,7 +503,15 @@ static void
             break;
 
          // it's important that we copy over first so
-         // No One Gets Left Behind
+         // No One Gets Left Behind.
+         //
+         // 'value' is a read from before this point, so a remove can have
+         // tombstoned the source in the meantime and this put would then
+         // resurrect a removed pair in 'dst'. remove closes that window
+         // itself: after it tombstones a slot it plants a tombstone in the
+         // newer generation too (see _mulle_concurrent_hashmap_remove).
+         // Since put never overwrites a non-virgin destination slot, the two
+         // orders commute and both end up removed.
          _mulle_concurrent_hashmapstorage_put( map, dst, hash, value);
 
          actual = __mulle_atomic_pointer_cas_relaxed( &p->value, REDIRECT_VALUE, value);
@@ -592,8 +603,9 @@ static unsigned int
 }
 
 
-static void   _mulle_concurrent_hashmap_migrate_storage( struct mulle_concurrent_hashmap *map,
-                                                         struct _mulle_concurrent_hashmapstorage *p)
+static void   _mulle_concurrent_hashmap_migrate_storage_with_size( struct mulle_concurrent_hashmap *map,
+                                                                   struct _mulle_concurrent_hashmapstorage *p,
+                                                                   unsigned int new_size)
 {
 
    struct _mulle_concurrent_hashmapstorage   *q;
@@ -611,9 +623,7 @@ static void   _mulle_concurrent_hashmap_migrate_storage( struct mulle_concurrent
    if( q == p)
    {
       // acquire new storage
-      alloced = _mulle_concurrent_alloc_hashmapstorage(
-                     _mulle_concurrent_hashmapstorage_get_migration_size( p),
-                     allocator);
+      alloced = _mulle_concurrent_alloc_hashmapstorage( new_size, allocator);
       // make this the next world, assume that's still set to 'p' (SIC)
       q = __mulle_atomic_pointer_cas_relaxed( &map->next_storage.pointer, alloced, p);
       if( q != p)
@@ -638,6 +648,36 @@ static void   _mulle_concurrent_hashmap_migrate_storage( struct mulle_concurrent
    // already gone. this must be an ABA free
    if( previous == p && ! _mulle_concurrent_hashmapstorage_is_const( previous))
       _mulle_allocator_abafree( allocator, previous); // ABA!!
+}
+
+
+static inline void
+   _mulle_concurrent_hashmap_migrate_storage( struct mulle_concurrent_hashmap *map,
+                                              struct _mulle_concurrent_hashmapstorage *p)
+{
+   _mulle_concurrent_hashmap_migrate_storage_with_size( map, p,
+      _mulle_concurrent_hashmapstorage_get_migration_size( p));
+}
+
+
+//
+// Same-size migration: drops tombstones without growing.  Used when
+// insert/register hits a tombstone.  The resulting storage has the same
+// capacity but the tombstoned slot is now virgin, so the retry succeeds.
+//
+// Wait-free argument: a same-size migration can only be triggered once per
+// tombstone encounter.  After migration the tombstone is gone and the
+// operation completes, so the retry chain adds at most one same-size hop
+// before the normal strictly-growing chain.
+//
+static inline void
+   _mulle_concurrent_hashmap_migrate_storage_same_size( struct mulle_concurrent_hashmap *map,
+                                                        struct _mulle_concurrent_hashmapstorage *p)
+{
+   unsigned int  size;
+
+   size = (unsigned int) p->mask + 1;
+   _mulle_concurrent_hashmap_migrate_storage_with_size( map, p, size);
 }
 
 
@@ -755,8 +795,8 @@ retry:
    }
    if( result == TOMBSTONE_VALUE)
    {
-      errno = EEXIST;
-      return( MULLE_CONCURRENT_INVALID_POINTER);
+      _mulle_concurrent_hashmap_migrate_storage_same_size( map, p);
+      goto retry;
    }
 
    return( result);
@@ -811,6 +851,11 @@ retry:
    if( MULLE_C_UNLIKELY( rval == EBUSY))
    {
       _mulle_concurrent_hashmap_migrate_storage( map, p);
+      goto retry;
+   }
+   if( MULLE_C_UNLIKELY( rval == EAGAIN))
+   {
+      _mulle_concurrent_hashmap_migrate_storage_same_size( map, p);
       goto retry;
    }
 

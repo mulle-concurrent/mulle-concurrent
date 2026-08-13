@@ -11,6 +11,7 @@ endif()
 # contents selected with patternfile ??-source--sources
 #
 set( SOURCES
+src/hashmap2/mulle-concurrent-hashmap2.c
 src/hashmap/mulle-concurrent-hashmap.c
 src/pointerarray/mulle-concurrent-pointerarray.c
 src/pointerset/mulle-concurrent-pointerset.c

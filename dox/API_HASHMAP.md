@@ -119,12 +119,19 @@ Remove a `hash`, `value` pair. Read the description of
 `mulle_concurrent_hashmap_insert` for information about restrictions
 pertaining to both.
 
-Removing leaves the slot as a tombstone: the hash stays claimed so probe
-chains continue through it, while lookup, count and enumeration treat it as
-absent. The same hash cannot be inserted or registered again in that storage
-generation: `insert` returns `EEXIST`, while `register` returns
-`MULLE_CONCURRENT_INVALID_POINTER` and sets `errno` to `EEXIST`. Migration
-drops tombstones, after which the hash can be used again.
+Removing leaves the slot as an internal tombstone: the hash stays claimed so
+probe chains through it continue to work, while lookup, count and enumeration
+treat it as absent.
+
+Reinserting or re-registering the same hash is supported but triggers an
+internal same-size migration to drop the tombstone. This makes the
+reinsert correct and wait-free, but **slow** — the entire table is copied.
+Avoid tight remove/reinsert cycles on the same hash in performance-critical
+code.
+
+A different hash that probes through a tombstoned slot is unaffected: it
+simply skips the tombstone during its probe and does not pay any migration
+cost.
 
 Return Values:
    0      : OK

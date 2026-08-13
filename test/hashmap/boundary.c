@@ -89,7 +89,6 @@ static void  grow_remove_regrow_test( void)
    unsigned int                      count;
    intptr_t                          i;
    unsigned int                      removed;
-   unsigned int                      size;
 
    mulle_concurrent_hashmap_init( &map, 4, NULL);
 
@@ -111,25 +110,12 @@ static void  grow_remove_regrow_test( void)
    }
    check( mulle_concurrent_hashmap_count( &map) == 100 - removed, "regrow count after remove" );
 
-   // Tombstoned hashes cannot be reused in this generation.
-   for( i = 2; i <= 100; i += 2)
-      check( mulle_concurrent_hashmap_insert( &map, i, (void *)(uintptr_t)(i * 7)) == EEXIST,
-             "regrow tombstone denies reinsert" );
-
-   // Fill the claimed-slot threshold with fresh hashes. Strict-growth
-   // migration drops the tombstones, after which the old hashes are reusable.
-   size = mulle_concurrent_hashmap_get_size( &map);
-   for( i = 101; i <= (intptr_t)(size / 2 + 1); i++)
-      check( mulle_concurrent_hashmap_insert( &map, i, (void *)(uintptr_t)(i * 3)) == 0,
-             "regrow trigger migration" );
-   check( mulle_concurrent_hashmap_get_size( &map) == size * 2,
-          "regrow migration strictly grows" );
-
+   // After the fix, removed hashes can be reused immediately (tombstone
+   // refill in place). Re-insert the even keys with a new value.
    for( i = 2; i <= 100; i += 2)
       check( mulle_concurrent_hashmap_insert( &map, i, (void *)(uintptr_t)(i * 7)) == 0,
-             "regrow reinsert after migration" );
-   check( mulle_concurrent_hashmap_count( &map) == size / 2 + 1,
-          "regrow count after reinsert" );
+             "regrow reinsert after remove" );
+   check( mulle_concurrent_hashmap_count( &map) == 100, "regrow count after reinsert" );
    check( mulle_concurrent_hashmap_lookup( &map, 2) == (void *)(uintptr_t)(2 * 7),
           "regrow reinserted value" );
 

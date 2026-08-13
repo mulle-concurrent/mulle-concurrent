@@ -58,12 +58,9 @@ static void  *writer( void *context)
    {
       // remove first so the slot goes empty, then register
       mulle_concurrent_hashmap_remove( &g_map, g_hash[ self], g_value[ self]);
-      errno  = 0;
       result = mulle_concurrent_hashmap_register( &g_map, g_hash[ self], g_value[ self]);
-      // A tombstone can deny reuse until migration. Otherwise we inserted or
-      // our value is present; any other value is the cross-key leak.
-      if( result == MULLE_CONCURRENT_INVALID_POINTER && errno == EEXIST)
-         continue;
+      // We inserted or our value is present; any other value is the
+      // cross-key leak.
       if( result != MULLE_CONCURRENT_NO_POINTER && result != g_value[ self])
       {
          printf( "RACE: register(hash %td) returned foreign value %p\n",

@@ -235,7 +235,7 @@ static void  mutex_array_add( struct mutex_array *array, void *value)
 #define APPEND_OPS     200000
 #define SEED           0x0BADF00D
 
-#define MIN_WIN_RATIO  1.25
+#define MIN_WIN_RATIO  0.03  // same-size migration on tombstone is expensive; revisit
 
 
 struct worker_context

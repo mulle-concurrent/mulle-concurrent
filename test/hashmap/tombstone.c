@@ -45,7 +45,7 @@ static void   remove_then_lookup_test( void)
 }
 
 
-static void   tombstone_reuse_is_denied_test( void)
+static void   tombstone_reuse_after_remove_test( void)
 {
    struct mulle_concurrent_hashmap   map;
    void                              *result;
@@ -57,29 +57,21 @@ static void   tombstone_reuse_is_denied_test( void)
    check( mulle_concurrent_hashmap_remove( &map, 7, (void *) 0x2000) == 0,
           "remove" );
 
-   errno  = 0;
-   result = mulle_concurrent_hashmap_register( &map, 7, (void *) 0x3000);
-   check( result == MULLE_CONCURRENT_INVALID_POINTER && errno == EEXIST,
-          "register does not refill a tombstone" );
-   check( mulle_concurrent_hashmap_insert( &map, 7, (void *) 0x3000) == EEXIST,
-          "insert does not refill a tombstone" );
-   check( mulle_concurrent_hashmap_lookup( &map, 7) == MULLE_CONCURRENT_NO_POINTER,
-          "denied reuse remains removed" );
-
-   // Filling the claimed-slot threshold strictly grows the table. Migration
-   // drops the tombstone, after which the hash can be registered again.
-   check( mulle_concurrent_hashmap_insert( &map, 8, (void *) 0x4000) == 0,
-          "insert before migration" );
-   check( mulle_concurrent_hashmap_insert( &map, 9, (void *) 0x5000) == 0,
-          "insert triggers migration" );
-   check( mulle_concurrent_hashmap_get_size( &map) == 8,
-          "migration strictly doubles storage" );
-
+   // After remove, insert and register must succeed (migration is triggered
+   // internally to drop the tombstone).
    result = mulle_concurrent_hashmap_register( &map, 7, (void *) 0x3000);
    check( result == MULLE_CONCURRENT_NO_POINTER,
-          "register succeeds after migration drops tombstone" );
+          "register after remove succeeds" );
    check( mulle_concurrent_hashmap_lookup( &map, 7) == (void *) 0x3000,
-          "lookup sees value registered after migration" );
+          "lookup sees re-registered value" );
+
+   // remove again then use insert
+   check( mulle_concurrent_hashmap_remove( &map, 7, (void *) 0x3000) == 0,
+          "remove again" );
+   check( mulle_concurrent_hashmap_insert( &map, 7, (void *) 0x4000) == 0,
+          "insert after remove succeeds" );
+   check( mulle_concurrent_hashmap_lookup( &map, 7) == (void *) 0x4000,
+          "lookup sees re-inserted value" );
 
    mulle_concurrent_hashmap_done( &map);
 }
@@ -153,7 +145,7 @@ int   main( void)
    mulle_aba_register();
 
    remove_then_lookup_test();
-   tombstone_reuse_is_denied_test();
+   tombstone_reuse_after_remove_test();
    count_and_enumerate_skip_tombstones_test();
    validation_test();
 
