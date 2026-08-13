@@ -140,10 +140,6 @@ static void   validation_test( void)
           "register tombstone value" );
    check( mulle_concurrent_hashmap_remove( &map, 1, MULLE_CONCURRENT_TOMBSTONE_POINTER) == EINVAL,
           "remove tombstone value" );
-   check( mulle_concurrent_hashmap_patch( &map, 1, MULLE_CONCURRENT_TOMBSTONE_POINTER, (void *) 1) == EINVAL,
-          "patch tombstone value" );
-   check( mulle_concurrent_hashmap_patch( &map, 1, (void *) 1, MULLE_CONCURRENT_TOMBSTONE_POINTER) == EINVAL,
-          "patch tombstone expect" );
 
    mulle_concurrent_hashmap_done( &map);
 }

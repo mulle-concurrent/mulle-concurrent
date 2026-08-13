@@ -109,11 +109,11 @@ static void   *_mulle_concurrent_pointerarraystorage_get( struct _mulle_concurre
 {
    unsigned int   n;
 
-   n = (unsigned int) (uintptr_t) _mulle_atomic_pointer_read( &p->n);
+   n = (unsigned int) (uintptr_t) _mulle_atomic_pointer_read_relaxed( &p->n);
    if( i >= n)
       return( MULLE_CONCURRENT_NO_POINTER);
 
-   return( _mulle_atomic_pointer_read( &p->entries[ i]));
+   return( _mulle_atomic_pointer_read_relaxed( &p->entries[ i]));
 }
 
 
@@ -124,8 +124,8 @@ static void   *_mulle_concurrent_pointerarraystorage_get( struct _mulle_concurre
 //
 //   do
 //   {
-//      assert( i < (unsigned int) (uintptr_t) _mulle_atomic_pointer_read( &p->n));
-//      value = _mulle_atomic_pointer_read( &p->entries[ i]);
+//      assert( i < (unsigned int) (uintptr_t) _mulle_atomic_pointer_read_relaxed( &p->n));
+//      value = _mulle_atomic_pointer_read_relaxed( &p->entries[ i]);
 //      if( value == MULLE_CONCURRENT_NO_POINTER)
 //         break;
 //   }
@@ -154,14 +154,14 @@ static int   _mulle_concurrent_pointerarraystorage_add( struct _mulle_concurrent
 
    for(;;)
    {
-      i = (unsigned int) (uintptr_t) _mulle_atomic_pointer_read( &p->n);
+      i = (unsigned int) (uintptr_t) _mulle_atomic_pointer_read_relaxed( &p->n);
       if( i >= (unsigned int) p->size)
          return( ENOSPC);
 
-      found = __mulle_atomic_pointer_cas( &p->entries[ i], value, MULLE_CONCURRENT_NO_POINTER);
+      found = __mulle_atomic_pointer_cas_relaxed( &p->entries[ i], value, MULLE_CONCURRENT_NO_POINTER);
       if( found == MULLE_CONCURRENT_NO_POINTER)
       {
-         _mulle_atomic_pointer_increment( &p->n);
+         _mulle_atomic_pointer_increment_relaxed( &p->n);
          return( 0);
       }
 
@@ -180,17 +180,17 @@ static void   _mulle_concurrent_pointerarraystorage_copy( struct _mulle_concurre
    unsigned int             i;
    unsigned int             n;
 
-   n      = (unsigned int) (uintptr_t) _mulle_atomic_pointer_read( &dst->n);
+   n      = (unsigned int) (uintptr_t) _mulle_atomic_pointer_read_relaxed( &dst->n);
    p      = &src->entries[ n];
    p_last = &src->entries[ src->size];
 
    for( i = n; p < p_last; p++, i++)
    {
-      value = _mulle_atomic_pointer_read( p);
+      value = _mulle_atomic_pointer_read_relaxed( p);
       // value == MULLE_CONCURRENT_NO_POINTER ? because of extract
       if( value == MULLE_CONCURRENT_NO_POINTER ||
-          _mulle_atomic_pointer_cas( &dst->entries[ i], value, MULLE_CONCURRENT_NO_POINTER))
-         _mulle_atomic_pointer_increment( &dst->n);
+          _mulle_atomic_pointer_cas_relaxed( &dst->entries[ i], value, MULLE_CONCURRENT_NO_POINTER))
+         _mulle_atomic_pointer_increment_relaxed( &dst->n);
    }
 }
 
@@ -241,7 +241,7 @@ unsigned int  _mulle_concurrent_pointerarray_get_size( struct mulle_concurrent_p
 {
    struct _mulle_concurrent_pointerarraystorage   *p;
 
-   p = _mulle_atomic_pointer_read( &array->storage.pointer);
+   p = _mulle_atomic_pointer_read_relaxed( &array->storage.pointer);
    return( (unsigned int) p->size);
 }
 
@@ -253,8 +253,8 @@ unsigned int   _mulle_concurrent_pointerarray_get_count( struct mulle_concurrent
 {
    struct _mulle_concurrent_pointerarraystorage   *p;
 
-   p = _mulle_atomic_pointer_read( &array->storage.pointer);
-   return( (unsigned int) (uintptr_t) _mulle_atomic_pointer_read( &p->n));
+   p = _mulle_atomic_pointer_read_relaxed( &array->storage.pointer);
+   return( (unsigned int) (uintptr_t) _mulle_atomic_pointer_read_relaxed( &p->n));
 }
 
 
@@ -272,7 +272,7 @@ static void  _mulle_concurrent_pointerarray_migrate_storage( struct mulle_concur
 
    // acquire new storage
    alloced = NULL;
-   q       = _mulle_atomic_pointer_read( &array->next_storage.pointer);
+   q       = _mulle_atomic_pointer_read_relaxed( &array->next_storage.pointer);
 
    assert( q);
 
@@ -282,7 +282,7 @@ static void  _mulle_concurrent_pointerarray_migrate_storage( struct mulle_concur
                                                              array->allocator);
 
       // make this the next world, assume that's still set to 'p' (SIC)
-      q = __mulle_atomic_pointer_cas( &array->next_storage.pointer, alloced, p);
+      q = __mulle_atomic_pointer_cas_relaxed( &array->next_storage.pointer, alloced, p);
       if( q != p)
       {
          // someone else produced a next world, use that and get rid of 'alloced'
@@ -297,7 +297,7 @@ static void  _mulle_concurrent_pointerarray_migrate_storage( struct mulle_concur
    _mulle_concurrent_pointerarraystorage_copy( q, p);
 
    // now update world, giving it the same value as 'next_world'
-   previous = __mulle_atomic_pointer_cas( &array->storage.pointer, q, p);
+   previous = __mulle_atomic_pointer_cas_relaxed( &array->storage.pointer, q, p);
 
    // if this assert hits, it means that mulle-concurrent has been linked
    // twice (happens sometimes)
@@ -317,7 +317,7 @@ void  *_mulle_concurrent_pointerarray_get( struct mulle_concurrent_pointerarray 
    void                                           *value;
 
 retry:
-   p     = _mulle_atomic_pointer_read( &array->storage.pointer);
+   p     = _mulle_atomic_pointer_read_relaxed( &array->storage.pointer);
    value = _mulle_concurrent_pointerarraystorage_get( p, index);
    if( value == REDIRECT_VALUE)
    {
@@ -341,7 +341,7 @@ retry:
 //   void                                           *value;
 //
 //retry:
-//   p     = _mulle_atomic_pointer_read( &array->storage.pointer);
+//   p     = _mulle_atomic_pointer_read_relaxed( &array->storage.pointer);
 //   value = _mulle_concurrent_pointerarraystorage_extract( p, index);
 //   if( value == REDIRECT_VALUE)
 //   {
@@ -362,7 +362,7 @@ void  _mulle_concurrent_pointerarray_add( struct mulle_concurrent_pointerarray *
    assert( value != REDIRECT_VALUE);
 
 retry:
-   p    = _mulle_atomic_pointer_read( &array->storage.pointer);
+   p    = _mulle_atomic_pointer_read_relaxed( &array->storage.pointer);
    rval = _mulle_concurrent_pointerarraystorage_add( p, value);
    if( MULLE_C_UNLIKELY( rval == EBUSY || rval == ENOSPC))
    {

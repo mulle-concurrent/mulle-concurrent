@@ -63,13 +63,26 @@ int rval = mulle_concurrent_hashmap_remove( &map, hash, value);
 - This is intentional: it prevents removing an entry a different thread just
   placed.
 
-## Hashmap: `patch` is experimental
+## Hashmap: `patch` is gone, use `pose` and read its contract
 
-- `mulle_concurrent_hashmap_patch` (atomically update an existing entry's
-  value) is marked experimental in `src/hashmap/mulle-concurrent-hashmap.h:191-192`.
-- `expect` must be `!= value`.
-- Returns `EEXIST` if the entry has a different value, `ENOENT` if not found.
-- Prefer remove+insert for production code.
+- `mulle_concurrent_hashmap_patch` has been **removed**. A successful patch
+  could be silently reverted by a concurrent migration, and that is not
+  fixable — see [POSEAS-PATCH.md](../../../../dox/POSEAS-PATCH.md).
+- Its replacement is `mulle_concurrent_hashmap_pose` ("poseAs"), which is
+  narrower on purpose. You must guarantee that the new value is **unique to
+  you** and **final** (never posed away from again), and that nobody removes
+  the key while you pose it.
+- It is **not** a compare-and-swap. Do not use it for counters, refcounts or
+  any read-modify-write loop; that cannot work over this data structure at all,
+  and the same document explains why.
+- A successful pose performs a **full migration**, so it doubles the map. It is
+  meant for rare one-shot events like a class posing as another during a
+  library load, not for steady-state mutation.
+- Returns `0` on success (including a re-pose of a value already in place),
+  `EEXIST` if the entry did not hold `expect`, `ENOENT` if absent or removed,
+  `EINVAL` for reserved arguments or `value == expect`.
+- Single-threaded? A plain in-place CAS is durable there, since a revert needs a
+  concurrent migration. `pose` is for the multithreaded case.
 
 ## Pointerarray: grow-only, no removals
 

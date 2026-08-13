@@ -51,20 +51,6 @@ int   main( void)
           "hashmap remove invalid value");
    check( mulle_concurrent_hashmap_remove( &map, 1, MULLE_CONCURRENT_TOMBSTONE_POINTER) == EINVAL,
           "hashmap remove tombstone value");
-   check( mulle_concurrent_hashmap_patch( NULL, 1, (void *) 2, (void *) 1) == EINVAL,
-          "hashmap patch NULL");
-   check( mulle_concurrent_hashmap_patch( &map, MULLE_CONCURRENT_NO_HASH, (void *) 2, (void *) 1) == EINVAL,
-          "hashmap patch no hash");
-   check( mulle_concurrent_hashmap_patch( &map, 1, MULLE_CONCURRENT_NO_POINTER, (void *) 1) == EINVAL,
-          "hashmap patch NULL value");
-   check( mulle_concurrent_hashmap_patch( &map, 1, MULLE_CONCURRENT_TOMBSTONE_POINTER, (void *) 1) == EINVAL,
-          "hashmap patch tombstone value");
-   check( mulle_concurrent_hashmap_patch( &map, 1, (void *) 2, MULLE_CONCURRENT_NO_POINTER) == EINVAL,
-          "hashmap patch NULL expect");
-   check( mulle_concurrent_hashmap_patch( &map, 1, (void *) 2, MULLE_CONCURRENT_INVALID_POINTER) == EINVAL,
-          "hashmap patch invalid expect");
-   check( mulle_concurrent_hashmap_patch( &map, 1, (void *) 2, MULLE_CONCURRENT_TOMBSTONE_POINTER) == EINVAL,
-          "hashmap patch tombstone expect");
 
    errno = 0;
    check( mulle_concurrent_hashmap_register( NULL, 1, (void *) 1) == MULLE_CONCURRENT_INVALID_POINTER &&
@@ -86,19 +72,11 @@ int   main( void)
 
    check( mulle_concurrent_hashmap_insert( &map, 1, (void *) 10) == 0,
           "hashmap insert valid");
-   check( mulle_concurrent_hashmap_patch( &map, 1, (void *) 20, (void *) 10) == 0,
-          "hashmap patch valid");
-   check( mulle_concurrent_hashmap_lookup( &map, 1) == (void *) 20,
-          "hashmap patched value");
-   check( mulle_concurrent_hashmap_patch( &map, 1, (void *) 30, MULLE_CONCURRENT_INVALID_POINTER) == EINVAL,
-          "hashmap invalid expect after insert");
-   check( mulle_concurrent_hashmap_lookup( &map, 1) == (void *) 20,
-          "hashmap invalid patch unchanged");
 
    // duplicate / register / remove / convenience semantics
-   check( mulle_concurrent_hashmap_insert( &map, 1, (void *) 20) == EEXIST,
+   check( mulle_concurrent_hashmap_insert( &map, 1, (void *) 10) == EEXIST,
           "hashmap duplicate insert");
-   check( mulle_concurrent_hashmap_register( &map, 1, (void *) 20) == (void *) 20,
+   check( mulle_concurrent_hashmap_register( &map, 1, (void *) 20) == (void *) 10,
           "hashmap register existing");
    check( mulle_concurrent_hashmap_register( &map, 2, (void *) 30) == MULLE_CONCURRENT_NO_POINTER,
           "hashmap register fresh");

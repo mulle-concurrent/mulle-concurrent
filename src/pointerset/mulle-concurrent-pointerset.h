@@ -153,7 +153,7 @@ static inline struct mulle_allocator *
    mulle_concurrent_pointerset_get_allocator( struct mulle_concurrent_pointerset *set)
 {
    return( set
-           ? (struct mulle_allocator *) _mulle_atomic_pointer_read( &set->allocator)
+           ? (struct mulle_allocator *) _mulle_atomic_pointer_read_relaxed( &set->allocator)
            : NULL);
 }
 
