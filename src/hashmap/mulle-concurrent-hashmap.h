@@ -73,7 +73,6 @@ struct _mulle_concurrent_hashvaluepair
 struct _mulle_concurrent_hashmapstorage
 {
    mulle_atomic_pointer_t   n_hashs;       // claimed slots, live or tombstoned
-   mulle_atomic_pointer_t   n_tombstones;  // claimed slots holding TOMBSTONE
    uintptr_t                mask;          // easier to read from debugger if void * size
 
    struct _mulle_concurrent_hashvaluepair  entries[ 1];
@@ -132,11 +131,6 @@ int  _mulle_concurrent_hashmap_insert( struct mulle_concurrent_hashmap *map,
                                        intptr_t hash,
                                        void *value);
 
-MULLE__CONCURRENT_GLOBAL
-int  _mulle_concurrent_hashmap_patch( struct mulle_concurrent_hashmap *map,
-                                      intptr_t hash,
-                                      void *value,
-                                      void *expect);
 
 MULLE__CONCURRENT_GLOBAL
 void  *_mulle_concurrent_hashmap_lookup( struct mulle_concurrent_hashmap *map,
@@ -209,29 +203,6 @@ int   mulle_concurrent_hashmap_insert( struct mulle_concurrent_hashmap *map,
                                        intptr_t hash,
                                        void *value);
 
-// ****WARNING*** EXPERIMENTAL: COULD BE BUGGY NOT AS WELL TESTED AS THE
-//                              OTHER FUNCTIONS
-//
-// This function is supposed to change the value of an existing entry.
-//
-// expect must be != value
-//
-// Return value (rval):
-//   0      : OK, patched
-//   EEXIST : found entry with other expected value
-//   ENOENT : no entry found
-//   EINVAL : invalid argument
-//
-// Do not use hash=0
-// Do not use value=0 or value=INTPTR_MIN
-//
-MULLE__CONCURRENT_GLOBAL
-int   mulle_concurrent_hashmap_patch( struct mulle_concurrent_hashmap *map,
-                                       intptr_t hash,
-                                       void *value,
-                                       void *expect);
-
-
 
 // if rval == NULL, not found
 
@@ -253,6 +224,27 @@ MULLE__CONCURRENT_GLOBAL
 int   mulle_concurrent_hashmap_remove( struct mulle_concurrent_hashmap *map,
                                        intptr_t hash,
                                        void *value);
+
+
+
+#ifdef HAVE_MULLE_CONCURRENT_POSEAS_PATCH
+//
+// These are narrow-scope "hack" functions for the runtime.  They work, but
+// their contracts are too restrictive for a public API.  Do not use them
+// unless you are mulle-objc-runtime (or know exactly what you are doing).
+//
+MULLE__CONCURRENT_GLOBAL
+int  _mulle_concurrent_hashmap_pose( struct mulle_concurrent_hashmap *map,
+                                     intptr_t hash,
+                                     void *value,
+                                     void *expect);
+
+MULLE__CONCURRENT_GLOBAL
+int  _mulle_concurrent_hashmap_patch( struct mulle_concurrent_hashmap *map,
+                                      intptr_t hash,
+                                      void *value);  // single-threaded only
+#endif
+
 
 
 #pragma mark - limited multi-threaded
@@ -311,6 +303,8 @@ static inline void
 {
    MULLE_C_UNUSED( rover);
 }
+
+
 
 
 #pragma mark - enumerator conveniences

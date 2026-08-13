@@ -1,7 +1,8 @@
-// Race probe: one thread owns a single key and does remove/register/patch
+// Race probe: one thread owns a single key and does remove/register/pose
 // on it while other threads hammer inserts to force constant migration.
 // If the remove-vs-migration interaction loses or resurrects a value, the
 // checks below catch it.
+#define HAVE_MULLE_CONCURRENT_POSEAS_PATCH
 #include <mulle-concurrent/mulle-concurrent.h>
 
 #include <mulle-testallocator/mulle-testallocator.h>
@@ -18,7 +19,7 @@ static struct mulle_concurrent_hashmap   g_map;
 static volatile int                      g_stop;
 static intptr_t                          g_key     = 777777;
 static void                              *g_value   = (void *) 0x1234;
-static void                              *g_patched = (void *) 0x5678;
+static void                              *g_posed = (void *) 0x5678;
 
 static int   g_failed;
 
@@ -67,8 +68,8 @@ static void  *owner( void *unused)
 
    for( i = 0; i < N_ITERS; i++)
    {
-      // remove the key (expect the current value: patched after a patch)
-      rval = mulle_concurrent_hashmap_remove( &g_map, g_key, g_patched);
+      // remove the key (expect the current value: posed after a pose)
+      rval = mulle_concurrent_hashmap_remove( &g_map, g_key, g_posed);
       if( rval != 0 && rval != ENOENT)
       {
          fail( "remove rval %d", rval);
@@ -88,20 +89,20 @@ static void  *owner( void *unused)
          return( (void *) 1);
       }
 
-      // patch the value
-      rval = mulle_concurrent_hashmap_patch( &g_map, g_key, g_patched, g_value);
+      // pose the value
+      rval = _mulle_concurrent_hashmap_pose( &g_map, g_key, g_posed, g_value);
       if( rval != 0)
       {
-         fail( "patch rval %d at %d", rval, i);
+         fail( "pose rval %d at %d", rval, i);
          return( (void *) 1);
       }
 
-      // register again: must return the patched value
+      // register again: must return the posed value
       result = mulle_concurrent_hashmap_register( &g_map, g_key, g_value);
-      if( result != g_patched)
+      if( result != g_posed)
       {
-         fail( "register stale at %d: returned %p, expected patched %p",
-               i, result, g_patched);
+         fail( "register stale at %d: returned %p, expected posed %p",
+               i, result, g_posed);
          return( (void *) 1);
       }
    }
@@ -124,8 +125,8 @@ int   main( void)
    mulle_aba_register();
 
    mulle_concurrent_hashmap_init( &g_map, 4, NULL);
-   // seed the key with the patched value so remove() sees it
-   mulle_concurrent_hashmap_insert( &g_map, g_key, g_patched);
+   // seed the key with the posed value so remove() sees it
+   mulle_concurrent_hashmap_insert( &g_map, g_key, g_posed);
 
    for( i = 0; i < N_MIGRATORS; i++)
    {

@@ -77,12 +77,6 @@ int  mulle_concurrent_hashmap_insert( struct mulle_concurrent_hashmap *map, intp
 Insert hash/value pair. Returns 0 on success, EEXIST if duplicate, EINVAL, ENOMEM.
 
 ```c
-int  _mulle_concurrent_hashmap_patch( struct mulle_concurrent_hashmap *map, intptr_t hash, void *value, void *expect);
-int  mulle_concurrent_hashmap_patch( struct mulle_concurrent_hashmap *map, intptr_t hash, void *value, void *expect);
-```
-**EXPERIMENTAL** — conditionally update existing entry's value atomically. Returns 0 if patched, EEXIST if different value, ENOENT if not found, EINVAL, ENOMEM.
-
-```c
 void  *_mulle_concurrent_hashmap_lookup( struct mulle_concurrent_hashmap *map, intptr_t hash);
 void  *mulle_concurrent_hashmap_lookup( struct mulle_concurrent_hashmap *map, intptr_t hash);
 ```
@@ -370,7 +364,7 @@ Umbrella header including all: types, hashmap, pointerarray, pointerset, and ver
 ```c
 #define MULLE__CONCURRENT_VERSION  ((3UL << 20) | (2 << 8) | 0)
 ```
-Encoded version: (major << 20) | (minor << 8) | patch.
+Encoded version: (major << 20) | (minor << 8) | revision.
 
 ## 4. Performance Characteristics
 
@@ -436,9 +430,8 @@ Encoded version: (major << 20) | (minor << 8) | patch.
 5. **Ignoring ECANCELLED** during enumeration leads to incomplete iteration.
 6. **Assuming count accuracy** in multi-threaded contexts.
 7. **Sharing enumerators** between threads — each thread must create its own.
-8. **`mulle_concurrent_hashmap_patch()` is experimental** — prefer remove+insert for production code.
-9. **Pointerset member with NULL** returns 0 silently without setting errno.
-10. **Pointerset tombstone accumulation** — heavy remove usage triggers early migration.
+8. **Pointerset member with NULL** returns 0 silently without setting errno.
+9. **Pointerset tombstone accumulation** — heavy remove usage triggers early migration.
 
 ### Idiomatic Usage
 

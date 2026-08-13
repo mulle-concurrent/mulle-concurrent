@@ -1,7 +1,7 @@
 // Deterministic model check.
 //
 // Each thread owns a disjoint key range and runs a fixed, seeded operation
-// sequence (lookup / register / remove / patch) while the shared storage
+// sequence (lookup / register / remove / pose) while the shared storage
 // migrates underneath. Because keys are disjoint, the sequential specification
 // per key is the thread's own model, so every result is checkable against it
 // regardless of interleaving. After the threads join, the final container
@@ -71,7 +71,7 @@ static void   *value_for_key( intptr_t key)
 }
 
 
-static void   *patched_value_for_key( intptr_t key)
+static void   *posed_value_for_key( intptr_t key)
 {
    return( (void *)(uintptr_t)((uintptr_t) key * 10 + 6));
 }
@@ -101,7 +101,14 @@ static void  worker( struct worker_context *context)
       key = global_key( thread, k);
       value = value_for_key( key);
 
-      switch( xorshift64star( &rng) % 10)
+      //
+      // pose() is deliberately absent from this mix. It performs a full
+      // migration per call (see dox/POSEAS-PATCH.md), so putting it in a hot
+      // randomized loop would double the map thousands of times and test
+      // nothing but the allocator. It has dedicated coverage in pose.c and
+      // pose_stress.c.
+      //
+      switch( xorshift64star( &rng) % 9)
       {
       case 0:
       case 1:
@@ -131,7 +138,7 @@ static void  worker( struct worker_context *context)
                check( model[ thread][ k] == NULL, "model register tombstone" );
             else
             {
-               // register returns the stored value, which may be patched
+               // register returns the stored value, which may be posed
                if( ! (result == model[ thread][ k] && model[ thread][ k] != NULL))
                {
                   printf( "DBG thread %u k %u op %u: register returned %p, model %p\n",
@@ -158,17 +165,7 @@ static void  worker( struct worker_context *context)
          break;
 
       default:
-         // patch: only succeeds when the current value matches expect
-         rval = mulle_concurrent_hashmap_patch( map, key, patched_value_for_key( key), value);
-         if( model[ thread][ k] == value)
-         {
-            check( rval == 0, "model patch present" );
-            model[ thread][ k] = patched_value_for_key( key);
-         }
-         else
-         {
-            check( rval == ENOENT || rval == EEXIST, "model patch absent" );
-         }
+         break;
          break;
       }
    }
