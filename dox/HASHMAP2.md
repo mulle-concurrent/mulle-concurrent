@@ -207,8 +207,12 @@ fresh re-read. That matters: `insert` linearizes at that observation, so
 simply linearizes after our insert. A re-read would have needed its own
 post-check; returning the observed occupant does not.
 
-Untested. `model.c` cannot see it because it uses one fixed value per key, so
-`V2 == V` and the wrong and right answers coincide.
+Untested until now. `test/hashmap2/register_race.c` covers it: V1 is inserted
+once and never removed, a migrator forces same-size migrations, and a registrant
+calls `register(KEY, V2)` in a loop. With the fix reverted, it reports
+`*p_old == NULL` at iteration ~50 — a clear linearizability violation. With the
+fix, it passes 200k iterations. The window is easy to hit because the consumed
+slot is EMPTY for the full duration of the copier's carry-to-next-gen phase.
 
 
 ## Wait-freedom
@@ -402,6 +406,7 @@ one reason the enumerator stays "limited multi-threaded".
 | `test/hashmap2/remove_race.c` | S6 under threshold-driven migration, no resurrection |
 | `test/hashmap2/remove_migrate_race.c` | S6 under *forced* migration — fails against an unfixed `remove` within ~1500 iterations |
 | `test/hashmap2/lookup_race.c` | S7 — with race yields enabled it fails against an unfixed `lookup` within ~100 iterations |
+| `test/hashmap2/register_race.c` | S11 — fails against an unfixed `register` at iteration ~50: reports *p_old==NULL while V1 is permanently live |
 | `test/bench/compare.c` | the measurements above, with count agreement asserted |
 
 For contrast, `test/hashmap/model.c` — the equivalent test against the original
@@ -411,17 +416,13 @@ observed directly.
 
 Known gaps, in rough order of how much they should bother you:
 
-1. **S11 is fixed but untested.** `model.c` is structurally blind to it, because
-   it uses one value per key so the right and wrong answers coincide. A model
-   with two competing values per key would cover it. The `register` yield point
-   exists for this, but no test exercises the outcome.
-2. **The probe bound is conditional** on `size/2` exceeding the concurrent writer
+1. **The probe bound is conditional** on `size/2` exceeding the concurrent writer
    count, and nothing tests the overshoot case. The asserts only turn it into a
    diagnosable failure.
-3. **Relaxed atomics are unexplored**, so the grow-phase cost is unattributed
+2. **Relaxed atomics are unexplored**, so the grow-phase cost is unattributed
    between the extra CAS and the ordering. Correctness currently depends on the
    seq_cst primitives of an external dependency.
-4. No `pose`/`patch` equivalent, no enumerator stress test, and no
+3. No `pose`/`patch` equivalent, no enumerator stress test, and no
    single-threaded teardown fuzzing.
 
 

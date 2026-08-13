@@ -96,8 +96,17 @@ static inline void   hashmap2_race_yield( void)
 // uses it. Folding is not the identity, but a hash is a hash. 0 stays
 // reserved as the "unclaimed" token, so a fold to 0 is nudged to 1.
 //
+// IMPORTANT: The topmost bit is reserved for FROZEN. A hash with the topmost
+// bit set will be silently aliased to its & INTPTR_MAX equivalent. The assert
+// catches this in debug builds. On 32-bit platforms this means hashes must be
+// in [1, 0x7FFFFFFF]; on 64-bit in [1, 0x7FFFFFFFFFFFFFFF]. If you use
+// pointer identity as the hash, this is safe on 64-bit (user-space pointers
+// never set bit 63) but UNSAFE on 32-bit where addresses above 0x80000000
+// will alias with their lower-half counterpart.
+//
 static inline intptr_t   hashmap2_fold_hash( intptr_t hash)
 {
+   assert( (hash & FROZEN) == 0 && "hash has FROZEN bit set — will alias!");
    hash &= INTPTR_MAX;
    return( hash ? hash : 1);
 }

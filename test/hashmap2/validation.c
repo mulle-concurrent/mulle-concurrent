@@ -91,15 +91,31 @@ int   main( void)
           "remove TOMBSTONE_POINTER payload" );
 
    //
-   // the FROZEN bit is folded away, so a hash with the top bit set is usable
-   // and lands in the same slot as its folded twin
+   // The FROZEN bit (topmost) is RESERVED. Passing a hash with that bit set
+   // is a caller bug (asserts in debug builds). The usable hash space is
+   // [1, INTPTR_MAX]. On LP64 user-space pointers never have bit 63 set, so
+   // pointer-as-hash is safe. On ILP32 pointers above 0x80000000 are NOT
+   // usable as hashes without masking.
    //
-   check( mulle_concurrent_hashmap2_insert( &map, INTPTR_MIN | 12345, (void *) 0x99) == 0,
-          "insert hash with top bit set" );
-   check( mulle_concurrent_hashmap2_lookup( &map, INTPTR_MIN | 12345) == (void *) 0x99,
-          "lookup hash with top bit set" );
-   check( mulle_concurrent_hashmap2_lookup( &map, 12345) == (void *) 0x99,
-          "top bit is folded away" );
+   // We do NOT test INTPTR_MIN|x here — it would fire the assert.
+   //
+
+   // edge case: hash == 1 is fine (0 is nudged to 1 internally but the
+   // caller should not rely on that; explicit 1 must work)
+   check( mulle_concurrent_hashmap2_insert( &map, 1, (void *) 0x77) == 0,
+          "insert hash=1" );
+   check( mulle_concurrent_hashmap2_lookup( &map, 1) == (void *) 0x77,
+          "lookup hash=1" );
+   check( mulle_concurrent_hashmap2_remove( &map, 1, (void *) 0x77) == 0,
+          "remove hash=1" );
+
+   // INTPTR_MAX is the largest legal hash
+   check( mulle_concurrent_hashmap2_insert( &map, INTPTR_MAX, (void *) 0x88) == 0,
+          "insert hash=INTPTR_MAX" );
+   check( mulle_concurrent_hashmap2_lookup( &map, INTPTR_MAX) == (void *) 0x88,
+          "lookup hash=INTPTR_MAX" );
+   check( mulle_concurrent_hashmap2_remove( &map, INTPTR_MAX, (void *) 0x88) == 0,
+          "remove hash=INTPTR_MAX" );
 
    mulle_concurrent_hashmap2_done( &map);
    mulle_aba_unregister();
