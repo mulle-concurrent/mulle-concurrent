@@ -13,6 +13,7 @@ endif()
 set( INCLUDE_DIRS
 src/reflect
 src/generic
+src/hashmap2
 src/hashmap
 src
 src/pointerarray
@@ -53,6 +54,7 @@ src/generic/include.h
 # contents selected with patternfile ??-header--public-headers
 #
 set( PUBLIC_HEADERS
+src/hashmap2/mulle-concurrent-hashmap2.h
 src/hashmap/mulle-concurrent-hashmap.h
 src/mulle-concurrent.h
 src/mulle-concurrent-types.h

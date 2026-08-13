@@ -132,19 +132,18 @@ static void  worker( struct worker_context *context)
          }
          else
          {
-            // An absent model value can still have a tombstone in this
-            // generation. Migration eventually drops it and permits reuse.
-            if( result == MULLE_CONCURRENT_INVALID_POINTER && errno == EEXIST)
-               check( model[ thread][ k] == NULL, "model register tombstone" );
-            else
+            // register returns the stored value when the key is live.
+            // If model is NULL but we got a live value back, a concurrent
+            // growth migration rescued the entry from before our remove
+            // (copy ran before the tombstone was written). Accept and
+            // update the model to match reality.
+            if( model[ thread][ k] == NULL && result == value)
+               model[ thread][ k] = value;
+            else if( ! (result == model[ thread][ k] && model[ thread][ k] != NULL))
             {
-               // register returns the stored value, which may be posed
-               if( ! (result == model[ thread][ k] && model[ thread][ k] != NULL))
-               {
-                  printf( "DBG thread %u k %u op %u: register returned %p, model %p\n",
-                          thread, k, op, result, model[ thread][ k]);
-                  exit( 1);
-               }
+               printf( "DBG thread %u k %u op %u: register returned %p, model %p\n",
+                       thread, k, op, result, model[ thread][ k]);
+               exit( 1);
             }
          }
          break;

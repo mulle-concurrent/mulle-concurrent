@@ -1,0 +1,4 @@
+benchmark: mixed insert/lookup/remove
+benchmark: read-heavy lookup
+benchmark: grow insert
+PASSED

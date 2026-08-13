@@ -13,6 +13,7 @@
 #define _mulle__concurrent__provide_h__
 
 
+#include "mulle-concurrent-hashmap2.h"
 #include "mulle-concurrent-hashmap.h"
 #include "mulle-concurrent-types.h"
 #include "mulle-concurrent-pointerarray.h"

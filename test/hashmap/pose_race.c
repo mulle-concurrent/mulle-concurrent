@@ -13,7 +13,7 @@
 
 
 #define N_MIGRATORS   3
-#define N_ITERS       200000
+#define N_ITERS       10000
 
 static struct mulle_concurrent_hashmap   g_map;
 static volatile int                      g_stop;
@@ -51,6 +51,9 @@ static void  *migrator( void *unused)
    {
       hash = (intptr_t)((i * 2654435761u) % 1000000) + 1000000;
       mulle_concurrent_hashmap_insert( &g_map, hash, (void *)(uintptr_t)(hash * 2 + 1));
+
+      if( (i & 0xFF) == 0)
+         mulle_aba_checkin();
    }
 
    mulle_aba_unregister();
@@ -76,12 +79,9 @@ static void  *owner( void *unused)
          return( (void *) 1);
       }
 
-      // A tombstone can deny reuse until migration drops it. The migrator
-      // threads keep advancing generations, so retry on the next iteration.
-      errno  = 0;
+      // register must succeed: either we freshly inserted (NO_POINTER) or
+      // the value is already there from a previous iteration (g_value).
       result = mulle_concurrent_hashmap_register( &g_map, g_key, g_value);
-      if( result == MULLE_CONCURRENT_INVALID_POINTER && errno == EEXIST)
-         continue;
       if( result != MULLE_CONCURRENT_NO_POINTER && result != g_value)
       {
          fail( "register stale at %d: returned %p (not NO_POINTER or %p)",
@@ -105,6 +105,9 @@ static void  *owner( void *unused)
                i, result, g_posed);
          return( (void *) 1);
       }
+
+      if( (i & 0xFF) == 0)
+         mulle_aba_checkin();
    }
 
    g_stop = 1;

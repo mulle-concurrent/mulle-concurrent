@@ -82,26 +82,52 @@ requires only a fixed number of state-dependent CAS attempts, so copying is
 
 ## Nested migration
 
-Migration always doubles storage capacity. It never creates a same-sized
-successor. At the representable size limit it aborts instead of allowing the
-capacity calculation to wrap.
+Capacity-triggered migration always doubles storage capacity. It never creates
+a same-sized successor. At the representable size limit it aborts instead of
+allowing the capacity calculation to wrap.
 
 If `put` reaches a destination slot already marked `REDIRECT`, that destination
 is itself migrating. `put` follows `map->next_storage` and continues in the
 newer generation. Each recursion advances to a strictly larger storage, so its
 depth is bounded by the number of remaining capacity doublings.
 
+## Same-size migration (tombstone cleanup)
+
+When `insert` or `register` encounters a tombstoned slot, it triggers a
+**same-size migration**: the new storage has the same capacity as the old one,
+but tombstones are dropped during copy, freeing the slot for reuse.
+
+This is effectively a growth step from the wait-free argument's perspective:
+the tombstone occupied a claimed slot, so the new storage — while nominally
+the same capacity — has strictly more *available* slots. The retry after a
+same-size migration always succeeds because the tombstone that blocked it is
+gone.
+
+A same-size migration cannot chain during a single operation: after one
+same-size hop the tombstone is dropped and the operation completes. A `put`
+during copy of a same-size migration may itself encounter REDIRECT in the
+destination (if that destination is being migrated away by another thread),
+but that next hop is necessarily to a *larger* storage (capacity-triggered),
+so the recursion depth remains bounded.
+
+**Performance note**: same-size migration copies the entire table to clear a
+single tombstone. For remove-heavy workloads that reuse keys, this is
+expensive. A future optimization may refill tombstones in place at the
+storage level without breaking the copier's bounded-work guarantee.
+
 ## Register retries
 
-Register retries for two reasons:
+Register retries for three reasons:
 
 1. the current generation reached its claimed-slot threshold; or
-2. its target value was already redirected by migration.
+2. its target value was already redirected by migration; or
+3. its target slot is tombstoned (triggers same-size migration).
 
 A retry may encounter another generation that concurrent threads have already
 filled or begun migrating. This cannot continue without bound: `map->storage`
-only advances, every successor is twice as large, and ABA reclamation prevents
-an old generation from reappearing as a current one.
+only advances, every successor is at least the same size (and strictly larger
+on capacity triggers), and ABA reclamation prevents an old generation from
+reappearing as a current one.
 
 For every encountered generation, probing, copying and redirect following are
 bounded. The number of generations is also bounded, so the complete register
@@ -109,12 +135,9 @@ operation is wait-free.
 
 ## Related API behavior
 
-A removed hash remains claimed by a tombstone until migration. During that
-generation:
-
-- `mulle_concurrent_hashmap_insert` returns `EEXIST`;
-- `mulle_concurrent_hashmap_register` returns
-  `MULLE_CONCURRENT_INVALID_POINTER` and sets `errno` to `EEXIST`.
+A removed hash is immediately reusable. `insert` and `register` on a removed
+key internally trigger a same-size migration to drop the tombstone, then retry
+successfully. The caller never observes `EEXIST` for a dead key.
 
 `count` and enumeration are weakly consistent observations. They may be
 canceled or restarted by migration and are not part of the point-operation

@@ -52,10 +52,18 @@ int   main( void)
       check( mulle_concurrent_hashmap_remove( &map, key, value) == 0,
              "remove" );
 
-      errno  = 0;
       result = mulle_concurrent_hashmap_register( &map, key, other);
-      check( result == MULLE_CONCURRENT_INVALID_POINTER && errno == EEXIST,
-             "register tombstone denied" );
+      check( result == MULLE_CONCURRENT_NO_POINTER,
+             "register after remove succeeds" );
+
+      // clean up for next iteration
+      check( mulle_concurrent_hashmap_remove( &map, key, other) == 0,
+             "remove other" );
+
+      // Same-size migration on tombstone reuse ABA-frees old storage.
+      // Checkin so the epoch advances and memory is reclaimed.
+      if( (i & 0xFF) == 0)
+         mulle_aba_checkin();
    }
 
    mulle_concurrent_hashmap_done( &map);

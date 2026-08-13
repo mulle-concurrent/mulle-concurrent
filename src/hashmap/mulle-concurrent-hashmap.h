@@ -219,6 +219,13 @@ static inline void
 // if rval == 0, removed
 // rval == ENOENT, not found (hash/value pair does not exist (anymore))
 // rval == EINVAL, parameter has invalid value
+//
+// Removing leaves a tombstone. Reinserting the same hash is supported but
+// triggers a same-size migration (full table copy) to drop the tombstone.
+// This is correct and wait-free, but slow for tight remove/reinsert cycles
+// on the same hash. A different hash probing through a tombstoned slot is
+// unaffected — it simply skips it without any migration cost.
+//
 
 MULLE__CONCURRENT_GLOBAL
 int   mulle_concurrent_hashmap_remove( struct mulle_concurrent_hashmap *map,
