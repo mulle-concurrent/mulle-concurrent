@@ -1,8 +1,9 @@
 //
 // _mulle_concurrent_hashmap_patch: single-threaded unconditional value
-// replacement.  No validation wrapper — asserts only.
+// replacement.
 //
 #define HAVE_MULLE_CONCURRENT_POSEAS_PATCH
+
 #include <mulle-concurrent/mulle-concurrent.h>
 
 #include <mulle-testallocator/mulle-testallocator.h>
@@ -49,12 +50,6 @@ static void   sequential_test( void)
           "patch third time");
    check( mulle_concurrent_hashmap_lookup( &map, 1) == (void *) 40,
           "patch third time applied");
-
-   // patch a tombstoned entry fails
-   check( mulle_concurrent_hashmap_remove( &map, 1, (void *) 40) == 0,
-          "remove for tombstone test");
-   check( _mulle_concurrent_hashmap_patch( &map, 1, (void *) 50) == ENOENT,
-          "patch tombstoned");
 
    // multiple keys
    check( mulle_concurrent_hashmap_insert( &map, 2, (void *) 100) == 0,

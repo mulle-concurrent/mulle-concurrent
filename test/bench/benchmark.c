@@ -248,7 +248,7 @@ struct worker_context
 
 static struct mutex_map    g_mutex_map;
 static struct mutex_array  g_mutex_array;
-static struct mulle_concurrent_hashmap       g_mulle_map;
+static struct mulle_concurrent_hashtable       g_mulle_map;
 static struct mulle_concurrent_pointerarray  g_mulle_array;
 
 
@@ -273,14 +273,14 @@ static void  write_worker( struct worker_context *context)
          if( context->kind == 0)
             mutex_map_insert( &g_mutex_map, hash, value_for_hash( hash));
          else
-            mulle_concurrent_hashmap_insert( &g_mulle_map, hash, value_for_hash( hash));
+            mulle_concurrent_hashtable_insert( &g_mulle_map, hash, value_for_hash( hash));
       }
       else
       {
          if( context->kind == 0)
             mutex_map_remove( &g_mutex_map, hash);
          else
-            mulle_concurrent_hashmap_remove( &g_mulle_map, hash, value_for_hash( hash));
+            mulle_concurrent_hashtable_remove( &g_mulle_map, hash, value_for_hash( hash));
       }
    }
 
@@ -301,7 +301,7 @@ static void  read_worker( struct worker_context *context)
       if( context->kind == 0)
          mutex_map_lookup( &g_mutex_map, hash);
       else
-         mulle_concurrent_hashmap_lookup( &g_mulle_map, hash);
+         mulle_concurrent_hashtable_lookup( &g_mulle_map, hash);
    }
 
    mulle_aba_unregister();
@@ -379,7 +379,7 @@ int   main( void)
    mulle_aba_register();
 
    mutex_map_init( &g_mutex_map, N_KEYS);
-   mulle_concurrent_hashmap_init( &g_mulle_map, 1024, NULL);
+   mulle_concurrent_hashtable_init( &g_mulle_map, 1024, NULL);
 
    // write-heavy
    mutex_elapsed = run_phase( 0, 0);
@@ -399,7 +399,7 @@ int   main( void)
       for( i = 0; i < N_KEYS; i++)
       {
          mutex_map_insert( &g_mutex_map, i, value_for_hash( i));
-         mulle_concurrent_hashmap_insert( &g_mulle_map, i, value_for_hash( i));
+         mulle_concurrent_hashtable_insert( &g_mulle_map, i, value_for_hash( i));
       }
    }
    mutex_elapsed = run_phase( 0, 1);
@@ -425,7 +425,7 @@ int   main( void)
 
    mutex_array_done( &g_mutex_array);
    mulle_concurrent_pointerarray_done( &g_mulle_array);
-   mulle_concurrent_hashmap_done( &g_mulle_map);
+   mulle_concurrent_hashtable_done( &g_mulle_map);
    mutex_map_done( &g_mutex_map);
 
    mulle_aba_unregister();

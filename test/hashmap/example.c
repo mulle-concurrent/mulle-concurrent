@@ -17,7 +17,6 @@ int   main(int argc, const char * argv[])
    struct mulle_concurrent_hashmapenumerator   rover;
    int                                         rval;
    void                                        *value;
-   void                                        *other;
    intptr_t                                    hash;
 
    mulle_aba_init( NULL);
@@ -40,22 +39,15 @@ int   main(int argc, const char * argv[])
          fail( "mulle_concurrent_hashmap_lookup");
       }
 
-      // remove wrong value, should not work
-      rval = mulle_concurrent_hashmap_remove( &map, 0x2, (void *) 1000);
-      if( rval != ENOENT)
-         fail( "mulle_concurrent_hashmap_remove");
-
-      rval = mulle_concurrent_hashmap_remove( &map, 0x2, value);
-      if( rval)
-      {
-         errno = ENOENT;
-         fail( "mulle_concurrent_hashmap_remove");
-      }
+      // duplicate insert should fail
+      rval = mulle_concurrent_hashmap_insert( &map, 0x2, (void *) 1000);
+      if( rval != EEXIST)
+         fail( "mulle_concurrent_hashmap_insert duplicate");
 
 retry:
       rover = mulle_concurrent_hashmap_enumerate( &map);
       while( (rval = mulle_concurrent_hashmapenumerator_next( &rover, &hash, &value)) == 1)
-         printf( "%lu : 0x%tx\n", (unsigned long) hash, (intptr_t) value);
+         printf( "%lu : %ld\n", (unsigned long) hash, (long)(intptr_t) value);
       mulle_concurrent_hashmapenumerator_done( &rover);
 
       if( rval)

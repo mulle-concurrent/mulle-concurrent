@@ -8,7 +8,7 @@
 // generation, the lookup finds the removed value again.
 //
 // The original hashmap fails this by design: it installs the carried value
-// before validating that it is still live. hashmap2 freezes first, so the
+// before validating that it is still live. hashtable freezes first, so the
 // carried value is provably final.
 //
 #include <mulle-concurrent/mulle-concurrent.h>
@@ -23,7 +23,7 @@
 #define N_ITERS       200000
 #define OWNED_KEY     777777
 
-static struct mulle_concurrent_hashmap2   g_map;
+static struct mulle_concurrent_hashtable   g_map;
 static volatile int                       g_stop;
 static int                                g_failed;
 static void                               *g_value = (void *) 0x1234;
@@ -41,8 +41,8 @@ static void  *migrator( void *unused)
    for( i = 0; ! g_stop; i++)
    {
       hash = (intptr_t)((i * 2654435761u) % 100000) + 1000000;
-      mulle_concurrent_hashmap2_insert( &g_map, hash, (void *)(uintptr_t)(hash * 2 + 1));
-      mulle_concurrent_hashmap2_remove( &g_map, hash, (void *)(uintptr_t)(hash * 2 + 1));
+      mulle_concurrent_hashtable_insert( &g_map, hash, (void *)(uintptr_t)(hash * 2 + 1));
+      mulle_concurrent_hashtable_remove( &g_map, hash, (void *)(uintptr_t)(hash * 2 + 1));
 
       if( (i & 0xFF) == 0)
          mulle_aba_checkin();
@@ -65,7 +65,7 @@ static void  *owner( void *unused)
 
    for( i = 0; i < N_ITERS && ! g_failed; i++)
    {
-      rval = mulle_concurrent_hashmap2_insert( &g_map, OWNED_KEY, g_value);
+      rval = mulle_concurrent_hashtable_insert( &g_map, OWNED_KEY, g_value);
       if( rval != 0)
       {
          printf( "FAILED: insert returned %d at %d\n", rval, i);
@@ -73,7 +73,7 @@ static void  *owner( void *unused)
          break;
       }
 
-      found = mulle_concurrent_hashmap2_lookup( &g_map, OWNED_KEY);
+      found = mulle_concurrent_hashtable_lookup( &g_map, OWNED_KEY);
       if( found != g_value)
       {
          printf( "FAILED: lookup lost the value at %d\n", i);
@@ -81,7 +81,7 @@ static void  *owner( void *unused)
          break;
       }
 
-      rval = mulle_concurrent_hashmap2_remove( &g_map, OWNED_KEY, g_value);
+      rval = mulle_concurrent_hashtable_remove( &g_map, OWNED_KEY, g_value);
       if( rval != 0)
       {
          printf( "FAILED: remove returned %d at %d\n", rval, i);
@@ -90,7 +90,7 @@ static void  *owner( void *unused)
       }
 
       // nobody else touches OWNED_KEY, so this must be absent
-      found = mulle_concurrent_hashmap2_lookup( &g_map, OWNED_KEY);
+      found = mulle_concurrent_hashtable_lookup( &g_map, OWNED_KEY);
       if( found != NULL)
       {
          printf( "FAILED: removed value resurrected at %d\n", i);
@@ -119,7 +119,7 @@ int   main( void)
    mulle_aba_init( NULL);
    mulle_aba_register();
 
-   mulle_concurrent_hashmap2_init( &g_map, 4, NULL);
+   mulle_concurrent_hashtable_init( &g_map, 4, NULL);
 
    for( i = 0; i < N_MIGRATORS; i++)
    {
@@ -138,7 +138,7 @@ int   main( void)
    for( i = 0; i < N_MIGRATORS + 1; i++)
       mulle_thread_join( threads[ i]);
 
-   mulle_concurrent_hashmap2_done( &g_map);
+   mulle_concurrent_hashtable_done( &g_map);
    mulle_aba_unregister();
    mulle_aba_done();
    mulle_testallocator_reset();

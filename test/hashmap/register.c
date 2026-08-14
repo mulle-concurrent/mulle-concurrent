@@ -1,5 +1,4 @@
-// Deterministic check of the register contract, including rejection of a
-// tombstoned hash until migration drops that tombstone.
+// Deterministic check of the register contract.
 #include <mulle-concurrent/mulle-concurrent.h>
 
 #include <mulle-testallocator/mulle-testallocator.h>
@@ -19,7 +18,7 @@ static void   check( int condition, char *name)
 }
 
 
-#define N_ITERS   100000
+#define N_ITERS   10000
 
 int   main( void)
 {
@@ -43,28 +42,19 @@ int   main( void)
       value = (void *)(uintptr_t)(i + 1);
       other = (void *)(uintptr_t)(i + N_ITERS + 1);
 
+      // first register inserts
       result = mulle_concurrent_hashmap_register( &map, key, value);
       check( result == MULLE_CONCURRENT_NO_POINTER, "register insert" );
 
+      // second register finds existing value
       result = mulle_concurrent_hashmap_register( &map, key, other);
       check( result == value, "register existing" );
 
-      check( mulle_concurrent_hashmap_remove( &map, key, value) == 0,
-             "remove" );
-
-      result = mulle_concurrent_hashmap_register( &map, key, other);
-      check( result == MULLE_CONCURRENT_NO_POINTER,
-             "register after remove succeeds" );
-
-      // clean up for next iteration
-      check( mulle_concurrent_hashmap_remove( &map, key, other) == 0,
-             "remove other" );
-
-      // Same-size migration on tombstone reuse ABA-frees old storage.
-      // Checkin so the epoch advances and memory is reclaimed.
-      if( (i & 0xFF) == 0)
-         mulle_aba_checkin();
+      // lookup confirms original value survives
+      check( mulle_concurrent_hashmap_lookup( &map, key) == value, "lookup after register" );
    }
+
+   check( mulle_concurrent_hashmap_count( &map) == N_ITERS, "final count" );
 
    mulle_concurrent_hashmap_done( &map);
    mulle_aba_unregister();

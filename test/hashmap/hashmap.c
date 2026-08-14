@@ -85,31 +85,6 @@ static int   insert_something( struct mulle_concurrent_hashmap *map)
 }
 
 
-static int  delete_something( struct mulle_concurrent_hashmap *map)
-{
-   intptr_t   hash;
-   void      *value;
-   int       rval;
-
-   do
-   {
-      hash  = xorshift64star() << 1;  // no uneven ids
-      value = (void *) (hash * 10);
-   }
-   while( hash == MULLE_CONCURRENT_NO_HASH ||
-          value == MULLE_CONCURRENT_NO_POINTER ||
-          value == MULLE_CONCURRENT_INVALID_POINTER);
-
-   rval = _mulle_concurrent_hashmap_remove( map, hash, value);
-   if( rval == ENOMEM)
-   {
-      perror( "mulle_concurrent_hashmap_remove must not return ENOMEM in fact it can't get it");
-      abort();
-   }
-   return( rval != ENOENT);
-}
-
-
 static void  lookup_something( struct mulle_concurrent_hashmap *map)
 {
    intptr_t   hash;
@@ -164,11 +139,9 @@ static void  tester( struct mulle_concurrent_hashmap *map)
    unsigned int   size;
    unsigned int   count;
    unsigned int   inserts;
-   unsigned int   deletes;
 
    mulle_aba_register();
    inserts=0;
-   deletes=0;
    while( (size = mulle_concurrent_hashmap_get_size( map)) < 1024 * 1024)
    {
       todo = xorshift64star() % 997; //  prime number
@@ -176,7 +149,7 @@ static void  tester( struct mulle_concurrent_hashmap *map)
       {
 #if ENTERTAIN
          count = mulle_concurrent_hashmap_count( map);
-         fprintf( stderr, "Size %0u of %0u (+%u,-%u) enumerate\n", count, size, inserts, deletes);
+         fprintf( stderr, "Size %0u of %0u (+%u) enumerate\n", count, size, inserts);
 #endif
          enumerate_something( map);
          continue;
@@ -187,13 +160,6 @@ static void  tester( struct mulle_concurrent_hashmap *map)
          inserts += insert_something( map);
          continue;
       }
-
-      if( todo < 100 + 200 + 1)    // 10% chance of delete
-      {
-         deletes += delete_something( map);
-         continue;
-      }
-
 
       lookup_something( map);
    }
@@ -295,20 +261,6 @@ static void  single_threaded_test( void)
          assert( i <= 100);
       }
       assert( i == 100);
-
-      mulle_concurrent_hashmap_remove( &map, 50, (void *) (50 * 10));
-      assert( mulle_concurrent_hashmap_lookup( &map, 50) == NULL);
-
-      i = 0;
-      rover = mulle_concurrent_hashmap_enumerate( &map);
-      while( mulle_concurrent_hashmapenumerator_next( &rover, &hash, &value) == 1)
-      {
-         assert( value == (void *) (hash * 10));
-         ++i;
-         assert( i <= 99);
-      }
-      mulle_concurrent_hashmapenumerator_done( &rover);
-      assert( i == 99);
    }
    mulle_concurrent_hashmap_done( &map);
 

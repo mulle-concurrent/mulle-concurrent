@@ -1,6 +1,6 @@
-# hashmap2: migration state in the hash word
+# hashtable: migration state in the hash word
 
-An experimental resizable concurrent hashmap in `src/hashmap2/`, written to see
+An experimental resizable concurrent hashmap in `src/hashtable/`, written to see
 whether the problems in [REMOVE-MISERY-HASHMAP.md](REMOVE-MISERY-HASHMAP.md)
 are inherent or an artifact of one design decision.
 
@@ -10,7 +10,7 @@ finish someone else's carry, so the copier is forced to install the value into
 the destination *before* it can validate that the value is still live, and that
 ordering is what allows a successful `remove` to be silently undone.
 
-hashmap2 puts the migration state in the **hash** word instead, so freezing
+hashtable puts the migration state in the **hash** word instead, so freezing
 marks a slot without erasing it. Single-word CAS only, no double-width CAS, no
 allocation, no tombstones.
 
@@ -20,6 +20,25 @@ allocation, no tombstones.
 The topmost bit of the hash word is the `FROZEN` flag. Hashes are folded into
 the remaining bits (a hash is a hash, so this is harmless, but it is not the
 identity). `0` stays reserved as the unclaimed token.
+
+### Hash-width restriction
+
+Legal hash range: **`[1, INTPTR_MAX]`** — the topmost bit must be clear and
+zero is `NO_HASH`.
+
+| platform | usable bits | pointer-as-hash safe? |
+|----------|-------------|----------------------|
+| LP64     | 63          | yes — user-space pointers never set bit 63 |
+| ILP32    | 31          | **no** — addresses ≥ 0x80000000 alias with their `& 0x7FFFFFFF` counterpart |
+
+Because the hash IS the key (no separate key comparator), aliasing is
+**identity collision**: two distinct logical keys map to the same slot. On
+32-bit, any hash function whose output can set bit 31 is silently broken.
+An `assert` in `hashtable_fold_hash` fires in debug builds if the FROZEN bit is
+set in the input.
+
+The original hashmap does not have this restriction — it stores the full
+`intptr_t` with only 0 reserved.
 
 | hash word    | value word | meaning
 |--------------|------------|------------------------------------------------
@@ -44,13 +63,13 @@ them:
 The value word has exactly two states, empty or live, so `NULL` is the only
 reserved payload. `MULLE_CONCURRENT_INVALID_POINTER` and
 `MULLE_CONCURRENT_TOMBSTONE_POINTER` are ordinary values here, which
-`test/hashmap2/validation.c` checks.
+`test/hashtable/validation.c` checks.
 
 
 ## The five rules
 
 Three of these were not in the original sketch. They were forced by
-`test/hashmap2/model.c` failing, or found by reading the code afterwards.
+`test/hashtable/model.c` failing, or found by reading the code afterwards.
 
 1. **Freeze before reading the value.** The freeze CAS is the commit point.
    After it, no writer may modify the value, so the copier reads a value that
@@ -103,7 +122,7 @@ depends on the value word at all.
 **S4 — remove then insert (reuse).** The slot keeps its hash claim, so probe
 chains through it still work, and the insert is a plain `CAS(value, V, EMPTY)`.
 No migration, no tombstone, no intermediate error state, and `n_hashs` is
-unchanged. `test/hashmap2/simple.c` runs 1000 such cycles on one key and
+unchanged. `test/hashtable/simple.c` runs 1000 such cycles on one key and
 asserts the table does not grow at all.
 
 ### With a migration in flight
@@ -162,8 +181,8 @@ deserves to be stated as a trade rather than a free win: a tombstone made
 `EMPTY` unambiguous, consuming carried values made it ambiguous again, and rule
 5 buys the distinction back with a second read on the empty branch.
 
-It is reproducible. Defining `MULLE_CONCURRENT_HASHMAP2_RACE_YIELD` widens the
-window, after which `test/hashmap2/lookup_race.c` fails at around iteration 88
+It is reproducible. Defining `MULLE_CONCURRENT_HASHTABLE_RACE_YIELD` widens the
+window, after which `test/hashtable/lookup_race.c` fails at around iteration 88
 against a deliberately unfixed lookup, and passes with the fix. See *Reproducing
 the races* below.
 
@@ -207,7 +226,7 @@ fresh re-read. That matters: `insert` linearizes at that observation, so
 simply linearizes after our insert. A re-read would have needed its own
 post-check; returning the observed occupant does not.
 
-Untested until now. `test/hashmap2/register_race.c` covers it: V1 is inserted
+Untested until now. `test/hashtable/register_race.c` covers it: V1 is inserted
 once and never removed, a migrator forces same-size migrations, and a registrant
 calls `register(KEY, V2)` in a loop. With the fix reverted, it reports
 `*p_old == NULL` at iteration ~50 — a clear linearizability violation. With the
@@ -240,13 +259,22 @@ bound is then thread-count dependent, and in the worst case a thread makes no
 progress at all.
 
 This is inherited from the original hashmap, which has the same
-read-then-increment gate, so it is not a hashmap2 regression — but it means the
+read-then-increment gate, so it is not a hashtable regression — but it means the
 "bounded by word width, not by thread count" claim below holds only while
 `size/2` comfortably exceeds the number of concurrent writers. Small tables with
 many threads are the danger zone. All five probe loops (`insert`, `register`,
 `lookup`, `remove` and `carry`) carry an `assert( index != sentinel)` so that
-this fails diagnosably in debug builds instead of spinning forever. Nothing
-tests the overshoot itself.
+this fails diagnosably in debug builds instead of spinning forever.
+
+In practice the overshoot is **self-healing**: the next operation by any thread
+reads `n >= max` and triggers migration, which doubles the table. So the probe
+only deadlocks in the degenerate case where a `lookup` for an *absent* key hits
+a table whose every slot is claimed and no writer is around to trigger growth.
+`test/hashtable/probe_overflow.c` hammers a 4-slot table with 8 threads (50k
+inserts each) and never triggers the assert — cooperative migration rescues the
+overshoot every time. The conditional bound is therefore a theoretical concern,
+not an observed failure mode, but the assert stays because a pure-reader
+scenario with a nearly-full table and no writers remains vulnerable.
 
 The important improvement is the "copy one slot" row. In the original, the
 freeze is a CAS on the *value* word, so a peer churning that value can make the
@@ -263,13 +291,13 @@ a generation transition, and a generation transition requires peers to fill half
 a table — `Ω(size)` work at a geometrically increasing price. So each retry is
 peer-funded, and the number of generations is capped by the size classes: at
 most **29 doublings**, from the minimum size of `2^2` up to the `2^31` ceiling
-where `_mulle_concurrent_hashmap2storage_get_migration_size` aborts.
+where `_mulle_concurrent_hashtablestorage_get_migration_size` aborts.
 
 **There is no tombstone-triggered retry, and that is the point.** The
 same-size-migration workaround bolted onto the original creates an invalidation
 that costs a peer `O(1)` (one insert plus one remove) while costing us `O(size)`
 and consuming no size class, which demotes those paths from bounded wait-free to
-merely lock-free. hashmap2 has nothing analogous, because reuse is a plain value
+merely lock-free. hashtable has nothing analogous, because reuse is a plain value
 CAS. Every retry here consumes a size class.
 
 So: **bounded wait-free, subject to the probe caveat above**, by the same
@@ -324,7 +352,7 @@ stdout is kept deterministic so it can serve as the test baseline.
 
 | phase | workload | result |
 |---|---|---|
-| mixed | insert 1000 / lookup 10000 / remove 100 per round, keys recycled | hashmap2 **3.2x to 4.6x faster** |
+| mixed | insert 1000 / lookup 10000 / remove 100 per round, keys recycled | hashtable **3.2x to 4.6x faster** |
 | read-heavy | fill once, then lookups only | **0.82x to 1.10x**, parity within noise |
 | grow | insert only from initial size 4 | **~0.89x** |
 
@@ -339,7 +367,7 @@ Reading the numbers, with the attribution kept honest:
   removed. The effect is real, the 3.2x–4.6x is not a clean isolation of it. A
   targeted reuse microbenchmark would attribute it properly.
 * read-heavy is at parity because `lookup` adds only a bit test on the hot path
-  and the extra gate read happens only on the `EMPTY` branch. Caveat: hashmap2's
+  and the extra gate read happens only on the `EMPTY` branch. Caveat: hashtable's
   loads are seq_cst against the original's `_relaxed`, which is free on x86 but
   measurable on weakly ordered targets, so parity here should not be assumed for
   ARM.
@@ -350,10 +378,10 @@ Reading the numbers, with the attribution kept honest:
 ## Reproducing the races
 
 The dangerous windows are two adjacent instructions wide — read the hash word,
-then touch the value word — so no test hits them by luck. `hashmap2.c` therefore
+then touch the value word — so no test hits them by luck. `hashtable.c` therefore
 carries yield points at each window, in the spirit of
 `MULLE_THREAD_UNPLEASANT_RACE_YIELD`, compiled out unless
-`MULLE_CONCURRENT_HASHMAP2_RACE_YIELD` is defined:
+`MULLE_CONCURRENT_HASHTABLE_RACE_YIELD` is defined:
 
 | window | scenario |
 |---|---|
@@ -376,10 +404,10 @@ against an unfixed `lookup`.
 **Widening the window is not always the binding constraint.** For S6 it is not:
 migrations there are threshold-driven, so once the table is large they become
 rare and almost never coincide with a removal. Yields alone do not reproduce it.
-`_mulle_concurrent_hashmap2_migrate_same_size()` exists for that reason — it
+`_mulle_concurrent_hashtable_migrate_same_size()` exists for that reason — it
 retires the current generation into a fresh one of the same size, so a probe
 thread can force continuous generation changes at bounded memory cost.
-`test/hashmap2/remove_migrate_race.c` uses it and reports a lost removal within
+`test/hashtable/remove_migrate_race.c` uses it and reports a lost removal within
 about 1500 iterations against an unfixed `remove`, which both covers S6 and
 confirms that frequency rather than window width was the obstacle.
 
@@ -400,13 +428,14 @@ one reason the enumerator stays "limited multi-threaded".
 
 | test | what it establishes |
 |---|---|
-| `test/hashmap2/simple.c` | basics, plus 1000 reuse cycles that do not grow the table |
-| `test/hashmap2/validation.c` | argument checks, and formerly reserved pointers usable as payload |
-| `test/hashmap2/model.c` | strict 4-thread model, disjoint key ranges, zero leniency |
-| `test/hashmap2/remove_race.c` | S6 under threshold-driven migration, no resurrection |
-| `test/hashmap2/remove_migrate_race.c` | S6 under *forced* migration — fails against an unfixed `remove` within ~1500 iterations |
-| `test/hashmap2/lookup_race.c` | S7 — with race yields enabled it fails against an unfixed `lookup` within ~100 iterations |
-| `test/hashmap2/register_race.c` | S11 — fails against an unfixed `register` at iteration ~50: reports *p_old==NULL while V1 is permanently live |
+| `test/hashtable/simple.c` | basics, plus 1000 reuse cycles that do not grow the table |
+| `test/hashtable/validation.c` | argument checks, and formerly reserved pointers usable as payload |
+| `test/hashtable/model.c` | strict 4-thread model, disjoint key ranges, zero leniency |
+| `test/hashtable/remove_race.c` | S6 under threshold-driven migration, no resurrection |
+| `test/hashtable/remove_migrate_race.c` | S6 under *forced* migration — fails against an unfixed `remove` within ~1500 iterations |
+| `test/hashtable/lookup_race.c` | S7 — with race yields enabled it fails against an unfixed `lookup` within ~100 iterations |
+| `test/hashtable/register_race.c` | S11 — fails against an unfixed `register` at iteration ~50: reports *p_old==NULL while V1 is permanently live |
+| `test/hashtable/probe_overflow.c` | 8 threads × 50k inserts into a 4-slot table — forces continuous threshold overshoot, confirms self-healing migration |
 | `test/bench/compare.c` | the measurements above, with count agreement asserted |
 
 For contrast, `test/hashmap/model.c` — the equivalent test against the original
@@ -416,13 +445,10 @@ observed directly.
 
 Known gaps, in rough order of how much they should bother you:
 
-1. **The probe bound is conditional** on `size/2` exceeding the concurrent writer
-   count, and nothing tests the overshoot case. The asserts only turn it into a
-   diagnosable failure.
-2. **Relaxed atomics are unexplored**, so the grow-phase cost is unattributed
+1. **Relaxed atomics are unexplored**, so the grow-phase cost is unattributed
    between the extra CAS and the ordering. Correctness currently depends on the
    seq_cst primitives of an external dependency.
-3. No `pose`/`patch` equivalent, no enumerator stress test, and no
+2. No `pose`/`patch` equivalent, no enumerator stress test, and no
    single-threaded teardown fuzzing.
 
 

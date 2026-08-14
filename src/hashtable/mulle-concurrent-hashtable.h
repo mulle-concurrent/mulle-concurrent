@@ -1,5 +1,5 @@
 //
-//  mulle-concurrent-hashmap2.h
+//  mulle-concurrent-hashtable.h
 //  mulle-concurrent
 //
 //  Copyright (c) 2026 Nat! - Mulle kybernetiK.
@@ -32,8 +32,8 @@
 //  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 //  POSSIBILITY OF SUCH DAMAGE.
 //
-#ifndef mulle_concurrent_hashmap2_h__
-#define mulle_concurrent_hashmap2_h__
+#ifndef mulle_concurrent_hashtable_h__
+#define mulle_concurrent_hashtable_h__
 
 #include "include.h"
 
@@ -42,9 +42,12 @@
 
 
 //
-// EXPERIMENTAL. See dox/REMOVE-MISERY-HASHMAP.md for why this exists.
+// Maps a "hash" to a value. The top bit of the hash will be lost!
+// So you can't use to index with arbitrary intptr_t values.
+// E.g. on 16 bit   0x8001 and 0x0001 return the same stored value.
 //
-// mulle_concurrent_hashmap2 is a resizable, wait-free hashmap whose migration
+
+// mulle_concurrent_hashtable is a resizable, wait-free hashmap whose migration
 // state lives in the *hash* word instead of the value word. The original
 // hashmap freezes a slot by overwriting its value with a REDIRECT sentinel,
 // which destroys the payload. That forces the copier to install a value into
@@ -90,42 +93,54 @@
 // FROZEN flag, so hashes are folded into the low bits (a hash is a hash, so
 // this is harmless, but it is not an identity mapping).
 //
+// HASH-WIDTH RESTRICTION:
+//
+//   Legal hash range: [1, INTPTR_MAX]  (topmost bit must be clear, 0 is NO_HASH)
+//
+//   On LP64 this is 63 usable bits. User-space pointers never have bit 63 set,
+//   so "pointer identity as hash" remains safe.
+//
+//   On ILP32 this is 31 usable bits. Pointers above 0x80000000 CANNOT be used
+//   as hashes — they would alias with their & 0x7FFFFFFF counterpart, and since
+//   the hash IS the key in this design, two distinct pointers would collide
+//   silently. An assert fires in debug builds if the FROZEN bit is set.
+//
 // The remaining subtlety is that a writer reads the hash word and then CASes
 // the value word, so a freeze can slip in between. Writers therefore re-read
 // the hash word after a successful value CAS; if it turned frozen they carry
 // their own value forward (or, for remove, redo the removal in the newer
 // generation). See "post-check" in the implementation.
 //
-#define MULLE_CONCURRENT_HASHMAP2_FROZEN   ((intptr_t) INTPTR_MIN)
+#define MULLE_CONCURRENT_HASHTABLE_FROZEN   ((intptr_t) INTPTR_MIN)
 
 
-struct _mulle_concurrent_hashmap2pair
+struct _mulle_concurrent_hashtablepair
 {
    mulle_atomic_pointer_t   hash;    // intptr_t, 0 == unclaimed, FROZEN bit
    mulle_atomic_pointer_t   value;   // payload or NULL
 };
 
 
-struct _mulle_concurrent_hashmap2storage
+struct _mulle_concurrent_hashtablestorage
 {
    mulle_atomic_pointer_t   n_hashs;   // claimed slots, live or emptied
    uintptr_t                mask;
 
-   struct _mulle_concurrent_hashmap2pair   entries[ 1];
+   struct _mulle_concurrent_hashtablepair   entries[ 1];
 };
 
 
-union mulle_concurrent_atomichashmap2storage_t
+union mulle_concurrent_atomichashtablestorage_t
 {
-   struct _mulle_concurrent_hashmap2storage   *storage;
+   struct _mulle_concurrent_hashtablestorage   *storage;
    mulle_atomic_pointer_t                     pointer;
 };
 
 
-struct mulle_concurrent_hashmap2
+struct mulle_concurrent_hashtable
 {
-   union mulle_concurrent_atomichashmap2storage_t   storage;
-   union mulle_concurrent_atomichashmap2storage_t   next_storage;
+   union mulle_concurrent_atomichashtablestorage_t   storage;
+   union mulle_concurrent_atomichashtablestorage_t   next_storage;
    mulle_atomic_pointer_t                           allocator;
 };
 
@@ -137,12 +152,12 @@ struct mulle_concurrent_hashmap2
 //  EINVAL : invalid argument
 //
 MULLE__CONCURRENT_GLOBAL
-int   mulle_concurrent_hashmap2_init( struct mulle_concurrent_hashmap2 *map,
+int   mulle_concurrent_hashtable_init( struct mulle_concurrent_hashtable *map,
                                       unsigned int size,
                                       struct mulle_allocator *allocator);
 
 MULLE__CONCURRENT_GLOBAL
-void  mulle_concurrent_hashmap2_done( struct mulle_concurrent_hashmap2 *map);
+void  mulle_concurrent_hashtable_done( struct mulle_concurrent_hashtable *map);
 
 
 #pragma mark - multi-threaded
@@ -156,7 +171,7 @@ void  mulle_concurrent_hashmap2_done( struct mulle_concurrent_hashmap2 *map);
 // and no intermediate error state.
 //
 MULLE__CONCURRENT_GLOBAL
-int   mulle_concurrent_hashmap2_insert( struct mulle_concurrent_hashmap2 *map,
+int   mulle_concurrent_hashtable_insert( struct mulle_concurrent_hashtable *map,
                                        intptr_t hash,
                                        void *value);
 
@@ -169,7 +184,7 @@ int   mulle_concurrent_hashmap2_insert( struct mulle_concurrent_hashmap2 *map,
 //  EINVAL : invalid argument
 //
 MULLE__CONCURRENT_GLOBAL
-int   mulle_concurrent_hashmap2_register( struct mulle_concurrent_hashmap2 *map,
+int   mulle_concurrent_hashtable_register( struct mulle_concurrent_hashtable *map,
                                          intptr_t hash,
                                          void *value,
                                          void **p_old);
@@ -180,7 +195,7 @@ int   mulle_concurrent_hashmap2_register( struct mulle_concurrent_hashmap2 *map,
 //  EINVAL : invalid argument
 //
 MULLE__CONCURRENT_GLOBAL
-int   mulle_concurrent_hashmap2_remove( struct mulle_concurrent_hashmap2 *map,
+int   mulle_concurrent_hashtable_remove( struct mulle_concurrent_hashtable *map,
                                        intptr_t hash,
                                        void *value);
 
@@ -188,31 +203,31 @@ int   mulle_concurrent_hashmap2_remove( struct mulle_concurrent_hashmap2 *map,
 // NULL if absent, otherwise the registered value.
 //
 MULLE__CONCURRENT_GLOBAL
-void  *mulle_concurrent_hashmap2_lookup( struct mulle_concurrent_hashmap2 *map,
+void  *mulle_concurrent_hashtable_lookup( struct mulle_concurrent_hashtable *map,
                                          intptr_t hash);
 
 MULLE__CONCURRENT_GLOBAL
-unsigned int   mulle_concurrent_hashmap2_get_size( struct mulle_concurrent_hashmap2 *map);
+unsigned int   mulle_concurrent_hashtable_get_size( struct mulle_concurrent_hashtable *map);
 
 MULLE__CONCURRENT_GLOBAL
-unsigned int   mulle_concurrent_hashmap2_count( struct mulle_concurrent_hashmap2 *map);
+unsigned int   mulle_concurrent_hashtable_count( struct mulle_concurrent_hashtable *map);
 
 
 //
 // Retire the current generation into a fresh one of the same size. Primarily a
 // test hook: it lets a probe thread force continuous generation changes without
 // doubling memory each time, which is what makes the remove-versus-copy race
-// reproducible. See dox/HASHMAP2.md.
+// reproducible. See dox/HASHTABLE.md.
 //
 MULLE__CONCURRENT_GLOBAL
-void   _mulle_concurrent_hashmap2_migrate_same_size( struct mulle_concurrent_hashmap2 *map);
+void   _mulle_concurrent_hashtable_migrate_same_size( struct mulle_concurrent_hashtable *map);
 
 
 #pragma mark - limited multi-threaded
 
-struct mulle_concurrent_hashmap2enumerator
+struct mulle_concurrent_hashtableenumerator
 {
-   struct mulle_concurrent_hashmap2   *map;
+   struct mulle_concurrent_hashtable   *map;
    void                               *storage;   // compared only, never dereferenced
    unsigned int                       index;
 };
@@ -224,15 +239,15 @@ struct mulle_concurrent_hashmap2enumerator
 //  EINVAL     : wrong parameter value
 //
 MULLE__CONCURRENT_GLOBAL
-int   _mulle_concurrent_hashmap2enumerator_next( struct mulle_concurrent_hashmap2enumerator *rover,
+int   _mulle_concurrent_hashtableenumerator_next( struct mulle_concurrent_hashtableenumerator *rover,
                                                  intptr_t *p_hash,
                                                  void **p_value);
 
 
-static inline struct mulle_concurrent_hashmap2enumerator
-   mulle_concurrent_hashmap2_enumerate( struct mulle_concurrent_hashmap2 *map)
+static inline struct mulle_concurrent_hashtableenumerator
+   mulle_concurrent_hashtable_enumerate( struct mulle_concurrent_hashtable *map)
 {
-   struct mulle_concurrent_hashmap2enumerator   rover;
+   struct mulle_concurrent_hashtableenumerator   rover;
 
    rover.map     = map;
    rover.storage = NULL;
@@ -243,7 +258,7 @@ static inline struct mulle_concurrent_hashmap2enumerator
 
 
 static inline int
-   mulle_concurrent_hashmap2enumerator_next( struct mulle_concurrent_hashmap2enumerator *rover,
+   mulle_concurrent_hashtableenumerator_next( struct mulle_concurrent_hashtableenumerator *rover,
                                              intptr_t *p_hash,
                                              void **p_value)
 {
@@ -251,12 +266,12 @@ static inline int
       return( EINVAL);
    if( rover->index == (unsigned int) -1)
       return( 0);
-   return( _mulle_concurrent_hashmap2enumerator_next( rover, p_hash, p_value));
+   return( _mulle_concurrent_hashtableenumerator_next( rover, p_hash, p_value));
 }
 
 
 static inline void
-   mulle_concurrent_hashmap2enumerator_done( struct mulle_concurrent_hashmap2enumerator *rover)
+   mulle_concurrent_hashtableenumerator_done( struct mulle_concurrent_hashtableenumerator *rover)
 {
    MULLE_C_UNUSED( rover);
 }

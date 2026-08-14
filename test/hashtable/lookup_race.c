@@ -20,7 +20,7 @@
 #define N_ITERS       200000
 #define N_STABLE      16
 
-static struct mulle_concurrent_hashmap2   g_map;
+static struct mulle_concurrent_hashtable   g_map;
 static volatile int                       g_stop;
 static int                                g_failed;
 
@@ -43,8 +43,8 @@ static void  *migrator( void *unused)
    for( i = 0; ! g_stop; i++)
    {
       hash = (intptr_t)((i * 2654435761u) % 50000) + 1000000;
-      mulle_concurrent_hashmap2_insert( &g_map, hash, (void *)(uintptr_t)(hash * 2 + 1));
-      mulle_concurrent_hashmap2_remove( &g_map, hash, (void *)(uintptr_t)(hash * 2 + 1));
+      mulle_concurrent_hashtable_insert( &g_map, hash, (void *)(uintptr_t)(hash * 2 + 1));
+      mulle_concurrent_hashtable_remove( &g_map, hash, (void *)(uintptr_t)(hash * 2 + 1));
 
       if( (i & 0xFF) == 0)
          mulle_aba_checkin();
@@ -72,7 +72,7 @@ static void  *reader( void *unused)
       hash = k + 1;
 
       // these were inserted before the threads started and are never removed
-      found = mulle_concurrent_hashmap2_lookup( &g_map, hash);
+      found = mulle_concurrent_hashtable_lookup( &g_map, hash);
       if( found != stable_value( hash))
       {
          printf( "FAILED: stable key reported absent or wrong at %d\n", i);
@@ -102,12 +102,12 @@ int   main( void)
    mulle_aba_init( NULL);
    mulle_aba_register();
 
-   mulle_concurrent_hashmap2_init( &g_map, 4, NULL);
+   mulle_concurrent_hashtable_init( &g_map, 4, NULL);
 
    for( i = 0; i < N_STABLE; i++)
    {
       hash = (intptr_t) i + 1;
-      if( mulle_concurrent_hashmap2_insert( &g_map, hash, stable_value( hash)))
+      if( mulle_concurrent_hashtable_insert( &g_map, hash, stable_value( hash)))
       {
          printf( "FAILED: seeding\n");
          return( 1);
@@ -134,14 +134,14 @@ int   main( void)
    for( i = 0; i < N_STABLE; i++)
    {
       hash = (intptr_t) i + 1;
-      if( mulle_concurrent_hashmap2_lookup( &g_map, hash) != stable_value( hash))
+      if( mulle_concurrent_hashtable_lookup( &g_map, hash) != stable_value( hash))
       {
          printf( "FAILED: stable key lost by the end\n");
          g_failed = 1;
       }
    }
 
-   mulle_concurrent_hashmap2_done( &g_map);
+   mulle_concurrent_hashtable_done( &g_map);
    mulle_aba_unregister();
    mulle_aba_done();
    mulle_testallocator_reset();

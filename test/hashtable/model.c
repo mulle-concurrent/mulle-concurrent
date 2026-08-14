@@ -21,7 +21,7 @@
 
 struct worker_context
 {
-   struct mulle_concurrent_hashmap2   *map;
+   struct mulle_concurrent_hashtable   *map;
    unsigned int                       thread;
 };
 
@@ -62,7 +62,7 @@ static void   *value_for_key( intptr_t key)
 
 static void   worker( struct worker_context *context)
 {
-   struct mulle_concurrent_hashmap2   *map = context->map;
+   struct mulle_concurrent_hashtable   *map = context->map;
    unsigned int                       thread = context->thread;
    intptr_t                           key;
    uint64_t                           rng;
@@ -90,13 +90,13 @@ static void   worker( struct worker_context *context)
       case 0:
       case 1:
       case 2:
-         result = mulle_concurrent_hashmap2_lookup( map, key);
+         result = mulle_concurrent_hashtable_lookup( map, key);
          check( result == model[ thread][ k], "model lookup" );
          break;
 
       case 3:
       case 4:
-         rval = mulle_concurrent_hashmap2_insert( map, key, value);
+         rval = mulle_concurrent_hashtable_insert( map, key, value);
          if( model[ thread][ k] == NULL)
          {
             check( rval == 0, "model insert fresh" );
@@ -108,14 +108,14 @@ static void   worker( struct worker_context *context)
 
       case 5:
       case 6:
-         check( mulle_concurrent_hashmap2_register( map, key, value, &old) == 0,
+         check( mulle_concurrent_hashtable_register( map, key, value, &old) == 0,
                 "model register rval" );
          check( old == model[ thread][ k], "model register old value" );
          model[ thread][ k] = value;
          break;
 
       case 7:
-         rval = mulle_concurrent_hashmap2_remove( map, key, value);
+         rval = mulle_concurrent_hashtable_remove( map, key, value);
          if( model[ thread][ k] == value)
          {
             check( rval == 0, "model remove present" );
@@ -142,9 +142,9 @@ static void   worker( struct worker_context *context)
 }
 
 
-static void   verify_final_state( struct mulle_concurrent_hashmap2 *map)
+static void   verify_final_state( struct mulle_concurrent_hashtable *map)
 {
-   struct mulle_concurrent_hashmap2enumerator   rover;
+   struct mulle_concurrent_hashtableenumerator   rover;
    intptr_t                                     hash;
    intptr_t                                     key;
    unsigned int                                 expected;
@@ -158,24 +158,24 @@ static void   verify_final_state( struct mulle_concurrent_hashmap2 *map)
    for( thread = 0; thread < N_THREADS; thread++)
       expected += present[ thread];
 
-   check( mulle_concurrent_hashmap2_count( map) == expected, "model final count" );
+   check( mulle_concurrent_hashtable_count( map) == expected, "model final count" );
 
    for( thread = 0; thread < N_THREADS; thread++)
       for( k = 0; k < KEYS_PER_THREAD; k++)
       {
          key = global_key( thread, k);
-         check( mulle_concurrent_hashmap2_lookup( map, key) == model[ thread][ k],
+         check( mulle_concurrent_hashtable_lookup( map, key) == model[ thread][ k],
                 "model final lookup" );
       }
 
    seen  = 0;
-   rover = mulle_concurrent_hashmap2_enumerate( map);
-   while( (rval = mulle_concurrent_hashmap2enumerator_next( &rover, &hash, &value)) == 1)
+   rover = mulle_concurrent_hashtable_enumerate( map);
+   while( (rval = mulle_concurrent_hashtableenumerator_next( &rover, &hash, &value)) == 1)
    {
       check( value == value_for_key( hash), "model final enumeration value" );
       ++seen;
    }
-   mulle_concurrent_hashmap2enumerator_done( &rover);
+   mulle_concurrent_hashtableenumerator_done( &rover);
 
    check( rval == 0, "model enumeration completed" );
    check( seen == expected, "model enumeration count" );
@@ -184,14 +184,14 @@ static void   verify_final_state( struct mulle_concurrent_hashmap2 *map)
 
 static void   run_round( void)
 {
-   struct mulle_concurrent_hashmap2   map;
+   struct mulle_concurrent_hashtable   map;
    struct worker_context              context[ N_THREADS];
    mulle_thread_t                     threads[ N_THREADS];
    unsigned int                       i;
 
    memset( model, 0, sizeof( model));
 
-   mulle_concurrent_hashmap2_init( &map, 4, NULL);
+   mulle_concurrent_hashtable_init( &map, 4, NULL);
 
    for( i = 0; i < N_THREADS; i++)
    {
@@ -209,7 +209,7 @@ static void   run_round( void)
 
    verify_final_state( &map);
 
-   mulle_concurrent_hashmap2_done( &map);
+   mulle_concurrent_hashtable_done( &map);
 }
 
 
