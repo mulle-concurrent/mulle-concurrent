@@ -26,11 +26,8 @@ int   main( void)
    mulle_aba_init( NULL);
    mulle_aba_register();
 
-   check( mulle_concurrent_hashmap_init( NULL, 0, NULL) == EINVAL,
-          "hashmap init NULL");
+   mulle_concurrent_hashmap_init( &map, 0, NULL);
 
-   check( mulle_concurrent_hashmap_init( &map, 0, NULL) == 0,
-          "hashmap init");
    check( mulle_concurrent_hashmap_insert( NULL, 1, (void *) 1) == EINVAL,
           "hashmap insert NULL");
    check( mulle_concurrent_hashmap_insert( &map, MULLE_CONCURRENT_NO_HASH, (void *) 1) == EINVAL,

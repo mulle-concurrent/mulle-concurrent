@@ -11,6 +11,8 @@
       "src/generic/include.h",
       "src/hashmap/mulle-concurrent-hashmap.c",
       "src/hashmap/mulle-concurrent-hashmap.h",
+      "src/hashtable/mulle-concurrent-hashtable.c",
+      "src/hashtable/mulle-concurrent-hashtable.h",
       "src/mulle-concurrent-standalone.c",
       "src/mulle-concurrent-types.h",
       "src/mulle-concurrent.h",

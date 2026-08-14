@@ -111,8 +111,7 @@
 // their own value forward (or, for remove, redo the removal in the newer
 // generation). See "post-check" in the implementation.
 //
-#define MULLE_CONCURRENT_HASHTABLE_FROZEN   ((intptr_t) INTPTR_MIN)
-
+#include <limits.h>
 
 struct _mulle_concurrent_hashtablepair
 {
@@ -142,19 +141,70 @@ struct mulle_concurrent_hashtable
    union mulle_concurrent_atomichashtablestorage_t   storage;
    union mulle_concurrent_atomichashtablestorage_t   next_storage;
    mulle_atomic_pointer_t                           allocator;
+   uintptr_t                                        frozen_bit;
+   uintptr_t                                        hash_mask;
 };
 
 
 #pragma mark - single-threaded
 
 //
-//  0      : OK
-//  EINVAL : invalid argument
+// FROZEN bit placement:
 //
+//   "positive" mode (default): FROZEN = top bit, hashes must be in [1, INTPTR_MAX].
+//                              Use for arbitrary hashes. Pointer-as-hash is safe
+//                              on LP64 (user-space never sets bit 63), UNSAFE on ILP32.
+//
+//   "even" mode:               FROZEN = bit 0, hashes must be even and non-zero.
+//                              Use when hashes are aligned pointer addresses (always even).
+//                              Full address range available, no aliasing on any platform.
+//
+
+//
+// Default: top bit is FROZEN ("positive" mode).
+//
+MULLE_C_NONNULL_FIRST
 MULLE__CONCURRENT_GLOBAL
-int   mulle_concurrent_hashtable_init( struct mulle_concurrent_hashtable *map,
-                                      unsigned int size,
-                                      struct mulle_allocator *allocator);
+void   _mulle_concurrent_hashtable_init_positive( struct mulle_concurrent_hashtable *map,
+                                                  size_t size,
+                                                  struct mulle_allocator *allocator);
+//
+// Low bit is FROZEN ("even" mode). All hashes must be even (aligned pointers).
+//
+MULLE_C_NONNULL_FIRST
+MULLE__CONCURRENT_GLOBAL
+void   _mulle_concurrent_hashtable_init_even( struct mulle_concurrent_hashtable *map,
+                                              size_t size,
+                                              struct mulle_allocator *allocator);
+static inline
+void   mulle_concurrent_hashtable_init( struct mulle_concurrent_hashtable *map,
+                                        size_t size,
+                                        struct mulle_allocator *allocator)
+{
+   _mulle_concurrent_hashtable_init_positive( map, size, allocator);
+}
+
+
+static inline
+void   mulle_concurrent_hashtable_init_even( struct mulle_concurrent_hashtable *map,
+                                             size_t size,
+                                             struct mulle_allocator *allocator)
+{
+   _mulle_concurrent_hashtable_init_even( map, size, allocator);
+}
+
+
+static inline
+void   mulle_concurrent_hashtable_init_positive( struct mulle_concurrent_hashtable *map,
+                                                 size_t size,
+                                                 struct mulle_allocator *allocator)
+{
+   _mulle_concurrent_hashtable_init_positive( map, size, allocator);
+}
+
+
+
+
 
 MULLE__CONCURRENT_GLOBAL
 void  mulle_concurrent_hashtable_done( struct mulle_concurrent_hashtable *map);
@@ -207,10 +257,10 @@ void  *mulle_concurrent_hashtable_lookup( struct mulle_concurrent_hashtable *map
                                          intptr_t hash);
 
 MULLE__CONCURRENT_GLOBAL
-unsigned int   mulle_concurrent_hashtable_get_size( struct mulle_concurrent_hashtable *map);
+size_t   mulle_concurrent_hashtable_get_size( struct mulle_concurrent_hashtable *map);
 
 MULLE__CONCURRENT_GLOBAL
-unsigned int   mulle_concurrent_hashtable_count( struct mulle_concurrent_hashtable *map);
+size_t   mulle_concurrent_hashtable_count( struct mulle_concurrent_hashtable *map);
 
 
 //

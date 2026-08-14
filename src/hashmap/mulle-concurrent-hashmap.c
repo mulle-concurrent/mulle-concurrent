@@ -33,8 +33,6 @@
 //  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 //  POSSIBILITY OF SUCH DAMAGE.
 //
-#define HAVE_MULLE_CONCURRENT_POSEAS_PATCH
-
 #include "mulle-concurrent-hashmap.h"
 
 #include "mulle-concurrent-types.h"
@@ -375,9 +373,9 @@ static void
 
 #pragma mark - _mulle_concurrent_hashmap
 
-int  _mulle_concurrent_hashmap_init( struct mulle_concurrent_hashmap *map,
-                                     unsigned int size,
-                                     struct mulle_allocator *allocator)
+void  _mulle_concurrent_hashmap_init( struct mulle_concurrent_hashmap *map,
+                                      unsigned int size,
+                                      struct mulle_allocator *allocator)
 {
    struct _mulle_concurrent_hashmapstorage   *storage;
 
@@ -401,8 +399,6 @@ int  _mulle_concurrent_hashmap_init( struct mulle_concurrent_hashmap *map,
 
    _mulle_atomic_pointer_nonatomic_write( &map->storage.pointer, storage);
    _mulle_atomic_pointer_nonatomic_write( &map->next_storage.pointer, storage);
-
-   return( 0);
 }
 
 
@@ -728,6 +724,8 @@ int  _mulle_concurrent_hashmap_patch( struct mulle_concurrent_hashmap *map,
       assert( index != sentinel);
    }
 }
+
+
 
 
 #pragma mark - not so concurrent enumerator
