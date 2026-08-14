@@ -348,7 +348,7 @@ int   main( void)
 
    ops = (double) N_THREADS * GROW_KEYS;
    report( "grow", elapsed1, elapsed2, ops);
-   fprintf( stderr, "grow sizes: hashmap %u, hashmap2 %u\n",
+   fprintf( stderr, "grow sizes: hashmap %zu, hashmap2 %zu\n",
             mulle_concurrent_hashtable_get_size( &g_map1),
             mulle_concurrent_hashtable_get_size( &g_map2));
    printf( "benchmark: grow insert\n");

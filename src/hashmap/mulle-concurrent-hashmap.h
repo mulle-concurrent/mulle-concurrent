@@ -111,9 +111,9 @@ struct mulle_concurrent_hashmap
 #pragma mark - various functions, no parameter checks
 
 MULLE__CONCURRENT_GLOBAL
-int  _mulle_concurrent_hashmap_init( struct mulle_concurrent_hashmap *map,
-                                     unsigned int size,
-                                     struct mulle_allocator *allocator);
+void  _mulle_concurrent_hashmap_init( struct mulle_concurrent_hashmap *map,
+                                      unsigned int size,
+                                      struct mulle_allocator *allocator);
 MULLE__CONCURRENT_GLOBAL
 void  _mulle_concurrent_hashmap_done( struct mulle_concurrent_hashmap *map);
 
@@ -142,14 +142,13 @@ void  *_mulle_concurrent_hashmap_lookup( struct mulle_concurrent_hashmap *map,
 //   0      : OK
 //   EINVAL : invalid argument
 //
-static inline int
+static inline void
    mulle_concurrent_hashmap_init( struct mulle_concurrent_hashmap *map,
                                   unsigned int size,
                                   struct mulle_allocator *allocator)
 {
-   if( ! map)
-      return( EINVAL);
-   return( _mulle_concurrent_hashmap_init( map, size, allocator));
+   assert( map);
+   _mulle_concurrent_hashmap_init( map, size, allocator);
 }
 
 
@@ -212,18 +211,38 @@ static inline void
 
 
 
-#ifdef HAVE_MULLE_CONCURRENT_POSEAS_PATCH
 //
-// Single-threaded patch: unconditionally replace the value of an existing
-// entry. There is no CAS, no migration concern, and no concurrency contract.
-// Use during single-threaded setup/teardown phases only.
+// WARNING: SINGLE-THREADED ONLY.
+//
+// Unconditionally replace the value of an existing entry. There is no CAS,
+// no migration concern, and no concurrency contract. Calling this while
+// another thread accesses the map is undefined behavior.
+//
+// Use during single-threaded setup/teardown phases only (e.g. universe
+// is winding down or not yet published).
 //
 MULLE__CONCURRENT_GLOBAL
 int  _mulle_concurrent_hashmap_patch( struct mulle_concurrent_hashmap *map,
                                       intptr_t hash,
                                       void *value);
 
-#endif
+//
+// WARNING: SINGLE-THREADED ONLY.
+//
+// Remove a previously registered entry by clearing its value to NULL. The
+// hash claim stays in place (probe chains remain intact), so lookup will
+// return NULL for this hash afterwards. The slot can be repopulated later
+// with _mulle_concurrent_hashmap_patch.
+//
+// Calling this while another thread accesses the map is undefined behavior.
+// Use during single-threaded setup/teardown phases only.
+//
+static inline int
+   _mulle_concurrent_hashmap_remove( struct mulle_concurrent_hashmap *map,
+                                     intptr_t hash)
+{
+   return( _mulle_concurrent_hashmap_patch( map, hash, NULL));
+}
 
 
 #pragma mark - limited multi-threaded

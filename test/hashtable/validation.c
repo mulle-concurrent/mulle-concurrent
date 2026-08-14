@@ -32,10 +32,7 @@ int   main( void)
    mulle_aba_init( NULL);
    mulle_aba_register();
 
-   check( mulle_concurrent_hashtable_init( NULL, 0, NULL) == EINVAL,
-          "init NULL" );
-   check( mulle_concurrent_hashtable_init( &map, 0, NULL) == 0,
-          "init" );
+   mulle_concurrent_hashtable_init( &map, 0, NULL);
 
    check( mulle_concurrent_hashtable_insert( NULL, 1, (void *) 1) == EINVAL,
           "insert NULL map" );
