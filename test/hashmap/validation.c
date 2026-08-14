@@ -39,18 +39,6 @@ int   main( void)
           "hashmap insert NULL value");
    check( mulle_concurrent_hashmap_insert( &map, 1, MULLE_CONCURRENT_INVALID_POINTER) == EINVAL,
           "hashmap insert invalid value");
-   check( mulle_concurrent_hashmap_insert( &map, 1, MULLE_CONCURRENT_TOMBSTONE_POINTER) == EINVAL,
-          "hashmap insert tombstone value");
-   check( mulle_concurrent_hashmap_remove( NULL, 1, (void *) 1) == EINVAL,
-          "hashmap remove NULL");
-   check( mulle_concurrent_hashmap_remove( &map, MULLE_CONCURRENT_NO_HASH, (void *) 1) == EINVAL,
-          "hashmap remove no hash");
-   check( mulle_concurrent_hashmap_remove( &map, 1, MULLE_CONCURRENT_NO_POINTER) == EINVAL,
-          "hashmap remove NULL value");
-   check( mulle_concurrent_hashmap_remove( &map, 1, MULLE_CONCURRENT_INVALID_POINTER) == EINVAL,
-          "hashmap remove invalid value");
-   check( mulle_concurrent_hashmap_remove( &map, 1, MULLE_CONCURRENT_TOMBSTONE_POINTER) == EINVAL,
-          "hashmap remove tombstone value");
 
    errno = 0;
    check( mulle_concurrent_hashmap_register( NULL, 1, (void *) 1) == MULLE_CONCURRENT_INVALID_POINTER &&
@@ -62,8 +50,6 @@ int   main( void)
           "hashmap register NULL value");
    check( mulle_concurrent_hashmap_register( &map, 1, MULLE_CONCURRENT_INVALID_POINTER) == MULLE_CONCURRENT_INVALID_POINTER,
           "hashmap register invalid value");
-   check( mulle_concurrent_hashmap_register( &map, 1, MULLE_CONCURRENT_TOMBSTONE_POINTER) == MULLE_CONCURRENT_INVALID_POINTER,
-          "hashmap register tombstone value");
 
    rover = mulle_concurrent_hashmap_enumerate( NULL);
    check( mulle_concurrent_hashmapenumerator_next( &rover, NULL, NULL) == 0,
@@ -73,17 +59,13 @@ int   main( void)
    check( mulle_concurrent_hashmap_insert( &map, 1, (void *) 10) == 0,
           "hashmap insert valid");
 
-   // duplicate / register / remove / convenience semantics
+   // duplicate / register / convenience semantics
    check( mulle_concurrent_hashmap_insert( &map, 1, (void *) 10) == EEXIST,
           "hashmap duplicate insert");
    check( mulle_concurrent_hashmap_register( &map, 1, (void *) 20) == (void *) 10,
           "hashmap register existing");
    check( mulle_concurrent_hashmap_register( &map, 2, (void *) 30) == MULLE_CONCURRENT_NO_POINTER,
           "hashmap register fresh");
-   check( mulle_concurrent_hashmap_remove( &map, 2, (void *) 999) == ENOENT,
-          "hashmap remove wrong value");
-   check( mulle_concurrent_hashmap_remove( &map, 3, (void *) 1) == ENOENT,
-          "hashmap remove missing");
    check( mulle_concurrent_hashmap_lookup( NULL, 1) == NULL,
           "hashmap lookup NULL map");
    check( mulle_concurrent_hashmap_get_size( NULL) == 0,

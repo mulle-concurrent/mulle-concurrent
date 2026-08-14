@@ -1,5 +1,5 @@
 //
-//  mulle-concurrent-hashmap2.c
+//  mulle-concurrent-hashtable.c
 //  mulle-concurrent
 //
 //  Copyright (c) 2026 Nat! - Mulle kybernetiK.
@@ -32,14 +32,14 @@
 //  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 //  POSSIBILITY OF SUCH DAMAGE.
 //
-#include "mulle-concurrent-hashmap2.h"
+#include "mulle-concurrent-hashtable.h"
 
 //
-// Define MULLE_CONCURRENT_HASHMAP2_RACE_YIELD to widen the two-word race
-// windows. test/hashmap2/lookup_race.c then fails within ~100 iterations
-// against an unfixed lookup, instead of never. See dox/HASHMAP2.md.
+// Define MULLE_CONCURRENT_HASHTABLE_RACE_YIELD to widen the two-word race
+// windows. test/hashtable/lookup_race.c then fails within ~100 iterations
+// against an unfixed lookup, instead of never. See dox/HASHTABLE.md.
 //
-// #define MULLE_CONCURRENT_HASHMAP2_RACE_YIELD   1
+// #define MULLE_CONCURRENT_HASHTABLE_RACE_YIELD   1
 
 #include "mulle-concurrent-types.h"
 #include <assert.h>
@@ -49,13 +49,13 @@
 
 
 #define EMPTY_VALUE   ((void *) 0)
-#define FROZEN        MULLE_CONCURRENT_HASHMAP2_FROZEN
+#define FROZEN        MULLE_CONCURRENT_HASHTABLE_FROZEN
 
 
 //
 // Test scaffolding. The dangerous windows in this design are two adjacent
 // instructions wide (read the hash word, then touch the value word), which no
-// test will hit by luck. Defining MULLE_CONCURRENT_HASHMAP2_RACE_YIELD widens
+// test will hit by luck. Defining MULLE_CONCURRENT_HASHTABLE_RACE_YIELD widens
 // them so the races become reproducible. Compiles to nothing otherwise.
 //
 // Deliberately not rand(): glibc's rand() takes a process-global lock, so it
@@ -64,17 +64,17 @@
 // A per-thread xorshift keeps the decisions independent and lock free, so the
 // probe perturbs the timing as little as possible.
 //
-#ifdef MULLE_CONCURRENT_HASHMAP2_RACE_YIELD
+#ifdef MULLE_CONCURRENT_HASHTABLE_RACE_YIELD
 
 # if defined( __GNUC__) || defined( __clang__)
-#  define HASHMAP2_RACE_TLS   __thread
+#  define HASHTABLE_RACE_TLS   __thread
 # else
-#  define HASHMAP2_RACE_TLS   /* shared, still lock free, good enough */
+#  define HASHTABLE_RACE_TLS   /* shared, still lock free, good enough */
 # endif
 
-static inline void   hashmap2_race_yield( void)
+static inline void   hashtable_race_yield( void)
 {
-   static HASHMAP2_RACE_TLS uint32_t   x;
+   static HASHTABLE_RACE_TLS uint32_t   x;
 
    if( ! x)
       x = (uint32_t) (uintptr_t) &x | 1;   // distinct per thread, never 0
@@ -87,7 +87,7 @@ static inline void   hashmap2_race_yield( void)
       mulle_thread_yield();
 }
 #else
-# define hashmap2_race_yield()   do {} while( 0)
+# define hashtable_race_yield()   do {} while( 0)
 #endif
 
 
@@ -104,7 +104,7 @@ static inline void   hashmap2_race_yield( void)
 // never set bit 63) but UNSAFE on 32-bit where addresses above 0x80000000
 // will alias with their lower-half counterpart.
 //
-static inline intptr_t   hashmap2_fold_hash( intptr_t hash)
+static inline intptr_t   hashtable_fold_hash( intptr_t hash)
 {
    assert( (hash & FROZEN) == 0 && "hash has FROZEN bit set — will alias!");
    hash &= INTPTR_MAX;
@@ -112,20 +112,20 @@ static inline intptr_t   hashmap2_fold_hash( intptr_t hash)
 }
 
 
-static inline int   hashmap2_is_frozen( intptr_t hashword)
+static inline int   hashtable_is_frozen( intptr_t hashword)
 {
    return( (hashword & FROZEN) != 0);
 }
 
 
-static inline intptr_t   hashmap2_hash_of( intptr_t hashword)
+static inline intptr_t   hashtable_hash_of( intptr_t hashword)
 {
    return( hashword & INTPTR_MAX);
 }
 
 
 static inline intptr_t
-   _mulle_concurrent_hashmap2pair_get_hash( struct _mulle_concurrent_hashmap2pair *entry)
+   _mulle_concurrent_hashtablepair_get_hash( struct _mulle_concurrent_hashtablepair *entry)
 {
    return( (intptr_t) _mulle_atomic_pointer_read( &entry->hash));
 }
@@ -135,11 +135,11 @@ static inline intptr_t
 
 // n must be a power of 2
 MULLE_C_NONNULL_RETURN
-static struct _mulle_concurrent_hashmap2storage *
-   _mulle_concurrent_hashmap2storage_alloc( unsigned int n,
+static struct _mulle_concurrent_hashtablestorage *
+   _mulle_concurrent_hashtablestorage_alloc( unsigned int n,
                                             struct mulle_allocator *allocator)
 {
-   struct _mulle_concurrent_hashmap2storage   *p;
+   struct _mulle_concurrent_hashtablestorage   *p;
 
    if( n < 4)
       n = 4;
@@ -148,15 +148,15 @@ static struct _mulle_concurrent_hashmap2storage *
    // calloc gives us hash == 0 and value == NULL, which is the virgin state.
    // the allocator either returns valid memory or aborts
    p = _mulle_allocator_calloc( allocator, 1,
-                                sizeof( struct _mulle_concurrent_hashmap2pair) * (n - 1) +
-                                sizeof( struct _mulle_concurrent_hashmap2storage));
+                                sizeof( struct _mulle_concurrent_hashtablepair) * (n - 1) +
+                                sizeof( struct _mulle_concurrent_hashtablestorage));
    p->mask = n - 1;
    return( p);
 }
 
 
 static unsigned int
-   _mulle_concurrent_hashmap2storage_get_max_n_hashs( struct _mulle_concurrent_hashmap2storage *p)
+   _mulle_concurrent_hashtablestorage_get_max_n_hashs( struct _mulle_concurrent_hashtablestorage *p)
 {
    unsigned int   size;
 
@@ -168,7 +168,7 @@ static unsigned int
 
 
 static unsigned int
-   _mulle_concurrent_hashmap2storage_get_migration_size( struct _mulle_concurrent_hashmap2storage *p)
+   _mulle_concurrent_hashtablestorage_get_migration_size( struct _mulle_concurrent_hashtablestorage *p)
 {
    unsigned int   size;
 
@@ -185,13 +185,13 @@ static unsigned int
 // hash if we lost, or a frozen word if a migration retired the slot.
 //
 static inline intptr_t
-   _mulle_concurrent_hashmap2storage_claim( struct _mulle_concurrent_hashmap2storage *p,
-                                            struct _mulle_concurrent_hashmap2pair *entry,
+   _mulle_concurrent_hashtablestorage_claim( struct _mulle_concurrent_hashtablestorage *p,
+                                            struct _mulle_concurrent_hashtablepair *entry,
                                             intptr_t hash)
 {
    intptr_t   found;
 
-   found = _mulle_concurrent_hashmap2pair_get_hash( entry);
+   found = _mulle_concurrent_hashtablepair_get_hash( entry);
    if( found != MULLE_CONCURRENT_NO_HASH)
       return( found);
 
@@ -216,15 +216,15 @@ static inline intptr_t
 // of how often the value changes.
 //
 static intptr_t
-   _mulle_concurrent_hashmap2storage_freeze( struct _mulle_concurrent_hashmap2pair *entry)
+   _mulle_concurrent_hashtablestorage_freeze( struct _mulle_concurrent_hashtablepair *entry)
 {
    intptr_t   found;
    intptr_t   target;
 
    for(;;)
    {
-      found = _mulle_concurrent_hashmap2pair_get_hash( entry);
-      if( hashmap2_is_frozen( found))
+      found = _mulle_concurrent_hashtablepair_get_hash( entry);
+      if( hashtable_is_frozen( found))
          return( found);
 
       target = found | FROZEN;
@@ -254,13 +254,13 @@ static intptr_t
 // report EEXIST rather than success.
 //
 static void *
-   _mulle_concurrent_hashmap2_carry( struct mulle_concurrent_hashmap2 *map,
-                                     struct _mulle_concurrent_hashmap2storage *p,
+   _mulle_concurrent_hashtable_carry( struct mulle_concurrent_hashtable *map,
+                                     struct _mulle_concurrent_hashtablestorage *p,
                                      intptr_t hash,
                                      void *value)
 {
-   struct _mulle_concurrent_hashmap2pair      *entry;
-   struct _mulle_concurrent_hashmap2storage   *q;
+   struct _mulle_concurrent_hashtablepair      *entry;
+   struct _mulle_concurrent_hashtablestorage   *q;
    intptr_t                                   found;
    unsigned int                               index;
    void                                       *old;
@@ -277,8 +277,8 @@ static void *
       for(;;)
       {
          entry = &p->entries[ index & (unsigned int) p->mask];
-         found = _mulle_concurrent_hashmap2storage_claim( p, entry, hash);
-         if( hashmap2_is_frozen( found))
+         found = _mulle_concurrent_hashtablestorage_claim( p, entry, hash);
+         if( hashtable_is_frozen( found))
             break;
 
          if( found == hash)
@@ -288,7 +288,7 @@ static void *
                return( old);   // destination already holds a value for 'hash',
                                // ours is redundant. Never chase on with it,
                                // that would reinject it past a newer removal
-            if( ! hashmap2_is_frozen( _mulle_concurrent_hashmap2pair_get_hash( entry)))
+            if( ! hashtable_is_frozen( _mulle_concurrent_hashtablepair_get_hash( entry)))
                return( value);
             break;          // installed into a generation that is retiring,
                             // the freezer may have missed it, so chase on
@@ -310,11 +310,11 @@ static void *
 //  EBUSY : storage is migrating
 //
 static int
-   _mulle_concurrent_hashmap2storage_lookup( struct _mulle_concurrent_hashmap2storage *p,
+   _mulle_concurrent_hashtablestorage_lookup( struct _mulle_concurrent_hashtablestorage *p,
                                              intptr_t hash,
                                              void **p_value)
 {
-   struct _mulle_concurrent_hashmap2pair   *entry;
+   struct _mulle_concurrent_hashtablepair   *entry;
    intptr_t                                found;
    unsigned int                            index;
 #ifndef NDEBUG
@@ -327,7 +327,7 @@ static int
    for(;;)
    {
       entry = &p->entries[ index & (unsigned int) p->mask];
-      found = _mulle_concurrent_hashmap2pair_get_hash( entry);
+      found = _mulle_concurrent_hashtablepair_get_hash( entry);
 
       if( found == MULLE_CONCURRENT_NO_HASH)
       {
@@ -337,12 +337,12 @@ static int
          return( 0);
       }
 
-      if( hashmap2_is_frozen( found))
+      if( hashtable_is_frozen( found))
          return( EBUSY);
 
       if( found == hash)
       {
-         hashmap2_race_yield();   // let a migration freeze, carry and consume
+         hashtable_race_yield();   // let a migration freeze, carry and consume
 
          *p_value = _mulle_atomic_pointer_read( &entry->value);
          if( *p_value != EMPTY_VALUE)
@@ -358,7 +358,7 @@ static int
          // NOTE: the window is two adjacent instructions wide and test
          // lookup_race.c does not reproduce it. This is reasoned, not measured.
          //
-         if( hashmap2_is_frozen( _mulle_concurrent_hashmap2pair_get_hash( entry)))
+         if( hashtable_is_frozen( _mulle_concurrent_hashtablepair_get_hash( entry)))
             return( EBUSY);
          return( 0);
       }
@@ -387,23 +387,23 @@ static int
 // of this one. Callers must report that case instead of claiming success.
 //
 static void *
-   _mulle_concurrent_hashmap2_post_check( struct mulle_concurrent_hashmap2 *map,
-                                          struct _mulle_concurrent_hashmap2storage *p,
-                                          struct _mulle_concurrent_hashmap2pair *entry,
+   _mulle_concurrent_hashtable_post_check( struct mulle_concurrent_hashtable *map,
+                                          struct _mulle_concurrent_hashtablestorage *p,
+                                          struct _mulle_concurrent_hashtablepair *entry,
                                           intptr_t hash,
                                           void *value)
 {
-   struct _mulle_concurrent_hashmap2storage   *q;
+   struct _mulle_concurrent_hashtablestorage   *q;
    void                                       *actual;
 
-   if( ! hashmap2_is_frozen( _mulle_concurrent_hashmap2pair_get_hash( entry)))
+   if( ! hashtable_is_frozen( _mulle_concurrent_hashtablepair_get_hash( entry)))
       return( value);
 
    q = _mulle_atomic_pointer_read( &map->next_storage.pointer);
    if( q == p)
       return( value);
 
-   actual = _mulle_concurrent_hashmap2_carry( map, q, hash, value);
+   actual = _mulle_concurrent_hashtable_carry( map, q, hash, value);
    __mulle_atomic_pointer_cas( &entry->value, EMPTY_VALUE, value);
    return( actual);
 }
@@ -415,12 +415,12 @@ static void *
 //  EBUSY  : storage is migrating
 //
 static int
-   _mulle_concurrent_hashmap2storage_insert( struct mulle_concurrent_hashmap2 *map,
-                                             struct _mulle_concurrent_hashmap2storage *p,
+   _mulle_concurrent_hashtablestorage_insert( struct mulle_concurrent_hashtable *map,
+                                             struct _mulle_concurrent_hashtablestorage *p,
                                              intptr_t hash,
                                              void *value)
 {
-   struct _mulle_concurrent_hashmap2pair   *entry;
+   struct _mulle_concurrent_hashtablepair   *entry;
    intptr_t                                found;
    unsigned int                            index;
    void                                    *old;
@@ -434,13 +434,13 @@ static int
    for(;;)
    {
       entry = &p->entries[ index & (unsigned int) p->mask];
-      found = _mulle_concurrent_hashmap2storage_claim( p, entry, hash);
-      if( hashmap2_is_frozen( found))
+      found = _mulle_concurrent_hashtablestorage_claim( p, entry, hash);
+      if( hashtable_is_frozen( found))
          return( EBUSY);
 
       if( found == hash)
       {
-         hashmap2_race_yield();   // let a migration freeze this slot
+         hashtable_race_yield();   // let a migration freeze this slot
 
          // the value word has only two states, empty or live, so a failed CAS
          // unambiguously means "already registered"
@@ -450,7 +450,7 @@ static int
 
          // we may have written into a slot that was being retired, in which
          // case the newer generation decides whose value survives
-         if( _mulle_concurrent_hashmap2_post_check( map, p, entry, hash, value) != value)
+         if( _mulle_concurrent_hashtable_post_check( map, p, entry, hash, value) != value)
             return( EEXIST);
          return( 0);
       }
@@ -462,7 +462,7 @@ static int
       // virgin slot normally remains. That is NOT unconditional: the check and
       // the claim are not atomic, so with more than size/2 threads in flight
       // past the check, n_hashs can overshoot and this probe can run out of
-      // slots. Inherited from the original hashmap, see dox/HASHMAP2.md.
+      // slots. Inherited from the original hashmap, see dox/HASHTABLE.md.
       //
       assert( index != sentinel);
    }
@@ -474,13 +474,13 @@ static int
 //  EBUSY  : storage is migrating
 //
 static int
-   _mulle_concurrent_hashmap2storage_register( struct mulle_concurrent_hashmap2 *map,
-                                               struct _mulle_concurrent_hashmap2storage *p,
+   _mulle_concurrent_hashtablestorage_register( struct mulle_concurrent_hashtable *map,
+                                               struct _mulle_concurrent_hashtablestorage *p,
                                                intptr_t hash,
                                                void *value,
                                                void **p_old)
 {
-   struct _mulle_concurrent_hashmap2pair   *entry;
+   struct _mulle_concurrent_hashtablepair   *entry;
    intptr_t                                found;
    unsigned int                            index;
    void                                    *actual;
@@ -495,20 +495,20 @@ static int
    for(;;)
    {
       entry = &p->entries[ index & (unsigned int) p->mask];
-      found = _mulle_concurrent_hashmap2storage_claim( p, entry, hash);
-      if( hashmap2_is_frozen( found))
+      found = _mulle_concurrent_hashtablestorage_claim( p, entry, hash);
+      if( hashtable_is_frozen( found))
          return( EBUSY);
 
       if( found == hash)
       {
-         hashmap2_race_yield();   // let a migration freeze this slot
+         hashtable_race_yield();   // let a migration freeze this slot
 
          old = __mulle_atomic_pointer_cas( &entry->value, value, EMPTY_VALUE);
          if( old == EMPTY_VALUE)
          {
             // if the slot was being retired, the newer generation may already
             // hold a value carried out of this one, and that one wins
-            actual = _mulle_concurrent_hashmap2_post_check( map, p, entry, hash, value);
+            actual = _mulle_concurrent_hashtable_post_check( map, p, entry, hash, value);
             old    = (actual == value) ? EMPTY_VALUE : actual;
          }
 
@@ -529,11 +529,11 @@ static int
 //           must be repeated in the newer generation
 //
 static int
-   _mulle_concurrent_hashmap2storage_remove( struct _mulle_concurrent_hashmap2storage *p,
+   _mulle_concurrent_hashtablestorage_remove( struct _mulle_concurrent_hashtablestorage *p,
                                              intptr_t hash,
                                              void *value)
 {
-   struct _mulle_concurrent_hashmap2pair   *entry;
+   struct _mulle_concurrent_hashtablepair   *entry;
    intptr_t                                found;
    unsigned int                            index;
    void                                    *old;
@@ -547,17 +547,17 @@ static int
    for(;;)
    {
       entry = &p->entries[ index & (unsigned int) p->mask];
-      found = _mulle_concurrent_hashmap2pair_get_hash( entry);
+      found = _mulle_concurrent_hashtablepair_get_hash( entry);
 
       if( found == MULLE_CONCURRENT_NO_HASH)
          return( ENOENT);
 
-      if( hashmap2_is_frozen( found))
+      if( hashtable_is_frozen( found))
          return( EBUSY);
 
       if( found == hash)
       {
-         hashmap2_race_yield();   // let a migration freeze, carry and consume
+         hashtable_race_yield();   // let a migration freeze, carry and consume
 
          old = __mulle_atomic_pointer_cas( &entry->value, EMPTY_VALUE, value);
          if( old != value)
@@ -568,17 +568,17 @@ static int
             // unfrozen. Reporting ENOENT would then lose the removal, so check
             // the gate and go on in the newer generation instead.
             //
-            // Reproduced by test/hashmap2/remove_migrate_race.c, which forces
+            // Reproduced by test/hashtable/remove_migrate_race.c, which forces
             // same-size migrations: without this check it reports a lost
             // removal within a couple of thousand iterations.
             //
             if( old == EMPTY_VALUE &&
-                hashmap2_is_frozen( _mulle_concurrent_hashmap2pair_get_hash( entry)))
+                hashtable_is_frozen( _mulle_concurrent_hashtablepair_get_hash( entry)))
                return( EBUSY);
             return( ENOENT);
          }
 
-         if( hashmap2_is_frozen( _mulle_concurrent_hashmap2pair_get_hash( entry)))
+         if( hashtable_is_frozen( _mulle_concurrent_hashtablepair_get_hash( entry)))
             return( EAGAIN);
          return( 0);
       }
@@ -594,12 +594,12 @@ static int
 // never be undone by a lagging copier.
 //
 static void
-   _mulle_concurrent_hashmap2storage_copy( struct mulle_concurrent_hashmap2 *map,
-                                           struct _mulle_concurrent_hashmap2storage *dst,
-                                           struct _mulle_concurrent_hashmap2storage *src)
+   _mulle_concurrent_hashtablestorage_copy( struct mulle_concurrent_hashtable *map,
+                                           struct _mulle_concurrent_hashtablestorage *dst,
+                                           struct _mulle_concurrent_hashtablestorage *src)
 {
-   struct _mulle_concurrent_hashmap2pair   *entry;
-   struct _mulle_concurrent_hashmap2pair   *sentinel;
+   struct _mulle_concurrent_hashtablepair   *entry;
+   struct _mulle_concurrent_hashtablepair   *sentinel;
    intptr_t                                hash;
    void                                    *value;
 
@@ -608,19 +608,19 @@ static void
 
    for( ; entry < sentinel; entry++)
    {
-      hash = hashmap2_hash_of( _mulle_concurrent_hashmap2storage_freeze( entry));
+      hash = hashtable_hash_of( _mulle_concurrent_hashtablestorage_freeze( entry));
       if( hash == MULLE_CONCURRENT_NO_HASH)
          continue;                  // retired virgin, nothing was ever here
 
-      hashmap2_race_yield();        // let a writer land in the frozen slot
+      hashtable_race_yield();        // let a writer land in the frozen slot
 
       value = _mulle_atomic_pointer_read( &entry->value);
       if( value == EMPTY_VALUE)
          continue;                  // empty, removed, or already drained
 
-      _mulle_concurrent_hashmap2_carry( map, dst, hash, value);
+      _mulle_concurrent_hashtable_carry( map, dst, hash, value);
 
-      hashmap2_race_yield();        // let a reader observe the pre-consume slot
+      hashtable_race_yield();        // let a reader observe the pre-consume slot
 
       // Consume it. A frozen slot preserves its payload, which is the whole
       // point, but that means "frozen" alone cannot also mean "already
@@ -634,13 +634,13 @@ static void
 
 
 static void
-   _mulle_concurrent_hashmap2_migrate_storage_with_size( struct mulle_concurrent_hashmap2 *map,
-                                                         struct _mulle_concurrent_hashmap2storage *p,
+   _mulle_concurrent_hashtable_migrate_storage_with_size( struct mulle_concurrent_hashtable *map,
+                                                         struct _mulle_concurrent_hashtablestorage *p,
                                                          unsigned int new_size)
 {
-   struct _mulle_concurrent_hashmap2storage   *alloced;
-   struct _mulle_concurrent_hashmap2storage   *previous;
-   struct _mulle_concurrent_hashmap2storage   *q;
+   struct _mulle_concurrent_hashtablestorage   *alloced;
+   struct _mulle_concurrent_hashtablestorage   *previous;
+   struct _mulle_concurrent_hashtablestorage   *q;
    struct mulle_allocator                     *allocator;
 
    assert( p);
@@ -651,7 +651,7 @@ static void
    q       = _mulle_atomic_pointer_read( &map->next_storage.pointer);
    if( q == p)
    {
-      alloced = _mulle_concurrent_hashmap2storage_alloc( new_size, allocator);
+      alloced = _mulle_concurrent_hashtablestorage_alloc( new_size, allocator);
       q = __mulle_atomic_pointer_cas( &map->next_storage.pointer, alloced, p);
       if( q != p)
       {
@@ -662,7 +662,7 @@ static void
          q = alloced;
    }
 
-   _mulle_concurrent_hashmap2storage_copy( map, q, p);
+   _mulle_concurrent_hashtablestorage_copy( map, q, p);
 
    previous = __mulle_atomic_pointer_cas( &map->storage.pointer, q, p);
    if( previous == p)
@@ -671,11 +671,11 @@ static void
 
 
 static inline void
-   _mulle_concurrent_hashmap2_migrate_storage( struct mulle_concurrent_hashmap2 *map,
-                                               struct _mulle_concurrent_hashmap2storage *p)
+   _mulle_concurrent_hashtable_migrate_storage( struct mulle_concurrent_hashtable *map,
+                                               struct _mulle_concurrent_hashtablestorage *p)
 {
-   _mulle_concurrent_hashmap2_migrate_storage_with_size( map, p,
-      _mulle_concurrent_hashmap2storage_get_migration_size( p));
+   _mulle_concurrent_hashtable_migrate_storage_with_size( map, p,
+      _mulle_concurrent_hashtablestorage_get_migration_size( p));
 }
 
 
@@ -683,32 +683,32 @@ static inline void
 // Retire the current generation into a fresh one of the *same* size. Exists so
 // that tests can force continuous generation changes without doubling memory on
 // every call, which is what makes the remove-versus-copy race (S6 in
-// dox/HASHMAP2.md) reproducible: widening the instruction window is not enough
+// dox/HASHTABLE.md) reproducible: widening the instruction window is not enough
 // there, because migration frequency is the binding constraint.
 //
 // Safe as a general operation too: only live values are carried, and the live
 // count cannot exceed the threshold that would have grown the table anyway.
 //
-void   _mulle_concurrent_hashmap2_migrate_same_size( struct mulle_concurrent_hashmap2 *map)
+void   _mulle_concurrent_hashtable_migrate_same_size( struct mulle_concurrent_hashtable *map)
 {
-   struct _mulle_concurrent_hashmap2storage   *p;
+   struct _mulle_concurrent_hashtablestorage   *p;
 
    if( ! map)
       return;
 
    p = _mulle_atomic_pointer_read( &map->storage.pointer);
-   _mulle_concurrent_hashmap2_migrate_storage_with_size( map, p,
+   _mulle_concurrent_hashtable_migrate_storage_with_size( map, p,
                                                          (unsigned int) p->mask + 1);
 }
 
 
 #pragma mark - single-threaded
 
-int   mulle_concurrent_hashmap2_init( struct mulle_concurrent_hashmap2 *map,
+int   mulle_concurrent_hashtable_init( struct mulle_concurrent_hashtable *map,
                                       unsigned int size,
                                       struct mulle_allocator *allocator)
 {
-   struct _mulle_concurrent_hashmap2storage   *storage;
+   struct _mulle_concurrent_hashtablestorage   *storage;
 
    if( ! map)
       return( EINVAL);
@@ -716,7 +716,7 @@ int   mulle_concurrent_hashmap2_init( struct mulle_concurrent_hashmap2 *map,
    if( ! allocator)
       allocator = &mulle_default_allocator;
 
-   storage = _mulle_concurrent_hashmap2storage_alloc( size, allocator);
+   storage = _mulle_concurrent_hashtablestorage_alloc( size, allocator);
 
    _mulle_atomic_pointer_nonatomic_write( &map->allocator, allocator);
    _mulle_atomic_pointer_nonatomic_write( &map->storage.pointer, storage);
@@ -726,10 +726,10 @@ int   mulle_concurrent_hashmap2_init( struct mulle_concurrent_hashmap2 *map,
 }
 
 
-void  mulle_concurrent_hashmap2_done( struct mulle_concurrent_hashmap2 *map)
+void  mulle_concurrent_hashtable_done( struct mulle_concurrent_hashtable *map)
 {
-   struct _mulle_concurrent_hashmap2storage   *next_storage;
-   struct _mulle_concurrent_hashmap2storage   *storage;
+   struct _mulle_concurrent_hashtablestorage   *next_storage;
+   struct _mulle_concurrent_hashtablestorage   *storage;
    struct mulle_allocator                     *allocator;
 
    if( ! map)
@@ -751,33 +751,33 @@ void  mulle_concurrent_hashmap2_done( struct mulle_concurrent_hashmap2 *map)
 
 #pragma mark - multi-threaded
 
-void  *mulle_concurrent_hashmap2_lookup( struct mulle_concurrent_hashmap2 *map,
+void  *mulle_concurrent_hashtable_lookup( struct mulle_concurrent_hashtable *map,
                                          intptr_t hash)
 {
-   struct _mulle_concurrent_hashmap2storage   *p;
+   struct _mulle_concurrent_hashtablestorage   *p;
    void                                       *value;
 
    if( ! map || hash == MULLE_CONCURRENT_NO_HASH)
       return( NULL);
 
-   hash = hashmap2_fold_hash( hash);
+   hash = hashtable_fold_hash( hash);
 
 retry:
    p = _mulle_atomic_pointer_read( &map->storage.pointer);
-   if( _mulle_concurrent_hashmap2storage_lookup( p, hash, &value) == EBUSY)
+   if( _mulle_concurrent_hashtablestorage_lookup( p, hash, &value) == EBUSY)
    {
-      _mulle_concurrent_hashmap2_migrate_storage( map, p);
+      _mulle_concurrent_hashtable_migrate_storage( map, p);
       goto retry;
    }
    return( value);
 }
 
 
-int   mulle_concurrent_hashmap2_insert( struct mulle_concurrent_hashmap2 *map,
+int   mulle_concurrent_hashtable_insert( struct mulle_concurrent_hashtable *map,
                                        intptr_t hash,
                                        void *value)
 {
-   struct _mulle_concurrent_hashmap2storage   *p;
+   struct _mulle_concurrent_hashtablestorage   *p;
    int                                        rval;
    unsigned int                               max;
    unsigned int                               n;
@@ -785,35 +785,35 @@ int   mulle_concurrent_hashmap2_insert( struct mulle_concurrent_hashmap2 *map,
    if( ! map || hash == MULLE_CONCURRENT_NO_HASH || value == EMPTY_VALUE)
       return( EINVAL);
 
-   hash = hashmap2_fold_hash( hash);
+   hash = hashtable_fold_hash( hash);
 
 retry:
    p   = _mulle_atomic_pointer_read( &map->storage.pointer);
-   max = _mulle_concurrent_hashmap2storage_get_max_n_hashs( p);
+   max = _mulle_concurrent_hashtablestorage_get_max_n_hashs( p);
    n   = (unsigned int) (uintptr_t) _mulle_atomic_pointer_read( &p->n_hashs);
 
    if( n >= max)
    {
-      _mulle_concurrent_hashmap2_migrate_storage( map, p);
+      _mulle_concurrent_hashtable_migrate_storage( map, p);
       goto retry;
    }
 
-   rval = _mulle_concurrent_hashmap2storage_insert( map, p, hash, value);
+   rval = _mulle_concurrent_hashtablestorage_insert( map, p, hash, value);
    if( rval == EBUSY)
    {
-      _mulle_concurrent_hashmap2_migrate_storage( map, p);
+      _mulle_concurrent_hashtable_migrate_storage( map, p);
       goto retry;
    }
    return( rval);
 }
 
 
-int   mulle_concurrent_hashmap2_register( struct mulle_concurrent_hashmap2 *map,
+int   mulle_concurrent_hashtable_register( struct mulle_concurrent_hashtable *map,
                                          intptr_t hash,
                                          void *value,
                                          void **p_old)
 {
-   struct _mulle_concurrent_hashmap2storage   *p;
+   struct _mulle_concurrent_hashtablestorage   *p;
    int                                        rval;
    unsigned int                               max;
    unsigned int                               n;
@@ -822,23 +822,23 @@ int   mulle_concurrent_hashmap2_register( struct mulle_concurrent_hashmap2 *map,
    if( ! map || hash == MULLE_CONCURRENT_NO_HASH || value == EMPTY_VALUE)
       return( EINVAL);
 
-   hash = hashmap2_fold_hash( hash);
+   hash = hashtable_fold_hash( hash);
 
 retry:
    p   = _mulle_atomic_pointer_read( &map->storage.pointer);
-   max = _mulle_concurrent_hashmap2storage_get_max_n_hashs( p);
+   max = _mulle_concurrent_hashtablestorage_get_max_n_hashs( p);
    n   = (unsigned int) (uintptr_t) _mulle_atomic_pointer_read( &p->n_hashs);
 
    if( n >= max)
    {
-      _mulle_concurrent_hashmap2_migrate_storage( map, p);
+      _mulle_concurrent_hashtable_migrate_storage( map, p);
       goto retry;
    }
 
-   rval = _mulle_concurrent_hashmap2storage_register( map, p, hash, value, &old);
+   rval = _mulle_concurrent_hashtablestorage_register( map, p, hash, value, &old);
    if( rval == EBUSY)
    {
-      _mulle_concurrent_hashmap2_migrate_storage( map, p);
+      _mulle_concurrent_hashtable_migrate_storage( map, p);
       goto retry;
    }
 
@@ -848,23 +848,23 @@ retry:
 }
 
 
-int   mulle_concurrent_hashmap2_remove( struct mulle_concurrent_hashmap2 *map,
+int   mulle_concurrent_hashtable_remove( struct mulle_concurrent_hashtable *map,
                                        intptr_t hash,
                                        void *value)
 {
-   struct _mulle_concurrent_hashmap2storage   *p;
+   struct _mulle_concurrent_hashtablestorage   *p;
    int                                        removed;
    int                                        rval;
 
    if( ! map || hash == MULLE_CONCURRENT_NO_HASH || value == EMPTY_VALUE)
       return( EINVAL);
 
-   hash    = hashmap2_fold_hash( hash);
+   hash    = hashtable_fold_hash( hash);
    removed = 0;
 
 retry:
    p    = _mulle_atomic_pointer_read( &map->storage.pointer);
-   rval = _mulle_concurrent_hashmap2storage_remove( p, hash, value);
+   rval = _mulle_concurrent_hashtablestorage_remove( p, hash, value);
 
    if( rval == EAGAIN)
    {
@@ -873,13 +873,13 @@ retry:
       // removal in the newer generation. Legal because we have not returned
       // yet: a concurrent re-insert of the same value may be ordered before us
       removed = 1;
-      _mulle_concurrent_hashmap2_migrate_storage( map, p);
+      _mulle_concurrent_hashtable_migrate_storage( map, p);
       goto retry;
    }
 
    if( rval == EBUSY)
    {
-      _mulle_concurrent_hashmap2_migrate_storage( map, p);
+      _mulle_concurrent_hashtable_migrate_storage( map, p);
       goto retry;
    }
 
@@ -889,9 +889,9 @@ retry:
 }
 
 
-unsigned int   mulle_concurrent_hashmap2_get_size( struct mulle_concurrent_hashmap2 *map)
+unsigned int   mulle_concurrent_hashtable_get_size( struct mulle_concurrent_hashtable *map)
 {
-   struct _mulle_concurrent_hashmap2storage   *p;
+   struct _mulle_concurrent_hashtablestorage   *p;
 
    if( ! map)
       return( 0);
@@ -901,11 +901,11 @@ unsigned int   mulle_concurrent_hashmap2_get_size( struct mulle_concurrent_hashm
 }
 
 
-unsigned int   mulle_concurrent_hashmap2_count( struct mulle_concurrent_hashmap2 *map)
+unsigned int   mulle_concurrent_hashtable_count( struct mulle_concurrent_hashtable *map)
 {
-   struct _mulle_concurrent_hashmap2pair      *entry;
-   struct _mulle_concurrent_hashmap2pair      *sentinel;
-   struct _mulle_concurrent_hashmap2storage   *p;
+   struct _mulle_concurrent_hashtablepair      *entry;
+   struct _mulle_concurrent_hashtablepair      *sentinel;
+   struct _mulle_concurrent_hashtablestorage   *p;
    intptr_t                                   found;
    unsigned int                               count;
 
@@ -920,10 +920,10 @@ retry:
 
    for( ; entry < sentinel; entry++)
    {
-      found = _mulle_concurrent_hashmap2pair_get_hash( entry);
-      if( hashmap2_is_frozen( found))
+      found = _mulle_concurrent_hashtablepair_get_hash( entry);
+      if( hashtable_is_frozen( found))
       {
-         _mulle_concurrent_hashmap2_migrate_storage( map, p);
+         _mulle_concurrent_hashtable_migrate_storage( map, p);
          goto retry;
       }
       if( found == MULLE_CONCURRENT_NO_HASH)
@@ -937,12 +937,12 @@ retry:
 
 #pragma mark - limited multi-threaded
 
-int   _mulle_concurrent_hashmap2enumerator_next( struct mulle_concurrent_hashmap2enumerator *rover,
+int   _mulle_concurrent_hashtableenumerator_next( struct mulle_concurrent_hashtableenumerator *rover,
                                                  intptr_t *p_hash,
                                                  void **p_value)
 {
-   struct _mulle_concurrent_hashmap2pair      *entry;
-   struct _mulle_concurrent_hashmap2storage   *p;
+   struct _mulle_concurrent_hashtablepair      *entry;
+   struct _mulle_concurrent_hashtablestorage   *p;
    intptr_t                                   found;
    unsigned int                               size;
    void                                       *value;
@@ -970,8 +970,8 @@ int   _mulle_concurrent_hashmap2enumerator_next( struct mulle_concurrent_hashmap
       entry = &p->entries[ rover->index];
       ++rover->index;
 
-      found = _mulle_concurrent_hashmap2pair_get_hash( entry);
-      if( hashmap2_is_frozen( found))
+      found = _mulle_concurrent_hashtablepair_get_hash( entry);
+      if( hashtable_is_frozen( found))
          return( ECANCELED);
       if( found == MULLE_CONCURRENT_NO_HASH)
          continue;

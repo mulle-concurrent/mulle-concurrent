@@ -83,45 +83,6 @@ static void  load_threshold_test( void)
 }
 
 
-static void  grow_remove_regrow_test( void)
-{
-   struct mulle_concurrent_hashmap   map;
-   unsigned int                      count;
-   intptr_t                          i;
-   unsigned int                      removed;
-
-   mulle_concurrent_hashmap_init( &map, 4, NULL);
-
-   for( i = 1; i <= 100; i++)
-      check( mulle_concurrent_hashmap_insert( &map, i, (void *)(uintptr_t)(i * 3)) == 0,
-             "regrow insert" );
-
-   count = mulle_concurrent_hashmap_count( &map);
-   check( count == 100, "regrow count" );
-   check( mulle_concurrent_hashmap_get_size( &map) >= 128, "regrow size" );
-
-   // remove every even key
-   removed = 0;
-   for( i = 2; i <= 100; i += 2)
-   {
-      check( mulle_concurrent_hashmap_remove( &map, i, (void *)(uintptr_t)(i * 3)) == 0,
-             "regrow remove" );
-      removed++;
-   }
-   check( mulle_concurrent_hashmap_count( &map) == 100 - removed, "regrow count after remove" );
-
-   // After the fix, removed hashes can be reused immediately (tombstone
-   // refill in place). Re-insert the even keys with a new value.
-   for( i = 2; i <= 100; i += 2)
-      check( mulle_concurrent_hashmap_insert( &map, i, (void *)(uintptr_t)(i * 7)) == 0,
-             "regrow reinsert after remove" );
-   check( mulle_concurrent_hashmap_count( &map) == 100, "regrow count after reinsert" );
-   check( mulle_concurrent_hashmap_lookup( &map, 2) == (void *)(uintptr_t)(2 * 7),
-          "regrow reinserted value" );
-
-   mulle_concurrent_hashmap_done( &map);
-}
-
 
 #define N_LARGE    (1 << 20)
 
@@ -173,7 +134,6 @@ int   main( void)
 
    init_size_test();
    load_threshold_test();
-   grow_remove_regrow_test();
    large_capacity_test();
 
    mulle_aba_unregister();

@@ -30,11 +30,6 @@ static void   test( void)
          printf( "%lu 0x%tx\n", (unsigned long) hash, (intptr_t) value);
       }
       mulle_concurrent_hashmapenumerator_done( &rover);
-
-      mulle_concurrent_hashmap_remove( &map, 100000, (void *) 0x1848);
-
-      value = _mulle_concurrent_hashmap_lookup( &map, 100000);
-      printf( "%s\n", value == (void *) 0x1848 ? "unexpected" : "expected");
    }
    mulle_concurrent_hashmap_done( &map);
 }

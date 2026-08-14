@@ -41,7 +41,7 @@
 
 #include "mulle-concurrent-types.h"
 #include "mulle-concurrent-hashmap.h"
-#include "mulle-concurrent-hashmap2.h"
+#include "mulle-concurrent-hashtable.h"
 #include "mulle-concurrent-pointerarray.h"
 #include "mulle-concurrent-pointerset.h"
 

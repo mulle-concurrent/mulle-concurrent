@@ -40,7 +40,9 @@
 
 #include <errno.h>
 
-
+//
+// Maps a "hash" to a value.
+// The "hash" is fully sizeof(intptr_t) so you can use it to index via void *!
 //
 // Slot protocol:
 //
@@ -56,8 +58,6 @@
 //   | NO_HASH  | anything else    | unreachable (only the claimer writes value)
 //   | h        | NO_POINTER       | claimed, fill in flight
 //   | h        | live pointer     | live entry
-//   | h        | TOMBSTONE        | removed; slot stays claimed, dropped at
-//   |          |                  | the next migration
 //   | any      | REDIRECT         | frozen by a migration
 //
 // 'hash' is kept in a mulle_atomic_pointer_t (holding an intptr_t), because
@@ -72,7 +72,7 @@ struct _mulle_concurrent_hashvaluepair
 
 struct _mulle_concurrent_hashmapstorage
 {
-   mulle_atomic_pointer_t   n_hashs;       // claimed slots, live or tombstoned
+   mulle_atomic_pointer_t   n_hashs;       // claimed slots (live)
    uintptr_t                mask;          // easier to read from debugger if void * size
 
    struct _mulle_concurrent_hashvaluepair  entries[ 1];
@@ -135,11 +135,6 @@ int  _mulle_concurrent_hashmap_insert( struct mulle_concurrent_hashmap *map,
 MULLE__CONCURRENT_GLOBAL
 void  *_mulle_concurrent_hashmap_lookup( struct mulle_concurrent_hashmap *map,
                                          intptr_t hash);
-
-MULLE__CONCURRENT_GLOBAL
-int  _mulle_concurrent_hashmap_remove( struct mulle_concurrent_hashmap *map,
-                                       intptr_t hash,
-                                       void *value);
 
 
 
@@ -216,42 +211,19 @@ static inline void
 }
 
 
-// if rval == 0, removed
-// rval == ENOENT, not found (hash/value pair does not exist (anymore))
-// rval == EINVAL, parameter has invalid value
-//
-// Removing leaves a tombstone. Reinserting the same hash is supported but
-// triggers a same-size migration (full table copy) to drop the tombstone.
-// This is correct and wait-free, but slow for tight remove/reinsert cycles
-// on the same hash. A different hash probing through a tombstoned slot is
-// unaffected — it simply skips it without any migration cost.
-//
-
-MULLE__CONCURRENT_GLOBAL
-int   mulle_concurrent_hashmap_remove( struct mulle_concurrent_hashmap *map,
-                                       intptr_t hash,
-                                       void *value);
-
-
 
 #ifdef HAVE_MULLE_CONCURRENT_POSEAS_PATCH
 //
-// These are narrow-scope "hack" functions for the runtime.  They work, but
-// their contracts are too restrictive for a public API.  Do not use them
-// unless you are mulle-objc-runtime (or know exactly what you are doing).
+// Single-threaded patch: unconditionally replace the value of an existing
+// entry. There is no CAS, no migration concern, and no concurrency contract.
+// Use during single-threaded setup/teardown phases only.
 //
-MULLE__CONCURRENT_GLOBAL
-int  _mulle_concurrent_hashmap_pose( struct mulle_concurrent_hashmap *map,
-                                     intptr_t hash,
-                                     void *value,
-                                     void *expect);
-
 MULLE__CONCURRENT_GLOBAL
 int  _mulle_concurrent_hashmap_patch( struct mulle_concurrent_hashmap *map,
                                       intptr_t hash,
-                                      void *value);  // single-threaded only
-#endif
+                                      void *value);
 
+#endif
 
 
 #pragma mark - limited multi-threaded

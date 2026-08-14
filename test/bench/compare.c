@@ -41,8 +41,8 @@
 #define GROW_KEYS        20000
 
 
-static struct mulle_concurrent_hashmap    g_map1;
-static struct mulle_concurrent_hashmap2   g_map2;
+static struct mulle_concurrent_hashtable    g_map1;
+static struct mulle_concurrent_hashtable   g_map2;
 
 
 static void   check( int condition, char *name)
@@ -105,26 +105,26 @@ struct worker_context
 static void   insert_key( unsigned int kind, intptr_t hash)
 {
    if( kind == 0)
-      mulle_concurrent_hashmap_insert( &g_map1, hash, value_for( hash));
+      mulle_concurrent_hashtable_insert( &g_map1, hash, value_for( hash));
    else
-      mulle_concurrent_hashmap2_insert( &g_map2, hash, value_for( hash));
+      mulle_concurrent_hashtable_insert( &g_map2, hash, value_for( hash));
 }
 
 
 static void   remove_key( unsigned int kind, intptr_t hash)
 {
    if( kind == 0)
-      mulle_concurrent_hashmap_remove( &g_map1, hash, value_for( hash));
+      mulle_concurrent_hashtable_remove( &g_map1, hash, value_for( hash));
    else
-      mulle_concurrent_hashmap2_remove( &g_map2, hash, value_for( hash));
+      mulle_concurrent_hashtable_remove( &g_map2, hash, value_for( hash));
 }
 
 
 static void   *lookup_key( unsigned int kind, intptr_t hash)
 {
    if( kind == 0)
-      return( mulle_concurrent_hashmap_lookup( &g_map1, hash));
-   return( mulle_concurrent_hashmap2_lookup( &g_map2, hash));
+      return( mulle_concurrent_hashtable_lookup( &g_map1, hash));
+   return( mulle_concurrent_hashtable_lookup( &g_map2, hash));
 }
 
 
@@ -292,28 +292,28 @@ int   main( void)
    //
    // mixed: insert / lookup / remove with recycled keys
    //
-   mulle_concurrent_hashmap_init( &g_map1, 1024, NULL);
-   mulle_concurrent_hashmap2_init( &g_map2, 1024, NULL);
+   mulle_concurrent_hashtable_init( &g_map1, 1024, NULL);
+   mulle_concurrent_hashtable_init( &g_map2, 1024, NULL);
 
    elapsed1 = run_phase( 0, 0);
    elapsed2 = run_phase( 1, 0);
 
-   check( mulle_concurrent_hashmap_count( &g_map1) ==
-          mulle_concurrent_hashmap2_count( &g_map2),
+   check( mulle_concurrent_hashtable_count( &g_map1) ==
+          mulle_concurrent_hashtable_count( &g_map2),
           "mixed phase counts agree" );
 
    ops = (double) N_THREADS * N_ROUNDS * (INSERTS + LOOKUPS + REMOVES);
    report( "mixed", elapsed1, elapsed2, ops);
    printf( "benchmark: mixed insert/lookup/remove\n");
 
-   mulle_concurrent_hashmap_done( &g_map1);
-   mulle_concurrent_hashmap2_done( &g_map2);
+   mulle_concurrent_hashtable_done( &g_map1);
+   mulle_concurrent_hashtable_done( &g_map2);
 
    //
    // read-heavy: fill once, then lookups only
    //
-   mulle_concurrent_hashmap_init( &g_map1, 1024, NULL);
-   mulle_concurrent_hashmap2_init( &g_map2, 1024, NULL);
+   mulle_concurrent_hashtable_init( &g_map1, 1024, NULL);
+   mulle_concurrent_hashtable_init( &g_map2, 1024, NULL);
 
    for( t = 0; t < N_THREADS; t++)
       for( i = 0; i < KEYS_PER_THREAD; i++)
@@ -330,31 +330,31 @@ int   main( void)
    report( "read-heavy", elapsed1, elapsed2, ops);
    printf( "benchmark: read-heavy lookup\n");
 
-   mulle_concurrent_hashmap_done( &g_map1);
-   mulle_concurrent_hashmap2_done( &g_map2);
+   mulle_concurrent_hashtable_done( &g_map1);
+   mulle_concurrent_hashtable_done( &g_map2);
 
    //
    // grow: insert only, from a deliberately small initial size
    //
-   mulle_concurrent_hashmap_init( &g_map1, 4, NULL);
-   mulle_concurrent_hashmap2_init( &g_map2, 4, NULL);
+   mulle_concurrent_hashtable_init( &g_map1, 4, NULL);
+   mulle_concurrent_hashtable_init( &g_map2, 4, NULL);
 
    elapsed1 = run_phase( 0, 2);
    elapsed2 = run_phase( 1, 2);
 
-   check( mulle_concurrent_hashmap_count( &g_map1) ==
-          mulle_concurrent_hashmap2_count( &g_map2),
+   check( mulle_concurrent_hashtable_count( &g_map1) ==
+          mulle_concurrent_hashtable_count( &g_map2),
           "grow phase counts agree" );
 
    ops = (double) N_THREADS * GROW_KEYS;
    report( "grow", elapsed1, elapsed2, ops);
    fprintf( stderr, "grow sizes: hashmap %u, hashmap2 %u\n",
-            mulle_concurrent_hashmap_get_size( &g_map1),
-            mulle_concurrent_hashmap2_get_size( &g_map2));
+            mulle_concurrent_hashtable_get_size( &g_map1),
+            mulle_concurrent_hashtable_get_size( &g_map2));
    printf( "benchmark: grow insert\n");
 
-   mulle_concurrent_hashmap_done( &g_map1);
-   mulle_concurrent_hashmap2_done( &g_map2);
+   mulle_concurrent_hashtable_done( &g_map1);
+   mulle_concurrent_hashtable_done( &g_map2);
 
    mulle_aba_unregister();
    mulle_aba_done();

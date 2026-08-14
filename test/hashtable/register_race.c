@@ -1,5 +1,5 @@
 //
-// S11 from dox/HASHMAP2.md: register's *p_old must report the carried value.
+// S11 from dox/HASHTABLE.md: register's *p_old must report the carried value.
 //
 // Invariant: the owner inserts V1 once and never removes it. The registrant
 // calls register(KEY, V2) in a loop. Since V1 is always live, register must
@@ -12,7 +12,7 @@
 // on a consumed slot. Without the post-check fix, the registrant reports
 // *p_old == NULL — a linearizability violation.
 //
-// Compile with -DMULLE_CONCURRENT_HASHMAP2_RACE_YIELD to widen the window.
+// Compile with -DMULLE_CONCURRENT_HASHTABLE_RACE_YIELD to widen the window.
 //
 #include <mulle-concurrent/mulle-concurrent.h>
 
@@ -25,7 +25,7 @@
 #define N_ITERS     200000
 #define KEY         7777
 
-static struct mulle_concurrent_hashmap2   g_map;
+static struct mulle_concurrent_hashtable   g_map;
 static volatile int                       g_ready;   // owner has inserted
 static volatile int                       g_stop;
 static int                                g_failed;
@@ -47,7 +47,7 @@ static void  *migrator( void *unused)
 
    for( i = 0; ! g_stop; i++)
    {
-      _mulle_concurrent_hashmap2_migrate_same_size( &g_map);
+      _mulle_concurrent_hashtable_migrate_same_size( &g_map);
 
       if( (i & 0x3F) == 0)
          mulle_aba_checkin();
@@ -74,7 +74,7 @@ static void  *registrant( void *unused)
    for( i = 0; i < N_ITERS && ! g_failed; i++)
    {
       old  = (void *) 0xDEAD;
-      rval = mulle_concurrent_hashmap2_register( &g_map, KEY, V2, &old);
+      rval = mulle_concurrent_hashtable_register( &g_map, KEY, V2, &old);
       if( rval != 0)
       {
          printf( "FAILED: register returned %d at %d\n", rval, i);
@@ -101,7 +101,7 @@ static void  *registrant( void *unused)
       {
          // our own value from a previous iteration is still there —
          // remove it so we can retry cleanly
-         mulle_concurrent_hashmap2_remove( &g_map, KEY, V2);
+         mulle_concurrent_hashtable_remove( &g_map, KEY, V2);
       }
       else
       {
@@ -131,10 +131,10 @@ int   main( void)
    mulle_aba_init( NULL);
    mulle_aba_register();
 
-   mulle_concurrent_hashmap2_init( &g_map, 64, NULL);
+   mulle_concurrent_hashtable_init( &g_map, 64, NULL);
 
    // insert V1 before anyone else starts — it will never be removed
-   rval = mulle_concurrent_hashmap2_insert( &g_map, KEY, V1);
+   rval = mulle_concurrent_hashtable_insert( &g_map, KEY, V1);
    if( rval != 0)
    {
       printf( "FAILED: initial insert returned %d\n", rval);
@@ -156,7 +156,7 @@ int   main( void)
 
    // V1 must still be retrievable (or V2 if registrant won the last round)
    {
-      void *found = mulle_concurrent_hashmap2_lookup( &g_map, KEY);
+      void *found = mulle_concurrent_hashtable_lookup( &g_map, KEY);
       if( found != V1 && found != V2)
       {
          printf( "FAILED: final lookup lost both values\n");
@@ -164,7 +164,7 @@ int   main( void)
       }
    }
 
-   mulle_concurrent_hashmap2_done( &g_map);
+   mulle_concurrent_hashtable_done( &g_map);
    mulle_aba_unregister();
    mulle_aba_done();
    mulle_testallocator_reset();
