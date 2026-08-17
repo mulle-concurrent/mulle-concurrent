@@ -326,4 +326,33 @@ static inline void
    MULLE_C_UNUSED( rover);
 }
 
+
+
+#define mulle_concurrent_hashtable_for_rval( name, hash, value, rval)                                                         \
+   assert( sizeof( hash) == sizeof( intptr_t));                                                                               \
+   assert( sizeof( value) == sizeof( void *));                                                                                \
+   for( struct mulle_concurrent_hashtableenumerator                                                                           \
+           rover__ ## hash ## __ ## value = mulle_concurrent_hashtable_enumerate( name),                                      \
+           *rover__  ## hash ## __ ## value ## __i = (void *) 0;                                                              \
+        ! rover__  ## hash ## __ ## value ## __i;                                                                             \
+        rover__ ## hash ## __ ## value ## __i = (mulle_concurrent_hashtableenumerator_done( &rover__ ## hash ## __ ## value), \
+                                              (void *) 1))                                                                    \
+      while( (rval = _mulle_concurrent_hashtableenumerator_next( &rover__ ## hash ## __ ## value,                             \
+                                                       (intptr_t *) &hash,                                                    \
+                                                       (void **) &value)) == 1)
+
+
+#define mulle_concurrent_hashtable_for( name, hash, value)                                                                    \
+   assert( sizeof( hash) == sizeof( intptr_t));                                                                               \
+   assert( sizeof( value) == sizeof( void *));                                                                                \
+   for( struct mulle_concurrent_hashtableenumerator                                                                           \
+           rover__ ## hash ## __ ## value = mulle_concurrent_hashtable_enumerate( name),                                      \
+           *rover__  ## hash ## __ ## value ## __i = (void *) 0;                                                              \
+        ! rover__  ## hash ## __ ## value ## __i;                                                                             \
+        rover__ ## hash ## __ ## value ## __i = (mulle_concurrent_hashtableenumerator_done( &rover__ ## hash ## __ ## value), \
+                                              (void *) 1))                                                                    \
+      while( _mulle_concurrent_hashtableenumerator_next( &rover__ ## hash ## __ ## value,                                     \
+                                                       (intptr_t *) &hash,                                                    \
+                                                       (void **) &value) == 1)
+
 #endif
