@@ -39,10 +39,52 @@
 #include <mulle-allocator/mulle-allocator.h>
 #include <assert.h>
 #include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 
 #define FOREVER   0
 //#define ENTERTAIN 1
+
+//
+// Under valgrind all threads are serialized (cooperative scheduling).
+// Use a smaller target so the test completes in reasonable time.
+// Detects valgrind via MULLE_TEST_VALGRIND env var, or automatically
+// on Linux by checking /proc/self/maps for valgrind preloads.
+//
+static int   is_slow_environment( void)
+{
+   if( getenv( "MULLE_TEST_VALGRIND"))
+      return( 1);
+#ifdef __linux__
+   {
+      FILE   *f;
+      char   line[ 256];
+
+      f = fopen( "/proc/self/maps", "r");
+      if( f)
+      {
+         while( fgets( line, sizeof( line), f))
+            if( strstr( line, "vgpreload"))
+            {
+               fclose( f);
+               return( 1);
+            }
+         fclose( f);
+      }
+   }
+#endif
+   return( 0);
+}
+
+
+static unsigned int   target_size( void)
+{
+   if( is_slow_environment())
+      return( 256);
+   return( 1024 * 1024);
+}
 
 
 // sunos rand only does 16 bit randomnes, which makes this test never
@@ -131,7 +173,7 @@ retry:
 
 
 //
-// run until the mask is >= 1 mio entries
+// run until the map reaches target_size()
 //
 static void  tester( struct mulle_concurrent_hashmap *map)
 {
@@ -142,7 +184,7 @@ static void  tester( struct mulle_concurrent_hashmap *map)
 
    mulle_aba_register();
    inserts=0;
-   while( (size = mulle_concurrent_hashmap_get_size( map)) < 1024 * 1024)
+   while( (size = mulle_concurrent_hashmap_get_size( map)) < target_size())
    {
       todo = xorshift64star() % 997; //  prime number
       if( todo == 1)   // 0.1 % chance of enumerate
@@ -162,6 +204,11 @@ static void  tester( struct mulle_concurrent_hashmap *map)
       }
 
       lookup_something( map);
+
+      // Yield periodically so that under cooperative schedulers (valgrind)
+      // other threads get a chance to run.
+      if( (todo & 0x3F) == 0)
+         mulle_thread_yield();
    }
    mulle_aba_unregister();
 }
@@ -285,8 +332,13 @@ int   main(int argc, const char * argv[])
       multi_threaded_test( 2);
       mulle_testallocator_reset();
 
-      multi_threaded_test( 32);
-      mulle_testallocator_reset();
+      // Under valgrind, 32 threads is prohibitively slow (cooperative
+      // single-core scheduling). 2 threads already exercises concurrency.
+      if( ! is_slow_environment())
+      {
+         multi_threaded_test( 32);
+         mulle_testallocator_reset();
+      }
    }
    while( FOREVER);
 

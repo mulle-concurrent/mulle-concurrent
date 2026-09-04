@@ -35,10 +35,57 @@
 #define INSERTS          1000
 #define LOOKUPS          10000
 #define REMOVES          100
-#define N_ROUNDS         10
 
-#define READ_OPS         200000
-#define GROW_KEYS        20000
+//
+// Under valgrind all threads are serialized (cooperative scheduling).
+// Reduce operation counts so the benchmark completes in reasonable time.
+// Auto-detects valgrind on Linux via /proc/self/maps.
+//
+static int   is_slow_environment( void)
+{
+   if( getenv( "MULLE_TEST_VALGRIND"))
+      return( 1);
+#ifdef __linux__
+   {
+      FILE   *f;
+      char   line[ 256];
+
+      f = fopen( "/proc/self/maps", "r");
+      if( f)
+      {
+         while( fgets( line, sizeof( line), f))
+            if( strstr( line, "vgpreload"))
+            {
+               fclose( f);
+               return( 1);
+            }
+         fclose( f);
+      }
+   }
+#endif
+   return( 0);
+}
+
+static int   compare_n_rounds( void)
+{
+   if( is_slow_environment())
+      return( 1);
+   return( 10);
+}
+
+static int   compare_read_ops( void)
+{
+   if( is_slow_environment())
+      return( 20);
+   return( 200000);
+}
+
+static int   compare_grow_keys( void)
+{
+   if( is_slow_environment())
+      return( 20);
+   return( 20000);
+}
 
 
 static struct mulle_concurrent_hashtable    g_map1;
@@ -140,7 +187,7 @@ static void   mixed_worker( struct worker_context *context)
    if( ! rng)
       rng = 1;
 
-   for( round = 0; round < N_ROUNDS; round++)
+   for( round = 0; round < (unsigned int) compare_n_rounds(); round++)
    {
       // insert a window of keys, recycled every round so that removed keys
       // get reinserted over and over
@@ -178,7 +225,7 @@ static void   read_worker( struct worker_context *context)
    if( ! rng)
       rng = 1;
 
-   for( i = 0; i < READ_OPS; i++)
+   for( i = 0; i < compare_read_ops(); i++)
    {
       k    = (unsigned int)( xorshift64star( &rng) % KEYS_PER_THREAD);
       hash = key_for( context->thread, k);
@@ -198,7 +245,7 @@ static void   grow_worker( struct worker_context *context)
 {
    unsigned int   i;
 
-   for( i = 0; i < GROW_KEYS; i++)
+   for( i = 0; i < compare_grow_keys(); i++)
    {
       insert_key( context->kind, key_for( context->thread, i % KEYS_PER_THREAD));
       if( (i & 0xFFF) == 0)
@@ -302,7 +349,7 @@ int   main( void)
           mulle_concurrent_hashtable_count( &g_map2),
           "mixed phase counts agree" );
 
-   ops = (double) N_THREADS * N_ROUNDS * (INSERTS + LOOKUPS + REMOVES);
+   ops = (double) N_THREADS * compare_n_rounds() * (INSERTS + LOOKUPS + REMOVES);
    report( "mixed", elapsed1, elapsed2, ops);
    printf( "benchmark: mixed insert/lookup/remove\n");
 
@@ -326,7 +373,7 @@ int   main( void)
    elapsed1 = run_phase( 0, 1);
    elapsed2 = run_phase( 1, 1);
 
-   ops = (double) N_THREADS * READ_OPS;
+   ops = (double) N_THREADS * compare_read_ops();
    report( "read-heavy", elapsed1, elapsed2, ops);
    printf( "benchmark: read-heavy lookup\n");
 
@@ -346,7 +393,7 @@ int   main( void)
           mulle_concurrent_hashtable_count( &g_map2),
           "grow phase counts agree" );
 
-   ops = (double) N_THREADS * GROW_KEYS;
+   ops = (double) N_THREADS * compare_grow_keys();
    report( "grow", elapsed1, elapsed2, ops);
    fprintf( stderr, "grow sizes: hashmap %zu, hashmap2 %zu\n",
             mulle_concurrent_hashtable_get_size( &g_map1),

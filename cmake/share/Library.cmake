@@ -245,17 +245,17 @@ if( LIBRARY_SOURCES OR OTHER_LIBRARY_OBJECT_FILES OR OTHER_${LIBRARY_UPCASE_IDEN
       # are already linked in via PRIVATE above. They must not be re-exported:
       # absolute paths would leak into consumer link lines.
       #
+      # Ordinary dependencies can be propagated as target names. All-load
+      # dependencies are handled separately below because reducing them to
+      # ordinary target names loses their whole-archive semantics.
       set( _INTERFACE_LIBS )
       foreach( _item
          ${DEPENDENCY_LIBRARIES}
          ${DEPENDENCY_FRAMEWORKS}
          ${OPTIONAL_DEPENDENCY_LIBRARIES}
-         ${ALL_LOAD_DEPENDENCY_LIBRARIES}
-         ${ALL_LOAD_OPTIONAL_DEPENDENCY_LIBRARIES}
-         ${FORCE_ALL_LOAD_DEPENDENCY_LIBRARIES}
+         ${OPTIONAL_DEPENDENCY_FRAMEWORKS}
          ${STARTUP_DEPENDENCY_LIBRARIES}
-         ${STARTUP_ALL_LOAD_DEPENDENCY_LIBRARIES}
-         ${FORCE_STARTUP_ALL_LOAD_DEPENDENCY_LIBRARIES}
+         ${STARTUP_DEPENDENCY_FRAMEWORKS}
          ${OS_SPECIFIC_LIBRARIES}
          ${OS_SPECIFIC_FRAMEWORKS}
       )
@@ -269,6 +269,33 @@ if( LIBRARY_SOURCES OR OTHER_LIBRARY_OBJECT_FILES OR OTHER_${LIBRARY_UPCASE_IDEN
          target_link_libraries( "${LIBRARY_NAME}" INTERFACE ${_INTERFACE_LIBS})
       endif()
       unset( _INTERFACE_LIBS)
+
+      # Keep all-load semantics for add_subdirectory consumers. The raw
+      # ALL_LOAD_* variables contain library names/targets; the FORCE_* lists
+      # are platform-specific linker fragments produced by AllLoadC and must
+      # not be propagated as ordinary CMake targets.
+      set( _INTERFACE_ALL_LOAD_LIBS )
+      if( CMAKE_VERSION VERSION_GREATER_EQUAL "3.24")
+         foreach( _item
+            ${ALL_LOAD_DEPENDENCY_LIBRARIES}
+            ${ALL_LOAD_OPTIONAL_DEPENDENCY_LIBRARIES}
+            ${STARTUP_ALL_LOAD_DEPENDENCY_LIBRARIES}
+         )
+            if( TARGET "${_item}")
+               list( APPEND _INTERFACE_ALL_LOAD_LIBS
+                  "$<LINK_LIBRARY:WHOLE_ARCHIVE,${_item}>"
+               )
+            endif()
+         endforeach()
+         unset( _item)
+
+         if( _INTERFACE_ALL_LOAD_LIBS)
+            target_link_libraries( "${LIBRARY_NAME}" INTERFACE
+               ${_INTERFACE_ALL_LOAD_LIBS}
+            )
+         endif()
+      endif()
+      unset( _INTERFACE_ALL_LOAD_LIBS)
 
       #
       # MEMO: We deliberately do NOT export INCLUDE_DIRS here, one INTERFACE

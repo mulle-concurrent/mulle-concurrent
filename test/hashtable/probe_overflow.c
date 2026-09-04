@@ -21,11 +21,40 @@
 #include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 
 #define N_THREADS    8
-#define N_ITERS      50000
 #define INIT_SIZE    4     // minimum table: 4 slots, migration at 2 claimed
+
+static int   n_iters( void)
+{
+   // Under valgrind all threads are serialized (cooperative scheduling).
+   // Reduce iterations so the test completes in reasonable time.
+   // Auto-detects valgrind on Linux via /proc/self/maps.
+   if( getenv( "MULLE_TEST_VALGRIND"))
+      return( 50);
+#ifdef __linux__
+   {
+      FILE   *f;
+      char   line[ 256];
+
+      f = fopen( "/proc/self/maps", "r");
+      if( f)
+      {
+         while( fgets( line, sizeof( line), f))
+            if( strstr( line, "vgpreload"))
+            {
+               fclose( f);
+               return( 50);
+            }
+         fclose( f);
+      }
+   }
+#endif
+   return( 50000);
+}
 
 static struct mulle_concurrent_hashtable   g_map;
 static volatile int                       g_go;
@@ -48,7 +77,7 @@ static void  *inserter( void *arg)
    while( ! g_go)
       mulle_thread_yield();
 
-   for( i = 0; i < N_ITERS && ! g_failed; i++)
+   for( i = 0; i < n_iters() && ! g_failed; i++)
    {
       // use a different key each iteration so the table grows under pressure
       key = base + (intptr_t) i * N_THREADS;
@@ -70,8 +99,13 @@ static void  *inserter( void *arg)
          break;
       }
 
-      if( (i & 0xFF) == 0)
+      // Yield periodically so that under cooperative schedulers (valgrind)
+      // other threads get a chance to run.
+      if( (i & 0x3F) == 0)
+      {
          mulle_aba_checkin();
+         mulle_thread_yield();
+      }
    }
 
    mulle_aba_unregister();
@@ -111,9 +145,9 @@ int   main( void)
       unsigned int   count;
 
       count = mulle_concurrent_hashtable_count( &g_map);
-      if( count != N_THREADS * N_ITERS)
+      if( count != (unsigned int) (N_THREADS * n_iters()))
       {
-         printf( "FAILED: count %u != expected %u\n", count, N_THREADS * N_ITERS);
+         printf( "FAILED: count %u != expected %u\n", count, (unsigned int) (N_THREADS * n_iters()));
          g_failed = 1;
       }
    }

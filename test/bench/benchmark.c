@@ -230,12 +230,60 @@ static void  mutex_array_add( struct mutex_array *array, void *value)
 //
 #define N_THREADS      4
 #define N_KEYS         65536
-#define WRITE_OPS      200000
-#define READ_OPS       1000000
-#define APPEND_OPS     200000
 #define SEED           0x0BADF00D
 
 #define MIN_WIN_RATIO  0.03  // same-size migration on tombstone is expensive; revisit
+
+//
+// Under valgrind all threads are serialized (cooperative scheduling).
+// Reduce operation counts so the benchmark completes in reasonable time.
+// Auto-detects valgrind on Linux via /proc/self/maps.
+//
+static int   is_slow_environment( void)
+{
+   if( getenv( "MULLE_TEST_VALGRIND"))
+      return( 1);
+#ifdef __linux__
+   {
+      FILE   *f;
+      char   line[ 256];
+
+      f = fopen( "/proc/self/maps", "r");
+      if( f)
+      {
+         while( fgets( line, sizeof( line), f))
+            if( strstr( line, "vgpreload"))
+            {
+               fclose( f);
+               return( 1);
+            }
+         fclose( f);
+      }
+   }
+#endif
+   return( 0);
+}
+
+static int   write_ops( void)
+{
+   if( is_slow_environment())
+      return( 20);
+   return( 200000);
+}
+
+static int   read_ops( void)
+{
+   if( is_slow_environment())
+      return( 20);
+   return( 1000000);
+}
+
+static int   append_ops( void)
+{
+   if( is_slow_environment())
+      return( 20);
+   return( 200000);
+}
 
 
 struct worker_context
@@ -265,7 +313,7 @@ static void  write_worker( struct worker_context *context)
 
    mulle_aba_register();
 
-   for( i = 0; i < WRITE_OPS; i++)
+   for( i = 0; i < write_ops(); i++)
    {
       hash = (intptr_t)( xorshift64star( &context->rng) % N_KEYS);
       if( xorshift64star( &context->rng) & 1)
@@ -295,7 +343,7 @@ static void  read_worker( struct worker_context *context)
 
    mulle_aba_register();
 
-   for( i = 0; i < READ_OPS; i++)
+   for( i = 0; i < read_ops(); i++)
    {
       hash = (intptr_t)( xorshift64star( &context->rng) % N_KEYS);
       if( context->kind == 0)
@@ -314,7 +362,7 @@ static void  append_worker( struct worker_context *context)
 
    mulle_aba_register();
 
-   for( i = 0; i < APPEND_OPS; i++)
+   for( i = 0; i < append_ops(); i++)
    {
       if( context->kind == 0)
          mutex_array_add( &g_mutex_array, (void *)(uintptr_t)(i + 1));
@@ -384,8 +432,8 @@ int   main( void)
    // write-heavy
    mutex_elapsed = run_phase( 0, 0);
    mulle_elapsed = run_phase( 1, 0);
-   mutex_rate = N_THREADS * WRITE_OPS / mutex_elapsed;
-   mulle_rate = N_THREADS * WRITE_OPS / mulle_elapsed;
+   mutex_rate = N_THREADS * write_ops() / mutex_elapsed;
+   mulle_rate = N_THREADS * write_ops() / mulle_elapsed;
    ratio = mulle_rate / mutex_rate;
    fprintf( stderr, "write-heavy 4 threads: mutex %7.0f ops/s, mulle %7.0f ops/s (ratio %.2f)\n",
             mutex_rate, mulle_rate, ratio);
@@ -404,8 +452,8 @@ int   main( void)
    }
    mutex_elapsed = run_phase( 0, 1);
    mulle_elapsed = run_phase( 1, 1);
-   mutex_rate = N_THREADS * READ_OPS / mutex_elapsed;
-   mulle_rate = N_THREADS * READ_OPS / mulle_elapsed;
+   mutex_rate = N_THREADS * read_ops() / mutex_elapsed;
+   mulle_rate = N_THREADS * read_ops() / mulle_elapsed;
    fprintf( stderr, "read-heavy  4 threads: mutex %7.0f ops/s, mulle %7.0f ops/s (ratio %.2f)\n",
             mutex_rate, mulle_rate, mulle_rate / mutex_rate);
 
@@ -414,8 +462,8 @@ int   main( void)
    mulle_concurrent_pointerarray_init( &g_mulle_array, 0, NULL);
    mutex_elapsed = run_phase( 0, 2);
    mulle_elapsed = run_phase( 1, 2);
-   mutex_rate = N_THREADS * APPEND_OPS / mutex_elapsed;
-   mulle_rate = N_THREADS * APPEND_OPS / mulle_elapsed;
+   mutex_rate = N_THREADS * append_ops() / mutex_elapsed;
+   mulle_rate = N_THREADS * append_ops() / mulle_elapsed;
    ratio = mulle_rate / mutex_rate;
    fprintf( stderr, "array append 4 threads: mutex %7.0f ops/s, mulle %7.0f ops/s (ratio %.2f)\n",
             mutex_rate, mulle_rate, ratio);

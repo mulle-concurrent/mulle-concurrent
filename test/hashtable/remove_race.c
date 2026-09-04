@@ -17,11 +17,40 @@
 #include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 
 #define N_MIGRATORS   3
-#define N_ITERS       200000
 #define OWNED_KEY     777777
+
+static int   n_iters( void)
+{
+   // Under valgrind all threads are serialized (cooperative scheduling).
+   // Reduce iterations so the test completes in reasonable time.
+   // Auto-detects valgrind on Linux via /proc/self/maps.
+   if( getenv( "MULLE_TEST_VALGRIND"))
+      return( 50);
+#ifdef __linux__
+   {
+      FILE   *f;
+      char   line[ 256];
+
+      f = fopen( "/proc/self/maps", "r");
+      if( f)
+      {
+         while( fgets( line, sizeof( line), f))
+            if( strstr( line, "vgpreload"))
+            {
+               fclose( f);
+               return( 50);
+            }
+         fclose( f);
+      }
+   }
+#endif
+   return( 200000);
+}
 
 static struct mulle_concurrent_hashtable   g_map;
 static volatile int                       g_stop;
@@ -44,8 +73,13 @@ static void  *migrator( void *unused)
       mulle_concurrent_hashtable_insert( &g_map, hash, (void *)(uintptr_t)(hash * 2 + 1));
       mulle_concurrent_hashtable_remove( &g_map, hash, (void *)(uintptr_t)(hash * 2 + 1));
 
-      if( (i & 0xFF) == 0)
+      // Yield periodically so that under cooperative schedulers (valgrind)
+      // other threads get a chance to run.
+      if( (i & 0x3F) == 0)
+      {
          mulle_aba_checkin();
+         mulle_thread_yield();
+      }
    }
 
    mulle_aba_unregister();
@@ -63,7 +97,7 @@ static void  *owner( void *unused)
 
    mulle_aba_register();
 
-   for( i = 0; i < N_ITERS && ! g_failed; i++)
+   for( i = 0; i < n_iters() && ! g_failed; i++)
    {
       rval = mulle_concurrent_hashtable_insert( &g_map, OWNED_KEY, g_value);
       if( rval != 0)

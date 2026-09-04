@@ -62,16 +62,15 @@ else()
          endif()
       endif()
       message( STATUS "MULLE__ABA_LIBRARY is ${MULLE__ABA_LIBRARY}")
-      #
-      # The order looks ascending, but due to the way this file is read
-      # it ends up being descending, which is what we need.
-      #
-      if( MULLE__ABA_LIBRARY)
+   endif()
+   if( MULLE__ABA_LIBRARY)
          #
          # Add MULLE__ABA_LIBRARY to DEPENDENCY_LIBRARIES list.
          # Disable with: `mulle-sourcetree mark mulle-aba no-cmake-add`
          #
-         list( APPEND DEPENDENCY_LIBRARIES ${MULLE__ABA_LIBRARY})
+         if( NOT ${MULLE__ABA_LIBRARY} IN_LIST DEPENDENCY_LIBRARIES)
+            list( APPEND DEPENDENCY_LIBRARIES ${MULLE__ABA_LIBRARY})
+         endif()
          #
          # Inherit information from dependency.
          # Encompasses: no-cmake-searchpath,no-cmake-dependency,no-cmake-loader
@@ -114,13 +113,12 @@ else()
                message( STATUS "${_TMP_MULLE__ABA_DIR} not found")
             endif()
          endforeach()
-      else()
-         # Disable with: `mulle-sourcetree mark mulle-aba no-require-link`
-         message( SEND_ERROR "MULLE__ABA_LIBRARY was not found in ${MULLE_PREFERRED_LIBRARY_PREFIX}mulle-aba${CMAKE_DEBUG_POSTFIX}${MULLE_PREFERRED_LIBRARY_SUFFIX}
+   else()
+      # Disable with: `mulle-sourcetree mark mulle-aba no-require-link`
+      message( SEND_ERROR "MULLE__ABA_LIBRARY was not found in ${MULLE_PREFERRED_LIBRARY_PREFIX}mulle-aba${CMAKE_DEBUG_POSTFIX}${MULLE_PREFERRED_LIBRARY_SUFFIX}
 ${MULLE_PREFERRED_LIBRARY_PREFIX}mulle-aba${MULLE_PREFERRED_LIBRARY_SUFFIX}
 ${MULLE_FALLBACK_LIBRARY_PREFIX}mulle-aba${CMAKE_DEBUG_POSTFIX}${MULLE_FALLBACK_LIBRARY_SUFFIX}
 ${MULLE_FALLBACK_LIBRARY_PREFIX}mulle-aba${MULLE_FALLBACK_LIBRARY_SUFFIX}
 mulle-aba")
-      endif()
    endif()
 endif()

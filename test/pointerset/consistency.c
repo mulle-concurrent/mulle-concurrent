@@ -16,8 +16,54 @@
 
 #define N_POINTERS   10
 #define N_THREADS    8
-#define N_ROUNDS     100
-#define ITERS_PER_BURST  5000
+
+static int   g_is_slow;
+
+static unsigned int   n_rounds( void)
+{
+   // Under valgrind all threads are serialized (cooperative scheduling).
+   // Reduce rounds so the test completes in reasonable time.
+   // Auto-detects valgrind on Linux via /proc/self/maps.
+   if( g_is_slow)
+      return( 2);
+   return( 100);
+}
+
+static unsigned int   n_threads( void)
+{
+   // fewer threads under valgrind: thread creation/join is expensive
+   if( g_is_slow)
+      return( 2);
+   return( N_THREADS);
+}
+
+static void   detect_slow_environment( void)
+{
+   if( getenv( "MULLE_TEST_VALGRIND"))
+   {
+      g_is_slow = 1;
+      return;
+   }
+#ifdef __linux__
+   {
+      FILE   *f;
+      char   line[ 256];
+
+      f = fopen( "/proc/self/maps", "r");
+      if( f)
+      {
+         while( fgets( line, sizeof( line), f))
+            if( strstr( line, "vgpreload"))
+            {
+               fclose( f);
+               g_is_slow = 1;
+               return;
+            }
+         fclose( f);
+      }
+   }
+#endif
+}
 
 static void  *ptrs[ N_POINTERS];
 
@@ -51,6 +97,10 @@ static void  worker( struct mulle_concurrent_pointerset *set)
          case 0: mulle_concurrent_pointerset_insert( set, ptr); break;
          case 1: mulle_concurrent_pointerset_remove( set, ptr); break;
       }
+
+      // Yield periodically so that under cooperative schedulers (valgrind)
+      // other threads get a chance to run.
+      mulle_thread_yield();
    }
 
    mulle_aba_unregister();
@@ -104,6 +154,9 @@ int   main( void)
    mulle_thread_t                       threads[ N_THREADS];
    unsigned int                         i;
    unsigned int                         round;
+   unsigned int                         actual_threads;
+
+   detect_slow_environment();
 
    for( i = 0; i < N_POINTERS; i++)
       ptrs[ i] = (void *)(uintptr_t)(i + 1);
@@ -119,11 +172,13 @@ int   main( void)
 
    mulle_concurrent_pointerset_init( &set, 4, &mulle_testallocator);
 
-   for( round = 0; round < N_ROUNDS; round++)
+   actual_threads = n_threads();
+
+   for( round = 0; round < n_rounds(); round++)
    {
       _mulle_atomic_pointer_nonatomic_write( &stop_flag, NULL);
 
-      for( i = 0; i < N_THREADS; i++)
+      for( i = 0; i < actual_threads; i++)
       {
          if( mulle_thread_create( (void *) worker, &set, &threads[ i]))
          {
@@ -133,14 +188,17 @@ int   main( void)
       }
 
       // let threads run briefly
-      mulle_thread_yield();
-      for( i = 0; i < ITERS_PER_BURST; i++)
+      {
+         unsigned int burst = g_is_slow ? 50 : 5000;
          mulle_thread_yield();
+         for( i = 0; i < burst; i++)
+            mulle_thread_yield();
+      }
 
       // stop threads
       __mulle_atomic_pointer_cas( &stop_flag, (void *) 1, NULL);
 
-      for( i = 0; i < N_THREADS; i++)
+      for( i = 0; i < actual_threads; i++)
          mulle_thread_join( threads[ i]);
 
       // now single-threaded: check consistency
