@@ -13,7 +13,34 @@
 
 
 #define N_POINTERS   10
-#define N_ITERS      100000
+
+static unsigned int   n_iters( void)
+{
+   // Under valgrind all threads are serialized (cooperative scheduling).
+   // Reduce iterations so the test completes in reasonable time.
+   // Auto-detects valgrind on Linux via /proc/self/maps.
+   if( getenv( "MULLE_TEST_VALGRIND"))
+      return( 50);
+#ifdef __linux__
+   {
+      FILE   *f;
+      char   line[ 256];
+
+      f = fopen( "/proc/self/maps", "r");
+      if( f)
+      {
+         while( fgets( line, sizeof( line), f))
+            if( strstr( line, "vgpreload"))
+            {
+               fclose( f);
+               return( 50);
+            }
+         fclose( f);
+      }
+   }
+#endif
+   return( 100000);
+}
 
 // pointers we store: (void*)1 .. (void*)10
 static void  *ptrs[ N_POINTERS];
@@ -42,7 +69,7 @@ static void  tester( struct mulle_concurrent_pointerset *set)
    rng = (uint64_t)(uintptr_t) &rng ^ 0xdeadbeefcafe1234ULL;
    if( ! rng) rng = 1;
 
-   for( i = 0; i < N_ITERS; i++)
+   for( i = 0; i < n_iters(); i++)
    {
       ptr = ptrs[ xorshift64star( &rng) % N_POINTERS ];
 
@@ -60,6 +87,11 @@ static void  tester( struct mulle_concurrent_pointerset *set)
             mulle_concurrent_pointerset_member( set, ptr);
             break;
       }
+
+      // Yield periodically so that under cooperative schedulers (valgrind)
+      // other threads get a chance to run.
+      if( (i & 0x3F) == 0)
+         mulle_thread_yield();
    }
 
    mulle_aba_unregister();
@@ -104,12 +136,16 @@ static void  multi_threaded_test( unsigned int n_threads)
 int   main( void)
 {
    unsigned int   i;
+   int            slow;
 
    for( i = 0; i < N_POINTERS; i++)
-      ptrs[ i] = (void *)(uintptr_t)(i + 1);
+      ptrs[ i ] = (void *)(uintptr_t)(i + 1);
 
    mulle_testallocator_initialize();
    mulle_default_allocator = mulle_testallocator;
+
+   // detect once for main
+   slow = (n_iters() < 100000);
 
    multi_threaded_test( 1);
    mulle_testallocator_reset();
@@ -117,11 +153,16 @@ int   main( void)
    multi_threaded_test( 2);
    mulle_testallocator_reset();
 
-   multi_threaded_test( 8);
-   mulle_testallocator_reset();
+   // Under valgrind, many threads are prohibitively slow (cooperative
+   // single-core scheduling). 2 threads already exercises concurrency.
+   if( ! slow)
+   {
+      multi_threaded_test( 8);
+      mulle_testallocator_reset();
 
-   multi_threaded_test( 32);
-   mulle_testallocator_reset();
+      multi_threaded_test( 32);
+      mulle_testallocator_reset();
+   }
 
    printf( "OK\n");
    return( 0);

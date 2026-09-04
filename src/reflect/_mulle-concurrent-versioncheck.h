@@ -7,7 +7,7 @@
 
 #if defined( MULLE__ABA_VERSION)
 # ifndef MULLE__ABA_VERSION_MIN
-#  define MULLE__ABA_VERSION_MIN  ((3UL << 20) | (1 << 8) | 5)
+#  define MULLE__ABA_VERSION_MIN  ((3UL << 20) | (1 << 8) | 6)
 # endif
 # ifndef MULLE__ABA_VERSION_MAX
 #  define MULLE__ABA_VERSION_MAX  ((4UL << 20) | (0 << 8) | 0)

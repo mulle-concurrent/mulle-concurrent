@@ -15,9 +15,36 @@
 
 #define N_THREADS         4
 #define KEYS_PER_THREAD   256
-#define OPS_PER_THREAD    20000
 #define N_ROUNDS          3
 #define SEED              0x1234ABCD
+
+static unsigned int   ops_per_thread( void)
+{
+   // Under valgrind all threads are serialized (cooperative scheduling).
+   // Reduce iterations so the test completes in reasonable time.
+   // Auto-detects valgrind on Linux via /proc/self/maps.
+   if( getenv( "MULLE_TEST_VALGRIND"))
+      return( 50);
+#ifdef __linux__
+   {
+      FILE   *f;
+      char   line[ 256];
+
+      f = fopen( "/proc/self/maps", "r");
+      if( f)
+      {
+         while( fgets( line, sizeof( line), f))
+            if( strstr( line, "vgpreload"))
+            {
+               fclose( f);
+               return( 50);
+            }
+         fclose( f);
+      }
+   }
+#endif
+   return( 20000);
+}
 
 struct worker_context
 {
@@ -79,7 +106,7 @@ static void   worker( struct worker_context *context)
    if( ! rng)
       rng = 1;
 
-   for( op = 0; op < OPS_PER_THREAD; op++)
+   for( op = 0; op < ops_per_thread(); op++)
    {
       k     = (unsigned int)( xorshift64star( &rng) % KEYS_PER_THREAD);
       key   = global_key( thread, k);

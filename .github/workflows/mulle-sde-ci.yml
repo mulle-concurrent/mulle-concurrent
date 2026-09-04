@@ -1,3 +1,14 @@
+# CI workflow for mulle-c projects
+#
+# Opt-out of extra jobs via GitHub repository variables
+# (Settings → Secrets and variables → Actions → Variables):
+#
+#   CI_SKIP_SANITIZERS=true   — skip ASAN + UBSAN job
+#   CI_SKIP_32BIT=true        — skip 32-bit build job
+#   CI_SKIP_VALGRIND=true     — skip valgrind job
+#
+# If the variable is unset, the job runs by default.
+#
 name: CI
 
 on:
@@ -49,3 +60,93 @@ jobs:
     - name: Mulle-SDE Test
       run: |
         [ ! -d test ] || mulle-sde test
+
+  sanitizers:
+    if: vars.CI_SKIP_SANITIZERS != 'true'
+    runs-on: ubuntu-latest
+    env:
+      MULLE_HOSTNAME: ci-sanitizers
+
+    steps:
+    - name: Add to path
+      run:  echo "$HOME/bin" >> $GITHUB_PATH
+
+    - uses: actions/checkout@v4
+
+    - uses: mulle-sde/github-ci@v2
+
+    - name: Mulle-SDE Fetch
+      run: mulle-sde fetch
+
+    - name: Mulle-SDE Craft (ASAN + UBSAN)
+      run: |
+        mulle-sde craft --debug \
+          -DCMAKE_C_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" \
+          -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined" \
+          -DCMAKE_SHARED_LINKER_FLAGS="-fsanitize=address,undefined"
+
+    - name: Mulle-SDE Test (ASAN + UBSAN)
+      run: |
+        [ ! -d test ] || mulle-sde test
+      env:
+        ASAN_OPTIONS: "detect_leaks=0:abort_on_error=1"
+        UBSAN_OPTIONS: "print_stacktrace=1:halt_on_error=1"
+
+  build-32bit:
+    if: vars.CI_SKIP_32BIT != 'true'
+    runs-on: ubuntu-latest
+    env:
+      MULLE_HOSTNAME: ci-32bit
+
+    steps:
+    - name: Install 32-bit toolchain
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gcc-multilib
+
+    - name: Add to path
+      run:  echo "$HOME/bin" >> $GITHUB_PATH
+
+    - uses: actions/checkout@v4
+
+    - uses: mulle-sde/github-ci@v2
+
+    - name: Mulle-SDE Fetch
+      run: mulle-sde fetch
+
+    - name: Mulle-SDE Craft (32-bit)
+      run: |
+        mulle-sde craft --release \
+          -DCMAKE_C_FLAGS="-m32" \
+          -DCMAKE_EXE_LINKER_FLAGS="-m32" \
+          -DCMAKE_SHARED_LINKER_FLAGS="-m32"
+
+    - name: Mulle-SDE Test (32-bit)
+      run: |
+        [ ! -d test ] || mulle-sde test
+
+  valgrind:
+    if: vars.CI_SKIP_VALGRIND != 'true'
+    runs-on: ubuntu-latest
+    env:
+      MULLE_HOSTNAME: ci-valgrind
+
+    steps:
+    - name: Install valgrind
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y valgrind
+
+    - name: Add to path
+      run:  echo "$HOME/bin" >> $GITHUB_PATH
+
+    - uses: actions/checkout@v4
+
+    - uses: mulle-sde/github-ci@v2
+
+    - name: Mulle-SDE Fetch
+      run: mulle-sde fetch
+
+    - name: Mulle-SDE Test (valgrind)
+      run: |
+        [ ! -d test ] || mulle-sde test --valgrind
