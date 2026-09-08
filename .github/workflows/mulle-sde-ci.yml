@@ -80,10 +80,10 @@ jobs:
 
     - name: Mulle-SDE Craft (ASAN + UBSAN)
       run: |
-        mulle-sde craft --debug \
-          -DCMAKE_C_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" \
-          -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined" \
-          -DCMAKE_SHARED_LINKER_FLAGS="-fsanitize=address,undefined"
+        mulle-sde \
+          -DCFLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" \
+          -DLDFLAGS="-fsanitize=address,undefined" \
+          craft --debug
 
     - name: Mulle-SDE Test (ASAN + UBSAN)
       run: |
@@ -116,10 +116,10 @@ jobs:
 
     - name: Mulle-SDE Craft (32-bit)
       run: |
-        mulle-sde craft --release \
-          -DCMAKE_C_FLAGS="-m32" \
-          -DCMAKE_EXE_LINKER_FLAGS="-m32" \
-          -DCMAKE_SHARED_LINKER_FLAGS="-m32"
+        mulle-sde \
+          -DCFLAGS="-m32" \
+          -DLDFLAGS="-m32" \
+          craft --release
 
     - name: Mulle-SDE Test (32-bit)
       run: |
