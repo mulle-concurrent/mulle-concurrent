@@ -265,13 +265,21 @@ a probe for an absent hash finds neither its own hash nor a virgin slot. The
 bound is then thread-count dependent, and in the worst case a thread makes no
 progress at all.
 
-This is inherited from the original hashmap, which has the same
-read-then-increment gate, so it is not a hashtable regression — but it means the
+This gate is inherited from the original hashmap, which has the same
+read-then-increment shape, so it is not a hashtable regression — but it means the
 "bounded by word width, not by thread count" claim below holds only while
 `size/2` comfortably exceeds the number of concurrent writers. Small tables with
-many threads are the danger zone. All five probe loops (`insert`, `register`,
-`lookup`, `remove` and `carry`) carry an `assert( index != sentinel)` so that
-this fails diagnosably in debug builds instead of spinning forever.
+many threads are the danger zone.
+
+The hashmap has since closed its half of this: every one of its probe loops
+returns a value on exhaustion (`REDIRECT` from `lookup`, `EBUSY` from
+`insert`/`put`) and the caller migrates and retries, so a release build grows the
+table instead of spinning. See
+[WAIT-FREE-LOCK-FREE.md](WAIT-FREE-LOCK-FREE.md) §6. Here only
+`_hashtablestorage_insert` does that (`return EBUSY`); `register`, `lookup`,
+`remove` and `carry` still carry a bare `assert( index != sentinel)`, so they
+fail diagnosably in debug builds rather than recovering. Mirroring the hashmap's
+returns in those four is outstanding work.
 
 In practice the overshoot is **self-healing**: the next operation by any thread
 reads `n >= max` and triggers migration, which doubles the table. So the probe
@@ -445,10 +453,12 @@ one reason the enumerator stays "limited multi-threaded".
 | `test/hashtable/probe_overflow.c` | 8 threads × 50k inserts into a 4-slot table — forces continuous threshold overshoot, confirms self-healing migration |
 | `test/bench/compare.c` | the measurements above, with count agreement asserted |
 
-For contrast, `test/hashmap/model.c` — the equivalent test against the original
-— fails intermittently on `model lookup`: the model removed a key and the
-container still returns its value. That is scenario A of the misery document,
-observed directly.
+For contrast, `test/hashmap/model.c` used to fail intermittently on
+`model lookup`: the model removed a key and the container still returned its
+value — scenario A of the misery document, observed directly. That test is gone
+along with the hashmap's multi-threaded `remove`; the hashmap's surviving
+migration model test is `test/hashmap/migrate_model.c`, which exercises
+insert/register/lookup only.
 
 Known gaps, in rough order of how much they should bother you:
 
@@ -457,6 +467,68 @@ Known gaps, in rough order of how much they should bother you:
    seq_cst primitives of an external dependency.
 2. No `pose`/`patch` equivalent, no enumerator stress test, and no
    single-threaded teardown fuzzing.
+
+
+## Speculative: could the reserved bit go away?
+
+Worth recording because it is the only route that gets multi-threaded `remove`
+on a **full-width** hash, which is otherwise exactly what the reserved bit buys.
+Untested. Treat it as a hypothesis, not a plan.
+
+Replace the per-slot freeze with a single per-storage `retired` flag:
+
+```text
+  migrate(p):  CAS( &p->retired, 1, 0);  then copy   <-- no per-slot freeze CAS
+
+  the invariant shifts:
+     from  "the copier sees a final value"                (what freezing buys)
+     to    "every writer that lands in a retired
+            generation carries its own value forward"     (post-check)
+```
+
+The hashtable already has all of the machinery this needs — `post_check`,
+`carry`, consume, and `EAGAIN` to redo a removal in the newer generation —
+which is what suggests the per-slot marker may be **redundant** given the
+post-check, and the reserved bit with it.
+
+```text
+  copy, per slot:   1 read + 1 carry + 1 consume CAS
+                    no freeze CAS at all, no dependence on value churn
+  value word:       2 states  -> no tombstones -> immediate reuse
+  migration:        always grows -> retry bound = number of doublings
+  hash word:        full intptr_t, only 0 reserved
+  lookup gate:      one load of a read-mostly flag, which subsumes rule 5
+                    (the EMPTY-ambiguity re-read)
+```
+
+Hazards to validate before believing any of it. The tombstone design was also
+plausible and also wrong, so this needs `test/hashtable/model.c` to say so, not
+a reviewer:
+
+1. **Consume is still mandatory** (rule 2). Without it a slow second helper
+   re-reads an unconsumed source value and reinjects something that was
+   legitimately removed in the newer generation. This is the failure `model.c`
+   caught the first time.
+2. **Never overwrite an occupied destination** (rule 3), or a stale value gets
+   pushed past a newer removal.
+3. **Ordering is the sharp edge.** The writer does `CAS(value)` then loads
+   `retired`; the copier stores `retired` then loads values. That is
+   Dekker/store-buffer: if both sides were relaxed, both could miss each other
+   and a value would vanish. The value write being a CAS makes it a full barrier
+   under the library's seq_cst default, so it holds today — but this is exactly
+   where the relaxation programme in
+   [MEMORY-ORDER-RELAXED.md](MEMORY-ORDER-RELAXED.md) would silently break it.
+   It has to be recorded as a requirement, not left as an accident.
+4. **`lookup` must check the flag on the success path too**, not only on
+   `EMPTY`, or it can return a value that a completed `remove` already deleted
+   in the newer generation.
+5. Probe-exhaustion recovery is orthogonal and still needed either way.
+
+Tradeoff against the current design: the flag is a second cache line on the
+lookup path, whereas the freeze bit sits in a slot word that is already loaded.
+The current design probably wins on cache behaviour; this one wins on hash
+width. If it holds up it would collapse the hashmap and the hashtable into one
+structure.
 
 
 

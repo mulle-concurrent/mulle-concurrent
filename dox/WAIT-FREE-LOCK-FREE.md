@@ -1,144 +1,312 @@
-# Wait-free status of `mulle_concurrent_hashmap_register`
+# Wait-free status of the hashmap point operations
 
-`mulle_concurrent_hashmap_register` is wait-free. A call completes in a bounded
-number of its own steps regardless of concurrent activity. The bound is set by
-the storage geometry and the finite number of remaining capacity doublings,
-not by which threads win individual races.
+`mulle_concurrent_hashmap_lookup`, `_insert` and `_register` are **wait-free**:
+each completes in a bounded number of its own steps, and the bound does not
+depend on how many other threads are running or on who wins individual races.
 
-## Hash-first registration
+`count`, `lookup_any` and enumeration are **not** covered. They are weakly
+consistent snapshots and may restart without bound (see *Not covered* below).
 
-A virgin entry starts as:
+> This document describes the hashmap in `src/hashmap/`. The value word carries
+> the freeze marker here, which is what costs the hashmap its multi-threaded
+> `remove`. The `src/hashtable/` variant puts the marker in the hash word
+> instead and buys `remove` back for one reserved hash bit — see
+> [HASHTABLE.md](HASHTABLE.md) and the design comparison at the end.
+
+
+## 1. The slot protocol
+
+Every entry is a `{ hash, value }` pair of two atomic words. The **hash word is
+the claim token**, and it is the only word a slot contender writes in order to
+take ownership.
 
 ```text
-{ hash = NO_HASH, value = NO_POINTER }
+                claim: CAS(hash, h, NO_HASH)
+  +---------------+                       +-------------------+
+  | hash:  NO_HASH|---------------------->| hash:  h          |
+  | value: NULL   |                       | value: NULL       |
+  | (virgin)      |                       | (claimed, empty)  |
+  +---------------+                       +-------------------+
+                                                   |
+                                                   | fill: CAS(value, V, NULL)
+                                                   |
+                                                   v
+                                          +-------------------+
+                                          | hash:  h          |
+                                          | value: V   (live) |
+                                          +-------------------+
 ```
 
-Registration first claims the hash with one CAS. Only operations with that
-matching hash may then CAS a payload into the value. Consequently, a thread
-that encounters a claimed slot can immediately decide whether it found its
-hash or a collision.
+The invariant is: **a slot advertises its owner before it holds a payload.**
+Since the hash word never moves backwards, a slot can never be claimed by two
+different hashes during the lifetime of one storage generation, so a thread can
+never store its value under a foreign hash and can never be handed a foreign
+key's value.
 
-The hash claim does not make its thread the exclusive value writer. If that
-thread pauses before filling the value, a same-hash peer may install its value
-and complete. A different-hash peer probes onward, while migration may freeze
-the empty value to `REDIRECT`. No operation waits for the original claimer.
+Winning the claim does not make that thread the exclusive value writer. If it
+stalls before filling, a same-hash peer may install its value and complete; a
+different-hash peer probes onward; a migration may freeze the empty value to
+`REDIRECT`. **No operation ever waits for the claimer.** That is what makes the
+protocol wait-free rather than merely lock-free.
 
-## Bounded work in one storage
+`_mulle_concurrent_hashmapstorage_claim` is one hash read, at most one hash CAS
+and one counter increment. `_mulle_concurrent_hashmapstorage_fill` is one value
+CAS. Neither retries.
 
-`_mulle_concurrent_hashmapstorage_claim` performs one hash read, at most one
-hash CAS, and one counter increment. `_mulle_concurrent_hashmapstorage_fill`
-performs one value CAS.
-
-The table begins migration at half claimed capacity. The unused half is the
-reserve for operations that passed the occupancy check concurrently, preserving
-a virgin slot. Linear probing therefore examines at most `mask + 1` slots.
-
-Fill observes one of four states:
+`fill` observes one of three states:
 
 | State | Result |
 |-------|--------|
-| `NO_POINTER` | install the payload and report insertion |
-| live value | return the already registered value |
-| `TOMBSTONE` | report `EEXIST`; this generation does not reuse removed hashes |
-| `REDIRECT` | help migration and retry in the newer generation |
+| `NO_POINTER` | install the payload, report insertion |
+| live value | return it (`register`) / `EEXIST` (`insert`) |
+| `REDIRECT` | `EBUSY`: help migration and retry in the newer generation |
 
-## Monotonic slot states
+There is no `TOMBSTONE` state. See §6.
 
-Hashmap point operations move a value through an acyclic state graph:
 
-```text
-NO_POINTER -> live -> TOMBSTONE -> REDIRECT
-NO_POINTER -> live -> REDIRECT
-NO_POINTER -> REDIRECT
-```
+## 2. The freeze-word law
 
-A tombstone never becomes live again in the same storage generation. Migration
-drops tombstones, after which their hashes can be registered in the newer
-storage.
+This is the constraint that decides the whole design:
 
-The monotonic state graph bounds migration work. If a freeze CAS loses, it can
-only have lost to one of the finite forward transitions shown above.
+> **The freeze marker must live in a word with a bounded number of forward
+> transitions.** Otherwise the freeze CAS in `copy` can lose an unbounded
+> number of times, and copying a generation is no longer bounded.
 
-## Copying a generation
-
-Copy scans each source slot once. For a live slot it first puts the pair into
-the destination, then freezes the source value to `REDIRECT`.
-
-A slot whose hash initially reads as `NO_HASH` is frozen with:
+The hashmap freezes by writing `REDIRECT` into the **value** word, which also
+holds arbitrary caller payloads. So the value word has to be made artificially
+monotonic. It is:
 
 ```text
-CAS(value, REDIRECT, NO_POINTER)
+  NO_POINTER  ----->  live V  ----->  REDIRECT
 ```
 
-If this CAS loses to a racing fill, the returned live value is retained rather
-than discarded. Because hash publication precedes value publication, copy can
-reload the now-visible hash and process the pair through the normal live-slot
-path. Thus an insertion cannot be stranded behind the copy cursor.
+Three states, two forward transitions, and no concurrent path moves a value
+backwards:
 
-Removal may beat a live-slot freeze and change the value to `TOMBSTONE`; copy
-then freezes and drops that tombstone on its next iteration. Each source slot
-requires only a fixed number of state-dependent CAS attempts, so copying is
-`O(source_size)` with a contention-independent bound.
+* `fill` and `put` CAS **from `NO_POINTER` only**.
+* `copy` only ever writes `REDIRECT`.
+* `_mulle_concurrent_hashmap_patch` / `_remove` do write `NULL` over a live
+  value, but they are **single-threaded only** (relaxed, non-atomic in effect).
+  They are the only `live -> NULL` edge in the library.
 
-## Nested migration
+Therefore a losing freeze CAS can only have lost to one of two forward
+transitions, and the per-slot work in `copy` is at most three CAS attempts.
 
-Capacity-triggered migration always doubles storage capacity. It never creates
-a same-sized successor. At the representable size limit it aborts instead of
-allowing the capacity calculation to wrap.
+The historical route to getting this wrong is worth recording, because it is
+subtle. Adding multi-threaded `remove` forces a `TOMBSTONE` state to keep the
+word monotonic, and then either horn is bad:
 
-If `put` reaches a destination slot already marked `REDIRECT`, that destination
-is itself migrating. `put` follows `map->next_storage` and continues in the
-newer generation. Each recursion advances to a strictly larger storage, so its
-depth is bounded by the number of remaining capacity doublings.
+```text
+  freeze marker in the VALUE word
+        |
+        v
+  value word must be monotonic (or copy is unbounded)
+        |
+        v
+  a removed slot cannot return to "empty"  ==>  TOMBSTONE
+        |
+        +--> never reuse it        ==> removed key un-insertable until a doubling
+        |
+        +--> reuse it in place     ==> value word no longer monotonic
+                                       ==> NOT WAIT-FREE
+```
 
-## Same-size migration (tombstone cleanup)
+The hashmap escapes by **not having a multi-threaded `remove`**, which is why
+the value word is already monotonic without tombstones. The reason `remove` had
+to go is in [REMOVE-MISERY-HASHMAP.md](REMOVE-MISERY-HASHMAP.md); it is not a
+progress problem but a correctness one.
 
-When `insert` or `register` encounters a tombstoned slot, it triggers a
-**same-size migration**: the new storage has the same capacity as the old one,
-but tombstones are dropped during copy, freeing the slot for reuse.
+Single-threaded `patch`/`remove` leave a slot as `{ h, NULL }`. That state is
+harmless under a hash-first claim: a foreign key probing it sees `h` and moves
+on, and the hash owner may legally fill it again from `NULL`.
 
-This is effectively a growth step from the wait-free argument's perspective:
-the tombstone occupied a claimed slot, so the new storage — while nominally
-the same capacity — has strictly more *available* slots. The retry after a
-same-size migration always succeeds because the tombstone that blocked it is
-gone.
 
-A same-size migration cannot chain during a single operation: after one
-same-size hop the tombstone is dropped and the operation completes. A `put`
-during copy of a same-size migration may itself encounter REDIRECT in the
-destination (if that destination is being migrated away by another thread),
-but that next hop is necessarily to a *larger* storage (capacity-triggered),
-so the recursion depth remains bounded.
+## 3. Copying a generation
 
-**Performance note**: same-size migration copies the entire table to clear a
-single tombstone. For remove-heavy workloads that reuse keys, this is
-expensive. A future optimization may refill tombstones in place at the
-storage level without breaking the copier's bounded-work guarantee.
+`copy` walks each source slot **once** and freezes every slot it passes, in
+every state. Freezing unconditionally is the only mechanism that catches a
+writer still holding a retired storage pointer, because `insert`/`register`
+never re-validate that their cached storage is still `map->storage`.
 
-## Register retries
+| source slot state | copy's action | carried? |
+|-------------------|---------------|----------|
+| `hash == NO_HASH` (virgin) | `CAS(value, REDIRECT, NO_POINTER)` | no |
+| claimed, `value == NO_POINTER` | `CAS(value, REDIRECT, NO_POINTER)` | no |
+| `value == live V` | `put(dst, h, V)`, then `CAS(value, REDIRECT, V)` | yes |
+| `value == REDIRECT` | nothing, already frozen | — |
 
-Register retries for three reasons:
+A racing writer whose slot was frozen gets `REDIRECT` back from its value CAS,
+returns `EBUSY`, and redoes its work in the newer generation. Nothing is
+stranded behind the cursor and nothing lands in a dead generation.
 
-1. the current generation reached its claimed-slot threshold; or
-2. its target value was already redirected by migration; or
-3. its target slot is tombstoned (triggers same-size migration).
+The virgin case needs care. If `CAS(value, REDIRECT, NO_POINTER)` loses to a
+racing fill, the returned live value is **not** discarded; copy reloads the hash
+— which hash-first publication guarantees is now visible — and runs the pair
+through the normal live path.
 
-A retry may encounter another generation that concurrent threads have already
-filled or begun migrating. This cannot continue without bound: `map->storage`
-only advances, every successor is at least the same size (and strictly larger
-on capacity triggers), and ABA reclamation prevents an old generation from
-reappearing as a current one.
+> **Memory-order requirement.** That reload is correct only because both CASes
+> are `seq_cst`. The writer's hash CAS precedes its value CAS in the total
+> order; our value CAS observed the writer's value, so it follows the writer's
+> hash CAS; our subsequent hash read follows our own value CAS, hence sees the
+> published hash. Relaxing either CAS breaks this. See
+> [MEMORY-ORDER-RELAXED.md](MEMORY-ORDER-RELAXED.md).
 
-For every encountered generation, probing, copying and redirect following are
-bounded. The number of generations is also bounded, so the complete register
-operation is wait-free.
+`put` is the only writer into the destination and it obeys two rules:
 
-## Related API behavior
+1. **Never overwrite.** It CASes from `NO_POINTER` only and returns success
+   either way — "stored, or the destination already holds a newer value". A
+   copier cannot tell which of two live payloads is newer
+   ([POSEAS-PATCH.md](POSEAS-PATCH.md) F2), so it must not try.
+2. **Chase forward on `REDIRECT`.** If the destination is itself already being
+   migrated away, `put` follows `map->next_storage` and retries there. Each hop
+   is to a strictly larger generation, so the recursion depth is bounded by the
+   number of remaining doublings, not by contention.
 
-A removed hash is immediately reusable. `insert` and `register` on a removed
-key internally trigger a same-size migration to drop the tombstone, then retry
-successfully. The caller never observes `EEXIST` for a dead key.
 
-`count` and enumeration are weakly consistent observations. They may be
-canceled or restarted by migration and are not part of the point-operation
-wait-free guarantee.
+## 4. Why the outer retries are bounded
+
+Migration **always doubles** (`size * 2` in
+`_mulle_concurrent_hashmap_migrate_storage`). There is no same-size migration.
+At the representable limit it aborts rather than letting the size wrap. So the
+number of storage generations that can ever exist is the number of power-of-two
+size classes: at most 29, from the minimum of 4 up to `2^31`.
+
+```text
+insert(map, h, V)
+   |
+   v
+ retry: <-------------------------------------+
+   |  p = read(map->storage)                  |
+   |                                          |
+   |  n_hashs >= max ?  --- yes --> migrate(p)+
+   |        | no                              |
+   |        v                                 |
+   |  storage_insert(p, h, V)                 |
+   |        |                                 |
+   |        +-- EBUSY (REDIRECT or probe  ----+
+   |        |          exhausted)
+   |        +-- 0 | EEXIST --> return
+```
+
+The load-bearing fact is that **every retry advances a generation**.
+`migrate_storage(map, p)` ends with `CAS(&map->storage.pointer, q, p)`. Either
+it succeeds, and `map->storage` is now `q != p`; or it fails, which means
+`map->storage` had already moved off `p`. Since `map->storage` only ever
+advances, on return `map->storage != p` — so the next `read(map->storage)` sees
+a strictly newer, strictly larger generation.
+
+Retries are therefore capped by the generation count, **independent of thread
+count**. Each retry is also peer-funded: a generation transition requires peers
+to fill half a table, `Omega(size)` work at a geometrically rising price.
+
+ABA reclamation matters here: it prevents a retired generation from being
+recycled and reappearing as a current one, which would break the "only
+advances" argument.
+
+
+## 5. The bound, construct by construct
+
+| Construct | Bound | Why |
+|---|---|---|
+| `_hashmapstorage_claim` | 1 read + 1 CAS | hash word is write-once `NO_HASH -> h` |
+| `_hashmapstorage_fill` | 1 CAS | no retry |
+| probe loop in `lookup`, `register`, `insert`, `put` | `mask + 1` | migration starts at half capacity, so the reserve preserves a virgin slot; and the sentinel exit **returns a value** (see §6) |
+| `copy` per-slot loop | ≤ 3 CAS attempts | value word has 3 states and 2 forward transitions (§2) |
+| `copy` outer loop | `mask + 1` | one pass, each slot visited once |
+| `put` `REDIRECT` recursion | ≤ generations left | `next_storage` only advances; each hop is strictly larger |
+| `migrate_storage` | 1 alloc + 2 CAS + 1 `copy` | no loop of its own |
+| outer `retry` in `lookup`, `register`, `insert` | ≤ 29 | every retry advances a generation (§4) |
+
+Composed: `O(generations * size_max)` steps, with no term in the number of
+threads. That is wait-freedom.
+
+
+## 6. Probe exhaustion
+
+The occupancy gate is deliberately **not** atomic with the claim — making it
+atomic would put a contended reservation counter on the fast path:
+
+```text
+  read:       n_hashs >= max ?
+                  | no
+                  v
+  claim:      CAS the hash word, then increment n_hashs
+              ^
+              +--- these two are not one atomic step
+```
+
+With `k` threads past the gate, `n_hashs` can reach `max - 1 + k`. Since
+`max = size - size/2`, more than about `size/2` concurrent writers can fill a
+table completely. A full table plus an absent key satisfies neither probe exit
+condition, so **every probe loop must have a real exit, not an `assert`.** They
+do:
+
+| function | on probe exhaustion | caller's response |
+|---|---|---|
+| `_hashmapstorage_lookup` | returns `REDIRECT_VALUE` | migrate and retry — the degenerate full-table reader *grows the table* instead of spinning |
+| `_hashmapstorage_register` | returns `INVALID_POINTER` | migrate and retry |
+| `_hashmapstorage_insert` | returns `EBUSY` | migrate and retry |
+| `_hashmapstorage_put` | returns `EBUSY` | **see the known defect below** |
+| `_hashmap_patch` | returns `ENOENT` | single-threaded, no retry |
+
+### Known defect: `copy` drops a value when `put` exhausts its probe
+
+`copy` ignores `put`'s return value and freezes the source slot regardless. If
+`put` returned `EBUSY` because the destination was full, the value is in neither
+generation — a **silent lost insert**. This is a correctness defect, not a
+progress defect; the step bound above still holds.
+
+Reachability is narrow. Direct writers can only reach `dst` after
+`map->storage == dst`, which requires a completed copy pass, so
+`n_hashs(dst) >= live(src)` before any of them arrive. The gate then admits at
+most `size(src) - live(src) - 1 + k` more claims, for a total of
+`size(src) - 1 + k`. Filling all `2 * size(src)` slots therefore needs
+`k > size(dst)/2` threads simultaneously past the occupancy gate — plausible on
+a 4-slot table with 8 threads, unreachable once the table has grown.
+
+The fix is for `put` to grow the destination and chase, rather than for `copy`
+to drop. Until then, treat the probe bound as thread-count dependent: it is
+`mask + 1` steps, but *correct* only while concurrent writers stay below
+`size/2`.
+
+
+## 7. Not covered by the guarantee
+
+`mulle_concurrent_hashmap_count`, `lookup_any` and the enumerator are weakly
+consistent snapshots. `count` restarts its whole enumeration on `ECANCELED`,
+with no bound on the number of restarts, and an enumeration may be cancelled by
+any concurrent mutation. They are diagnostics and heuristics, not point
+operations, and they are explicitly outside the wait-free claim.
+
+`init` and `done` are single-threaded. `_hashmap_patch` and `_hashmap_remove`
+are single-threaded. Allocation is fail-fast: `_mulle_allocator_abort` ends the
+process, so a failed allocation never produces retries.
+
+
+## 8. The two designs, for reference
+
+```text
+  hashmap                              hashtable
+  -------                              ---------
+  freeze by overwriting the VALUE      freeze by setting a bit in the HASH
+  with REDIRECT (INTPTR_MIN)           word (top bit, or bit 0 in even mode)
+
+  => payload is DESTROYED by the       => payload SURVIVES the freeze
+     freeze
+  => a helper cannot finish someone    => any helper can complete the carry
+     else's carry
+  => the copier must install into      => the copier reads the value AFTER
+     the destination BEFORE it can        committing the freeze, so the value
+     validate that the value is           it carries is provably final
+     still live
+  => that ordering is what lets a      => a removal can never be undone
+     successful remove be undone
+
+  cost: none                           cost: one reserved hash bit
+  hash: full intptr_t                        (63 usable bits on LP64)
+  no multi-threaded remove             multi-threaded remove
+```
+
+Both satisfy the freeze-word law of §2; they differ only in which word carries
+the marker, and therefore in what they can offer on top. See
+[HASHTABLE.md](HASHTABLE.md).

@@ -2,10 +2,12 @@
 
 | Data Structure                                    | Description
 | --------------------------------------------------|-----------------------------------
-| [`mulle-concurrent-hashmap`](dox/API_HASHMAP.md)  | A wait and lock free hashmap
-| [`mulle-concurrent-pointerarray`](dox/API_POINTERARRAY.md)  | A wait and lock free array
-| [`mulle-concurrent-pointerset`](dox/API_POINTERSET.md)  | A wait and lock free set of pointers
+| [`mulle-concurrent-hashmap`](dox/API_HASHMAP.md)  | A wait- and lock-free hashmap, full-width `intptr_t` hash, insert-only
+| [`mulle-concurrent-hashtable`](dox/HASHTABLE.md)  | A wait- and lock-free hashmap with a concurrent `remove`, for one reserved hash bit
+| [`mulle-concurrent-pointerarray`](dox/API_POINTERARRAY.md)  | A wait- and lock-free array
+| [`mulle-concurrent-pointerset`](dox/API_POINTERSET.md)  | A wait- and lock-free set of pointers
 
 For the hashmap progress argument, see
-[Wait-free status of `mulle_concurrent_hashmap_register`](dox/WAIT-FREE-LOCK-FREE.md).
-
+[Wait-free status of the hashmap point operations](dox/WAIT-FREE-LOCK-FREE.md).
+For why the hashmap has no concurrent `remove` and the hashtable does, see
+[Remove misery](dox/REMOVE-MISERY-HASHMAP.md) and [hashtable](dox/HASHTABLE.md).

@@ -7,19 +7,32 @@ of time locking and unlocking a central hashtable, you
 want `mulle_concurrent_hashmap`.
 
 Such a hashmap is extremely volatile when shared with multiple threads, that are
-inserting and removing entries. For example, when you get the number of elements
+inserting entries. For example, when you get the number of elements
 of a such a hashmap it is akin to a fleeting glimpse of a distant past.
 
-The following operations should be executed in single-threaded fashion:
+The hashmap has **no multi-threaded remove**. Entries can be added but not
+taken away while other threads are running. Why this is inherent to the hashmap
+and not merely unimplemented is the subject of
+[REMOVE-MISERY-HASHMAP.md](REMOVE-MISERY-HASHMAP.md). If you need concurrent
+removal, use `mulle_concurrent_hashtable` instead
+([HASHTABLE.md](HASHTABLE.md)).
+
+The following operations must be executed in single-threaded fashion:
 
 * `mulle_concurrent_hashmap_init`
 * `mulle_concurrent_hashmap_done`
+* `_mulle_concurrent_hashmap_patch`
+* `_mulle_concurrent_hashmap_remove`
 
 The following operations are fine in multi-threaded environments:
 
 * `mulle_concurrent_hashmap_insert`
-* `mulle_concurrent_hashmap_remove`
+* `mulle_concurrent_hashmap_register`
 * `mulle_concurrent_hashmap_lookup`
+
+They are **wait-free**: each completes in a bounded number of its own steps,
+regardless of concurrent activity. See
+[WAIT-FREE-LOCK-FREE.md](WAIT-FREE-LOCK-FREE.md) for the argument.
 
 The following operations work in multi-threaded environments, but should be
 approached with caution:
@@ -31,8 +44,8 @@ approached with caution:
 
 
 All allocation is **fail-fast**: the mulle allocator contract is *success or
-abort*. The `ENOMEM` returns listed below are defensive and cannot occur with
-a conforming allocator.
+abort*. There are therefore no `ENOMEM` returns: a failed allocation ends the
+process rather than being reported.
 
 
 ## single-threaded
@@ -41,20 +54,21 @@ a conforming allocator.
 ### `mulle_concurrent_hashmap_init`
 
 ```
-int   mulle_concurrent_hashmap_init( struct mulle_concurrent_hashmap *map,
-                                     unsigned int size,
-                                     struct mulle_allocator *allocator)
+void   mulle_concurrent_hashmap_init( struct mulle_concurrent_hashmap *map,
+                                      unsigned int size,
+                                      struct mulle_allocator *allocator)
 ```
 
-Initialize `map`, with a starting `size` of elements. `allocator` will be
-used to allocate and free memory during the lifetime of `map`.  You can pass in
-for `allocator` to use the default. Call this in single-threaded fashion.
+Initialize `map`, with a starting `size` of elements. `size` is a hint: it is
+rounded up to the next power of two and clamped to a minimum of 4. A `size` of
+0 uses a shared read-only empty storage, which is replaced on the first insert.
+`mulle_concurrent_hashmap_get_size` reports the size that was actually used.
 
-Return Values:
+`allocator` will be used to allocate and free memory during the lifetime of
+`map`. Pass `NULL` to use the default allocator. Call this in single-threaded
+fashion.
 
-*   0      : OK
-*   EINVAL : invalid argument
-*   ENOMEM : out of memory
+Allocation is fail-fast, so there is no return value.
 
 
 ### `void  mulle_concurrent_hashmap_done`
@@ -65,6 +79,50 @@ void  mulle_concurrent_hashmap_done( struct mulle_concurrent_hashmap *map)
 
 This will free all allocated resources `map`. It will not **free** `map` itself
 though. `map` must be a valid pointer. Call this in single-threaded fashion.
+
+
+### `_mulle_concurrent_hashmap_patch`
+
+```
+int  _mulle_concurrent_hashmap_patch( struct mulle_concurrent_hashmap *map,
+                                      intptr_t hash,
+                                      void *value)
+```
+
+**SINGLE-THREADED ONLY.** Unconditionally replace the value of an existing
+entry. There is no CAS and no migration concern. Calling this while another
+thread accesses `map` is undefined behavior.
+
+A general concurrent "replace this value" operation is not implementable over
+this data structure; [POSEAS-PATCH.md](POSEAS-PATCH.md) proves why. Use this
+during single-threaded setup or teardown phases only.
+
+Return Values:
+
+*   0      : OK
+*   ENOENT : `hash` is not present
+
+
+### `_mulle_concurrent_hashmap_remove`
+
+```
+int  _mulle_concurrent_hashmap_remove( struct mulle_concurrent_hashmap *map,
+                                       intptr_t hash)
+```
+
+**SINGLE-THREADED ONLY.** An inline wrapper for `_patch( map, hash, NULL)`. It
+clears the value but leaves the hash claim in place, so probe chains stay
+intact. `lookup` reports the hash as absent afterwards, and the slot can be
+repopulated later with `_patch` or by `insert`/`register` for the same hash.
+
+The leftover `{ hash, NULL }` state is safe to carry into a later concurrent
+phase: the hash-first claim means a foreign key probing that slot sees the
+claim and probes onward, and only the hash owner can fill the value again.
+
+Return Values:
+
+*   0      : OK
+*   ENOENT : `hash` is not present
 
 
 ## multi-threaded
@@ -95,49 +153,45 @@ static inline uint64_t   mulle_hash_avalanche64(uint64_t h)
 }
 ```
 
-`value` can be any `void *` except `NULL`, `(void *) INTPTR_MIN` or
-`(void *) INTPTR_MAX`. It will not get dereferenced by the hashmap.
+`value` can be any `void *` except `NULL` (`MULLE_CONCURRENT_NO_POINTER`, the
+empty-slot sentinel) or `(void *) INTPTR_MIN`
+(`MULLE_CONCURRENT_INVALID_POINTER`, the `REDIRECT` freeze marker). It will not
+get dereferenced by the hashmap.
 
+`(void *) INTPTR_MAX` (`MULLE_CONCURRENT_TOMBSTONE_POINTER`) used to be reserved
+as well. The hashmap has no tombstones anymore, so it is accepted and stored
+like any other pointer. Avoid it anyway if the same payloads also go into a
+`mulle_concurrent_pointerset`, which does still reserve it.
 
 Return Values:
 
 *   0      : OK
 *   EEXIST : duplicate
-*   EINVAL : invalid argument (includes reserved `value`)
-*   ENOMEM : out of memory
+*   EINVAL : invalid argument (includes a reserved `hash` or `value`)
 
 
-### `mulle_concurrent_hashmap_remove`
+### `mulle_concurrent_hashmap_register`
 
 ```
-int  mulle_concurrent_hashmap_remove( struct mulle_concurrent_hashmap *map,
-                                      intptr_t hash,
-                                      void *value)
+void   *mulle_concurrent_hashmap_register( struct mulle_concurrent_hashmap *map,
+                                           intptr_t hash,
+                                           void *value)
 ```
 
-Remove a `hash`, `value` pair. Read the description of
-`mulle_concurrent_hashmap_insert` for information about restrictions
-pertaining to both.
-
-Removing leaves the slot as an internal tombstone: the hash stays claimed so
-probe chains through it continue to work, while lookup, count and enumeration
-treat it as absent.
-
-Reinserting or re-registering the same hash is supported but triggers an
-internal same-size migration to drop the tombstone. This makes the
-reinsert correct and wait-free, but **slow** — the entire table is copied.
-Avoid tight remove/reinsert cycles on the same hash in performance-critical
-code.
-
-A different hash that probes through a tombstoned slot is unaffected: it
-simply skips the tombstone during its probe and does not pay any migration
-cost.
+Insert a `hash`, `value` pair if `hash` is not present yet, and report what
+happened in one step. The restrictions on `hash` and `value` are the same as for
+`mulle_concurrent_hashmap_insert`.
 
 Return Values:
-   0      : OK
-   ENOENT : not found
-   EINVAL : invalid argument (includes reserved `value`)
-   ENOMEM : out of memory
+
+*   `MULLE_CONCURRENT_NO_POINTER` (`NULL`)             : inserted `value`
+*   `MULLE_CONCURRENT_INVALID_POINTER` (`INTPTR_MIN`)  : invalid argument
+*   otherwise                                          : the value that is
+    already registered for `hash`, which is left untouched
+
+`register` never returns a foreign key's value. A slot is claimed by CASing its
+hash word, and only operations carrying that hash may write the slot's value, so
+two different keys can never collide on one slot's payload.
 
 
 ### `mulle_concurrent_hashmap_lookup`
@@ -219,16 +273,15 @@ retry:
    }
    mulle_concurrent_hashmapenumerator_done( &rover);
 
-   if( rval == EBUSY) // interrupted!
-      goto retry;     // restart from the beginning will duplicate some
+   if( rval == ECANCELED) // interrupted!
+      goto retry;         // restart from the beginning will duplicate some
 ```
 
 Return Values:
 
-*   1          : OK
-*   0          : nothing left
-*   ECANCELLED : hashtable was mutated
-*   ENOMEM     : out of memory
+*   1         : OK
+*   0         : nothing left
+*   ECANCELED : hashmap was mutated, restart the enumeration
 
 
 ### `mulle_concurrent_hashmapenumerator_done`

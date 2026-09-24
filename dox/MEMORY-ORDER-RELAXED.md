@@ -29,7 +29,7 @@ All atomic usage falls into these categories:
    etc. These load the current/next generation pointers.
 
 4. **Counter increments** — `_mulle_atomic_pointer_increment` on `p->n_hashs`,
-   `p->n_tombstones`, `p->n_used`, and pointerarray's `p->n`. These track
+   `p->n_used`, and pointerarray's `p->n`. These track
    occupancy.
 
 5. **Counter reads** — `_mulle_atomic_pointer_read` on `p->n_hashs`,
@@ -89,9 +89,49 @@ Correctness comes from the CAS protocol (slot state machines with monotonic
 transitions), not from inter-operation ordering.
 
 
+## The one place this reasoning does not reach
+
+Every argument above is about a **reader** that loads `entry->hash` and then
+loads `entry->value`. The address dependency carries the ordering, so relaxed is
+fine. The hashmap's `copy` has one step that runs in the *opposite* direction and
+has no such dependency:
+
+```c
+   hash = read( &p->hash);                 // observed NO_HASH: looks virgin
+   if( hash == MULLE_CONCURRENT_NO_HASH)
+   {
+      actual = cas( &p->value, REDIRECT_VALUE, NO_POINTER);
+      if( actual is a live value)          // lost the freeze to a racing fill
+      {
+         hash = read( &p->hash);           // <-- MUST see the published hash
+         assert( hash != MULLE_CONCURRENT_NO_HASH);
+         ...carry (hash, actual) into the destination...
+      }
+   }
+```
+
+The writer does `CAS(hash)` then `CAS(value)`. Copy's `CAS(value)` observed the
+writer's value, so it follows the writer's value CAS; copy's *later* hash read
+must therefore also follow the writer's *earlier* hash CAS. Under `seq_cst`
+that is immediate from the single total order. Under relaxed there is no
+dependency between copy's value CAS and copy's hash read at all, so on
+ARM/POWER the load can be satisfied from before the writer's hash store and
+return `NO_HASH` — tripping the assert in a debug build and carrying a value
+under the wrong hash in a release build.
+
+So this read, and the value CAS it follows, need at least acquire/release
+ordering, not relaxed. It is not covered by "CAS is self-synchronizing" (the
+problem is the plain load, not the CAS) and not covered by the address-dependency
+argument (there is no address dependency in this direction). Any relaxation
+programme has to treat it as an explicit exception. See
+[WAIT-FREE-LOCK-FREE.md](WAIT-FREE-LOCK-FREE.md) §3.
+
+
 ## Conclusion
 
-All atomic operations in mulle-concurrent use the `_relaxed` suffixed
-variants. The `seq_cst` overhead is unnecessary here since correctness derives
-from CAS atomicity and the slot state protocol, not from memory ordering
-between different locations.
+Most atomic operations in mulle-concurrent can use the `_relaxed` suffixed
+variants: correctness derives from CAS atomicity and the slot state protocol
+rather than from memory ordering between different locations. The exception
+above is real and must be carried explicitly — it is the reason the library
+currently relies on the `seq_cst` defaults of its atomics dependency rather than
+having been audited operation by operation.

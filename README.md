@@ -20,13 +20,15 @@ in multi-threaded environments.
 
 | Data Structure                                    | Description
 | --------------------------------------------------|-----------------------------------
-| [`mulle-concurrent-hashmap`](dox/API_HASHMAP.md)  | A wait and lock free hashmap
-| [`mulle-concurrent-pointerarray`](dox/API_POINTERARRAY.md)  | A wait and lock free array
-| [`mulle-concurrent-pointerset`](dox/API_POINTERSET.md)  | A wait and lock free set of pointers
+| [`mulle-concurrent-hashmap`](dox/API_HASHMAP.md)  | A wait- and lock-free hashmap, full-width `intptr_t` hash, insert-only
+| [`mulle-concurrent-hashtable`](dox/HASHTABLE.md)  | A wait- and lock-free hashmap with a concurrent `remove`, for one reserved hash bit
+| [`mulle-concurrent-pointerarray`](dox/API_POINTERARRAY.md)  | A wait- and lock-free array
+| [`mulle-concurrent-pointerset`](dox/API_POINTERSET.md)  | A wait- and lock-free set of pointers
 
 For the hashmap progress argument, see
-[Wait-free status of `mulle_concurrent_hashmap_register`](dox/WAIT-FREE-LOCK-FREE.md).
-
+[Wait-free status of the hashmap point operations](dox/WAIT-FREE-LOCK-FREE.md).
+For why the hashmap has no concurrent `remove` and the hashtable does, see
+[Remove misery](dox/REMOVE-MISERY-HASHMAP.md) and [hashtable](dox/HASHTABLE.md).
 
 
 ## Documentation & Guides
@@ -147,34 +149,45 @@ crash.
 * **Point operations are wait-free** — `register`, `insert`, `lookup`,
   `remove`, `add`, `get`, `member` complete in a bounded number of steps
   regardless of contention. Growth and migration are cooperative: any thread
-  that observes a REDIRECT slot helps finish the migration and then retries
-  its own operation.
+  that observes a frozen slot helps finish the migration and then retries
+  its own operation. For the hashmap the bound is worked out step by step in
+  [Wait-free status of the hashmap point operations](dox/WAIT-FREE-LOCK-FREE.md).
 * **`count`, `get_size`, `get_count` and `lookup_any` are snapshots** — they
   return a value from some point in time during the call and may be stale if
   the structure is mutated concurrently. Use them for diagnostics and
-  heuristics, not for correctness decisions.
+  heuristics, not for correctness decisions. They are not wait-free: `count`
+  restarts its enumeration when a concurrent mutation cancels it.
 * **Enumeration is "limited multi-threaded"** — an enumerator is only usable
-  by the calling thread. For the hashmap and pointerset, concurrent mutation
-  (insert/remove/growth) may interrupt the enumeration; the enumerator then
-  returns `ECANCELLED` and you retry the whole enumeration from the start.
+  by the calling thread. For the hashmap, hashtable and pointerset, concurrent
+  mutation (insert/remove/growth) may interrupt the enumeration; the enumerator
+  then returns `ECANCELED` and you retry the whole enumeration from the start.
   Retrying may yield duplicates or miss entries that changed in between —
   that is expected. The pointerarray is append-only, so its enumerators work
   reliably even while other threads add values.
-* **`remove` on a hashmap requires the matching value** — the pair (hash,
-  value) must match, so a removed entry cannot be resurrected by a newer
-  value. The slot is left as a tombstone: the hash stays claimed (so probe
-  chains through it keep working) but the value is marked removed. The same
-  hash cannot be registered or inserted again in that storage generation;
-  `register` reports `EEXIST` and `insert` returns `EEXIST`. Migration drops
-  tombstones, after which the hash can be used again.
+* **The hashmap has no concurrent `remove`** — entries can be added but not
+  taken away while other threads are running. This is not an omission: the
+  hashmap freezes a migrating slot by overwriting its *value*, which destroys
+  the payload, and that forces the copier to install a value into the new
+  generation before it can check whether the value is still live. A concurrent
+  `remove` can therefore be silently undone. The full argument is in
+  [Remove misery](dox/REMOVE-MISERY-HASHMAP.md).
+  `_mulle_concurrent_hashmap_patch` and `_mulle_concurrent_hashmap_remove`
+  exist but are **single-threaded only**, for setup and teardown phases.
+* **Use the hashtable if you need `remove`** — it moves the freeze marker into
+  the *hash* word, so a frozen slot keeps its payload and a removal can never be
+  resurrected. A removed slot keeps its hash claim, so probe chains stay intact,
+  and it is immediately reusable. The price is one reserved hash bit: legal
+  hashes are `[1, INTPTR_MAX]`, and an out-of-range hash is rejected rather than
+  silently truncated. See [hashtable](dox/HASHTABLE.md).
 * **Hashmap `register`/`insert` never return a foreign key's value** — a
   slot is claimed by CASing its hash, and only operations with that matching
   hash may write its value, so two different keys can never collide on one
   slot's value.
-* **Pointerset and hashmap tombstones accumulate** — removed slots are not
-  reused within a storage generation. Migration drops tombstones while
-  strictly growing the storage. For remove-heavy pointerset workloads,
-  `mulle_concurrent_pointerset_reset()` can reclaim them explicitly.
+* **Only the pointerset uses tombstones** — a removed pointer leaves a
+  tombstone so probe chains are not broken, and tombstones are not reused
+  within a storage generation. Migration drops them while strictly growing the
+  storage. For remove-heavy workloads `mulle_concurrent_pointerset_reset()` can
+  reclaim them explicitly. Neither the hashmap nor the hashtable has tombstones.
 * **`init` and `done` are single-threaded** — no other thread may access the
   structure while either runs. See the *Lifecycle checklist*.
 
@@ -182,19 +195,30 @@ crash.
 ## Reserved pointer values
 
 The containers store `void *` pointers and reserve a few values for internal
-use. **Never store any of these values as payload.**
+use. **Never store a value as payload in a container that reserves it.**
 
-| Value                 | Constant                            | Meaning                           | Rejected by
+| Value                 | Constant                            | Meaning                           | Reserved by
 |-----------------------|-------------------------------------|-----------------------------------|-------------------
-| `0` (hash)            | `MULLE_CONCURRENT_NO_HASH`          | invalid hash sentinel             | hashmap insert/register/remove
+| `0` (hash)            | `MULLE_CONCURRENT_NO_HASH`          | unclaimed slot / invalid hash     | hashmap, hashtable
 | `NULL`                | `MULLE_CONCURRENT_NO_POINTER`       | "no value" sentinel / empty slot  | all structures
-| `(void *) INTPTR_MIN` | `MULLE_CONCURRENT_INVALID_POINTER`  | REDIRECT marker during migration  | all structures
-| `(void *) INTPTR_MAX` | `MULLE_CONCURRENT_TOMBSTONE_POINTER`| tombstone of a removed slot       | hashmap, pointerset
+| `(void *) INTPTR_MIN` | `MULLE_CONCURRENT_INVALID_POINTER`  | hashmap REDIRECT freeze marker    | hashmap, pointerarray, pointerset
+| `(void *) INTPTR_MAX` | `MULLE_CONCURRENT_TOMBSTONE_POINTER`| pointerset tombstone              | pointerset
 
 The values are defined in `src/mulle-concurrent-types.h`. They are
 compile-time constants derived from the platform's `intptr_t`, so the
 reserved set is fixed per architecture. Passing a reserved value to an
 operation that rejects it returns `EINVAL`.
+
+Two per-container notes:
+
+* The **hashtable** reserves only `NULL` as a payload, because its value word
+  has just two states. `INVALID_POINTER` and `TOMBSTONE_POINTER` are ordinary
+  storable values there. Its *hash* space is the restricted one: `[1,
+  INTPTR_MAX]`, since the topmost bit is the freeze flag.
+* The **hashmap** no longer has tombstones, so `TOMBSTONE_POINTER` is an
+  ordinary storable value for it too. Avoid relying on that if the same
+  payloads also go into a pointerset.
+
 
 
 ## Memory allocation
