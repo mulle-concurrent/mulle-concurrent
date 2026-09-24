@@ -57,6 +57,7 @@ set( PUBLIC_HEADERS
 src/hashmap/mulle-concurrent-hashmap.h
 src/hashtable/mulle-concurrent-hashtable.h
 src/mulle-concurrent.h
+src/mulle-concurrent-math.h
 src/mulle-concurrent-types.h
 src/pointerarray/mulle-concurrent-pointerarray.h
 src/pointerset/mulle-concurrent-pointerset.h

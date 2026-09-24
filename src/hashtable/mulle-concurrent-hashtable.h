@@ -36,6 +36,7 @@
 #define mulle_concurrent_hashtable_h__
 
 #include "include.h"
+#include "mulle-concurrent-types.h"
 
 #include <errno.h>
 #include <stdint.h>
@@ -90,20 +91,23 @@
 //     reserved here.
 //
 // The price is one reserved bit in the hash space: the topmost bit is the
-// FROZEN flag, so hashes are folded into the low bits (a hash is a hash, so
-// this is harmless, but it is not an identity mapping).
+// FROZEN flag, so a legal hash never uses it. Hashes are NOT folded: an
+// out-of-range hash is rejected, so the caller must know the usable range.
 //
 // HASH-WIDTH RESTRICTION:
 //
 //   Legal hash range: [1, INTPTR_MAX]  (topmost bit must be clear, 0 is NO_HASH)
 //
+//   An invalid hash is rejected: insert/register/remove return EINVAL and
+//   lookup returns NULL. This is deliberate — silently truncating the hash
+//   would alias distinct keys and hide the caller's mistake.
+//
 //   On LP64 this is 63 usable bits. User-space pointers never have bit 63 set,
 //   so "pointer identity as hash" remains safe.
 //
 //   On ILP32 this is 31 usable bits. Pointers above 0x80000000 CANNOT be used
-//   as hashes — they would alias with their & 0x7FFFFFFF counterpart, and since
-//   the hash IS the key in this design, two distinct pointers would collide
-//   silently. An assert fires in debug builds if the FROZEN bit is set.
+//   as hashes — they are out of range and rejected, and since the hash IS the
+//   key in this design, two distinct pointers would otherwise collide.
 //
 // The remaining subtlety is that a writer reads the hash word and then CASes
 // the value word, so a freeze can slip in between. Writers therefore re-read
@@ -160,6 +164,10 @@ struct mulle_concurrent_hashtable
 //                              Full address range available, no aliasing on any platform.
 //
 
+//
+// The size is a hint: it is rounded up to the next power of two and clamped
+// to a minimum of 4, so any size is accepted. mulle_concurrent_hashtable_get_size
+// reports the size that was actually used.
 //
 // Default: top bit is FROZEN ("positive" mode).
 //
@@ -250,7 +258,24 @@ int   mulle_concurrent_hashtable_remove( struct mulle_concurrent_hashtable *map,
                                        void *value);
 
 //
-// NULL if absent, otherwise the registered value.
+// Returns non-zero if 'hash' is a legal key for 'map': non-zero and without the
+// mode's FROZEN bit (topmost bit in positive mode, bit 0 in even mode). The
+// mutating calls reject an illegal hash with EINVAL, and lookup() reports it as
+// NULL, exactly like an absent key. A caller that must tell the two apart
+// should test with this first.
+//
+static inline int
+   mulle_concurrent_hashtable_hash_is_valid( struct mulle_concurrent_hashtable *map,
+                                             intptr_t hash)
+{
+   return( map &&
+           (uintptr_t) hash != MULLE_CONCURRENT_NO_HASH &&
+           ((uintptr_t) hash & ~map->hash_mask) == 0);
+}
+
+//
+// NULL if absent or if 'hash' is not a legal key (see
+// mulle_concurrent_hashtable_hash_is_valid), otherwise the registered value.
 //
 MULLE__CONCURRENT_GLOBAL
 void  *mulle_concurrent_hashtable_lookup( struct mulle_concurrent_hashtable *map,

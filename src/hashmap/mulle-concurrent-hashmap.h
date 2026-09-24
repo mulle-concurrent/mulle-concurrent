@@ -110,6 +110,11 @@ struct mulle_concurrent_hashmap
 
 #pragma mark - various functions, no parameter checks
 
+//
+// The size is a hint: it is rounded up to the next power of two and clamped
+// to a minimum of 4. mulle_concurrent_hashmap_get_size reports the size that
+// was actually used.
+//
 MULLE__CONCURRENT_GLOBAL
 void  _mulle_concurrent_hashmap_init( struct mulle_concurrent_hashmap *map,
                                       unsigned int size,
@@ -174,7 +179,7 @@ static inline unsigned int
 // Return value (rval):
 //
 //     MULLE_CONCURRENT_NO_POINTER      : means it did insert
-//     MULLE_CONCURRENT_INVALID_POINTER : error (errno is EINVAL or EEXIST)
+//     MULLE_CONCURRENT_INVALID_POINTER : error (invalid argument)
 //     other                            : value that was already registered
 //
 // Do not use hash=0
@@ -282,7 +287,6 @@ static inline struct mulle_concurrent_hashmapenumerator
 //  1         : OK
 //  0         : nothing left
 // ECANCELLED : mutation alert
-// ENOMEM     : out of memory
 // EINVAL     : wrong parameter value
 
 static inline int

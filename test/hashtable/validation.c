@@ -89,16 +89,33 @@ int   main( void)
 
    //
    // The FROZEN bit (topmost) is RESERVED. Passing a hash with that bit set
-   // is a caller bug (asserts in debug builds). The usable hash space is
-   // [1, INTPTR_MAX]. On LP64 user-space pointers never have bit 63 set, so
-   // pointer-as-hash is safe. On ILP32 pointers above 0x80000000 are NOT
-   // usable as hashes without masking.
+   // is a caller bug and is rejected with EINVAL (NULL for lookup), never
+   // silently folded. The usable hash space is [1, INTPTR_MAX]. On LP64
+   // user-space pointers never have bit 63 set, so pointer-as-hash is safe.
+   // On ILP32 pointers above 0x80000000 are out of range.
    //
-   // We do NOT test INTPTR_MIN|x here — it would fire the assert.
-   //
+   check( mulle_concurrent_hashtable_insert( &map, INTPTR_MIN, (void *) 0x99) == EINVAL,
+          "insert hash with FROZEN bit set" );
+   check( mulle_concurrent_hashtable_insert( &map, (intptr_t) (INTPTR_MIN | 0x5), (void *) 0x99) == EINVAL,
+          "insert hash with FROZEN bit set + low bits" );
+   check( mulle_concurrent_hashtable_lookup( &map, INTPTR_MIN) == NULL,
+          "lookup hash with FROZEN bit set" );
+   check( mulle_concurrent_hashtable_register( &map, INTPTR_MIN, (void *) 0x99, &old) == EINVAL,
+          "register hash with FROZEN bit set" );
+   check( mulle_concurrent_hashtable_remove( &map, INTPTR_MIN, (void *) 0x99) == EINVAL,
+          "remove hash with FROZEN bit set" );
 
-   // edge case: hash == 1 is fine (0 is nudged to 1 internally but the
-   // caller should not rely on that; explicit 1 must work)
+   // the predicate lets a caller tell "refused" from "absent" before looking up
+   check( ! mulle_concurrent_hashtable_hash_is_valid( &map, MULLE_CONCURRENT_NO_HASH),
+          "hash 0 is invalid" );
+   check( ! mulle_concurrent_hashtable_hash_is_valid( &map, INTPTR_MIN),
+          "hash with FROZEN bit is invalid" );
+   check( mulle_concurrent_hashtable_hash_is_valid( &map, 1),
+          "hash 1 is valid" );
+   check( mulle_concurrent_hashtable_hash_is_valid( &map, INTPTR_MAX),
+          "hash INTPTR_MAX is valid" );
+
+   // edge case: hash == 1 is fine (explicit 1 must work)
    check( mulle_concurrent_hashtable_insert( &map, 1, (void *) 0x77) == 0,
           "insert hash=1" );
    check( mulle_concurrent_hashtable_lookup( &map, 1) == (void *) 0x77,
@@ -113,6 +130,35 @@ int   main( void)
           "lookup hash=INTPTR_MAX" );
    check( mulle_concurrent_hashtable_remove( &map, INTPTR_MAX, (void *) 0x88) == 0,
           "remove hash=INTPTR_MAX" );
+
+   //
+   // even mode: bit 0 is FROZEN, so odd hashes are out of range and rejected
+   //
+   {
+      struct mulle_concurrent_hashtable   even_map;
+
+      mulle_concurrent_hashtable_init_even( &even_map, 0, NULL);
+
+      check( mulle_concurrent_hashtable_insert( &even_map, 3, (void *) 0xaa) == EINVAL,
+             "even mode rejects odd hash" );
+      check( mulle_concurrent_hashtable_lookup( &even_map, 3) == NULL,
+             "even mode rejects odd lookup" );
+      check( mulle_concurrent_hashtable_remove( &even_map, 3, (void *) 0xaa) == EINVAL,
+             "even mode rejects odd remove" );
+      check( ! mulle_concurrent_hashtable_hash_is_valid( &even_map, 3),
+             "even mode: odd hash is invalid" );
+      check( mulle_concurrent_hashtable_hash_is_valid( &even_map, 4),
+             "even mode: even hash is valid" );
+
+      check( mulle_concurrent_hashtable_insert( &even_map, 4, (void *) 0xaa) == 0,
+             "even mode accepts even hash" );
+      check( mulle_concurrent_hashtable_lookup( &even_map, 4) == (void *) 0xaa,
+             "even mode lookup even hash" );
+      check( mulle_concurrent_hashtable_remove( &even_map, 4, (void *) 0xaa) == 0,
+             "even mode remove even hash" );
+
+      mulle_concurrent_hashtable_done( &even_map);
+   }
 
    mulle_concurrent_hashtable_done( &map);
    mulle_aba_unregister();

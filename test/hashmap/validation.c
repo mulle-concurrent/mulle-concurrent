@@ -37,9 +37,7 @@ int   main( void)
    check( mulle_concurrent_hashmap_insert( &map, 1, MULLE_CONCURRENT_INVALID_POINTER) == EINVAL,
           "hashmap insert invalid value");
 
-   errno = 0;
-   check( mulle_concurrent_hashmap_register( NULL, 1, (void *) 1) == MULLE_CONCURRENT_INVALID_POINTER &&
-          errno == EINVAL,
+   check( mulle_concurrent_hashmap_register( NULL, 1, (void *) 1) == MULLE_CONCURRENT_INVALID_POINTER,
           "hashmap register NULL");
    check( mulle_concurrent_hashmap_register( &map, MULLE_CONCURRENT_NO_HASH, (void *) 1) == MULLE_CONCURRENT_INVALID_POINTER,
           "hashmap register no hash");

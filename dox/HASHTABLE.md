@@ -17,25 +17,32 @@ allocation, no tombstones.
 
 ## Slot encoding
 
-The topmost bit of the hash word is the `FROZEN` flag. Hashes are folded into
-the remaining bits (a hash is a hash, so this is harmless, but it is not the
-identity). `0` stays reserved as the unclaimed token.
+The topmost bit of the hash word is the `FROZEN` flag, so a legal hash never
+uses it. `0` stays reserved as the unclaimed token. Hashes are **not** folded:
+an out-of-range hash is rejected, so the caller must know the usable range.
 
 ### Hash-width restriction
 
 Legal hash range: **`[1, INTPTR_MAX]`** — the topmost bit must be clear and
 zero is `NO_HASH`.
 
+An invalid hash is rejected: `insert`/`register`/`remove` return `EINVAL` and
+`lookup` returns `NULL`. This is deliberate — silently truncating the hash
+would alias distinct keys and hide the caller's mistake.
+
+Because `lookup` returns `NULL` for both an absent key and a refused hash, a
+caller that must tell the two apart validates first with
+`mulle_concurrent_hashtable_hash_is_valid( map, hash)`. That predicate is the
+single place the mode rule lives; there is no `lookup_ex`.
+
 | platform | usable bits | pointer-as-hash safe? |
 |----------|-------------|----------------------|
 | LP64     | 63          | yes — user-space pointers never set bit 63 |
-| ILP32    | 31          | **no** — addresses ≥ 0x80000000 alias with their `& 0x7FFFFFFF` counterpart |
+| ILP32    | 31          | **no** — addresses ≥ 0x80000000 are out of range and rejected |
 
-Because the hash IS the key (no separate key comparator), aliasing is
-**identity collision**: two distinct logical keys map to the same slot. On
-32-bit, any hash function whose output can set bit 31 is silently broken.
-An `assert` in `hashtable_fold_hash` fires in debug builds if the FROZEN bit is
-set in the input.
+Because the hash IS the key (no separate key comparator), aliasing would be
+**identity collision**: two distinct logical keys mapping to the same slot. On
+32-bit, any hash function whose output can set bit 31 is unusable as-is.
 
 The original hashmap does not have this restriction — it stores the full
 `intptr_t` with only 0 reserved.

@@ -167,7 +167,7 @@ int   main( void)
    mulle_aba_init( &mulle_testallocator);
    mulle_allocator_set_aba( &mulle_testallocator,
                             mulle_aba_get_global(),
-                            (mulle_allocator_aba_t *) _mulle_aba_free_owned_pointer);
+                            _mulle_aba_free_owned_pointer);
    mulle_aba_register();
 
    mulle_concurrent_pointerset_init( &set, 4, &mulle_testallocator);
