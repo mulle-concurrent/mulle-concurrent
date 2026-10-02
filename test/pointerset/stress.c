@@ -5,7 +5,6 @@
 //
 #include <mulle-concurrent/mulle-concurrent.h>
 
-#include <mulle-testallocator/mulle-testallocator.h>
 #include <assert.h>
 #include <errno.h>
 #include <stdio.h>
@@ -61,7 +60,6 @@ static void  tester( struct mulle_concurrent_pointerset *set)
    uint64_t   rng;
    unsigned   i;
    void       *ptr;
-   int        rval;
 
    mulle_aba_register();
 
@@ -106,13 +104,13 @@ static void  multi_threaded_test( unsigned int n_threads)
 
    assert( n_threads <= 32);
 
-   mulle_aba_init( &mulle_testallocator);
-   mulle_allocator_set_aba( &mulle_testallocator,
+   mulle_aba_init( &mulle_allocator_default);
+   mulle_allocator_set_aba( &mulle_allocator_default,
                             mulle_aba_get_global(),
                             _mulle_aba_free_owned_pointer);
    mulle_aba_register();
 
-   mulle_concurrent_pointerset_init( &set, 4, &mulle_testallocator);
+   mulle_concurrent_pointerset_init( &set, 4, &mulle_allocator_default);
 
    for( i = 0; i < n_threads; i++)
    {
@@ -128,7 +126,7 @@ static void  multi_threaded_test( unsigned int n_threads)
    mulle_concurrent_pointerset_done( &set);
 
    mulle_aba_unregister();
-   mulle_allocator_set_aba( &mulle_testallocator, NULL, NULL);
+   mulle_allocator_set_aba( &mulle_allocator_default, NULL, NULL);
    mulle_aba_done();
 }
 
@@ -141,27 +139,21 @@ int   main( void)
    for( i = 0; i < N_POINTERS; i++)
       ptrs[ i ] = (void *)(uintptr_t)(i + 1);
 
-   mulle_testallocator_initialize();
-   mulle_default_allocator = mulle_testallocator;
 
    // detect once for main
    slow = (n_iters() < 100000);
 
    multi_threaded_test( 1);
-   mulle_testallocator_reset();
 
    multi_threaded_test( 2);
-   mulle_testallocator_reset();
 
    // Under valgrind, many threads are prohibitively slow (cooperative
    // single-core scheduling). 2 threads already exercises concurrency.
    if( ! slow)
    {
       multi_threaded_test( 8);
-      mulle_testallocator_reset();
 
       multi_threaded_test( 32);
-      mulle_testallocator_reset();
    }
 
    printf( "OK\n");

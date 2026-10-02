@@ -10,7 +10,6 @@
 //
 #include <mulle-concurrent/mulle-concurrent.h>
 
-#include <mulle-testallocator/mulle-testallocator.h>
 #include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -131,8 +130,6 @@ int   main( void)
    intptr_t         hash;
    unsigned int     i;
 
-   mulle_testallocator_initialize();
-   mulle_default_allocator = mulle_testallocator;
    mulle_aba_init( NULL);
    mulle_aba_register();
 
@@ -178,7 +175,6 @@ int   main( void)
    mulle_concurrent_hashtable_done( &g_map);
    mulle_aba_unregister();
    mulle_aba_done();
-   mulle_testallocator_reset();
 
    printf( g_failed ? "FAILED\n" : "PASSED\n");
    return( g_failed ? 1 : 0);

@@ -1,6 +1,5 @@
 #include <mulle-concurrent/mulle-concurrent.h>
 
-#include <mulle-testallocator/mulle-testallocator.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -21,8 +20,6 @@ int   main( void)
    struct mulle_concurrent_hashmap             map;
    struct mulle_concurrent_hashmapenumerator   rover;
 
-   mulle_testallocator_initialize();
-   mulle_default_allocator = mulle_testallocator;
    mulle_aba_init( NULL);
    mulle_aba_register();
 
@@ -79,7 +76,6 @@ int   main( void)
    mulle_concurrent_hashmap_done( &map);
    mulle_aba_unregister();
    mulle_aba_done();
-   mulle_testallocator_reset();
 
    printf( "PASSED\n");
    return( 0);

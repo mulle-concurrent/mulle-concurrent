@@ -32,7 +32,6 @@
 //  POSSIBILITY OF SUCH DAMAGE.
 //
 #include <mulle-concurrent/mulle-concurrent.h>
-#include <mulle-testallocator/mulle-testallocator.h>
 #include <assert.h>
 #include <errno.h>
 #include <stdio.h>
@@ -85,7 +84,6 @@ static unsigned int   target_size( void)
 static void  insert_something( struct mulle_concurrent_pointerarray *map)
 {
    void   *value;
-   int    rval;
 
    do
       value = (void *) (intptr_t) (rand() << 1); // no uneven pointer values
@@ -116,7 +114,6 @@ static void  enumerate_something( struct mulle_concurrent_pointerarray *map)
 {
    struct mulle_concurrent_pointerarrayenumerator   rover;
    void                                             *value;
-   int                                              rval;
 
    rover = mulle_concurrent_pointerarray_enumerate( map);
    while( value = mulle_concurrent_pointerarrayenumerator_next( &rover))
@@ -173,13 +170,13 @@ static void  multi_threaded_test( unsigned int n_threads)
 
    assert( n_threads <= 32);
 
-   mulle_aba_init( &mulle_testallocator);
-   mulle_allocator_set_aba( &mulle_testallocator,
+   mulle_aba_init( &mulle_allocator_default);
+   mulle_allocator_set_aba( &mulle_allocator_default,
                             mulle_aba_get_global(),
                             _mulle_aba_free_owned_pointer);
    mulle_aba_register();
 
-   mulle_concurrent_pointerarray_init( &map, 0, &mulle_testallocator);
+   mulle_concurrent_pointerarray_init( &map, 0, &mulle_allocator_default);
 
    {
       for( i = 0; i < n_threads; i++)
@@ -198,7 +195,7 @@ static void  multi_threaded_test( unsigned int n_threads)
    mulle_concurrent_pointerarray_done( &map);
 
    mulle_aba_unregister();
-   mulle_allocator_set_aba( &mulle_testallocator, NULL, NULL);
+   mulle_allocator_set_aba( &mulle_allocator_default, NULL, NULL);
    mulle_aba_done();
 }
 
@@ -210,13 +207,13 @@ static void  single_threaded_test( void)
    unsigned int                                     i;
    void                                             *value;
 
-   mulle_aba_init( &mulle_testallocator);
-   mulle_allocator_set_aba( &mulle_testallocator,
+   mulle_aba_init( &mulle_allocator_default);
+   mulle_allocator_set_aba( &mulle_allocator_default,
                             mulle_aba_get_global(),
                             _mulle_aba_free_owned_pointer);
    mulle_aba_register();
 
-   mulle_concurrent_pointerarray_init( &map, 0, &mulle_testallocator);
+   mulle_concurrent_pointerarray_init( &map, 0, &mulle_allocator_default);
    {
       for( i = 1; i <= 100; i++)
       {
@@ -242,32 +239,27 @@ static void  single_threaded_test( void)
    mulle_concurrent_pointerarray_done( &map);
 
    mulle_aba_unregister();
-   mulle_allocator_set_aba( &mulle_testallocator, NULL, NULL);
+   mulle_allocator_set_aba( &mulle_allocator_default, NULL, NULL);
    mulle_aba_done();
 }
 
 
 int   main(int argc, const char * argv[])
 {
-   mulle_testallocator_reset();
 
    do
    {
       single_threaded_test();
-      mulle_testallocator_reset();
 
       multi_threaded_test( 1);
-      mulle_testallocator_reset();
 
       multi_threaded_test( 2);
-      mulle_testallocator_reset();
 
       // Under valgrind, 32 threads is prohibitively slow (cooperative
       // single-core scheduling). 2 threads already exercises concurrency.
       if( ! is_slow_environment())
       {
          multi_threaded_test( 32);
-         mulle_testallocator_reset();
       }
    }
    while( FOREVER);

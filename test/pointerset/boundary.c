@@ -1,6 +1,5 @@
 #include <mulle-concurrent/mulle-concurrent.h>
 
-#include <mulle-testallocator/mulle-testallocator.h>
 #include <assert.h>
 #include <errno.h>
 #include <stdio.h>
@@ -162,8 +161,6 @@ static void  large_capacity_test( void)
 
 int   main( void)
 {
-   mulle_testallocator_initialize();
-   mulle_default_allocator = mulle_testallocator;
    mulle_aba_init( NULL);
    mulle_aba_register();
 
@@ -175,7 +172,6 @@ int   main( void)
 
    mulle_aba_unregister();
    mulle_aba_done();
-   mulle_testallocator_reset();
 
    printf( "PASSED\n" );
    return( 0);

@@ -6,7 +6,6 @@
 //
 #include <mulle-concurrent/mulle-concurrent.h>
 
-#include <mulle-testallocator/mulle-testallocator.h>
 #include <assert.h>
 #include <errno.h>
 #include <stdio.h>
@@ -161,16 +160,14 @@ int   main( void)
    for( i = 0; i < N_POINTERS; i++)
       ptrs[ i] = (void *)(uintptr_t)(i + 1);
 
-   mulle_testallocator_initialize();
-   mulle_default_allocator = mulle_testallocator;
 
-   mulle_aba_init( &mulle_testallocator);
-   mulle_allocator_set_aba( &mulle_testallocator,
+   mulle_aba_init( &mulle_allocator_default);
+   mulle_allocator_set_aba( &mulle_allocator_default,
                             mulle_aba_get_global(),
                             _mulle_aba_free_owned_pointer);
    mulle_aba_register();
 
-   mulle_concurrent_pointerset_init( &set, 4, &mulle_testallocator);
+   mulle_concurrent_pointerset_init( &set, 4, &mulle_allocator_default);
 
    actual_threads = n_threads();
 
@@ -208,10 +205,9 @@ int   main( void)
    mulle_concurrent_pointerset_done( &set);
 
    mulle_aba_unregister();
-   mulle_allocator_set_aba( &mulle_testallocator, NULL, NULL);
+   mulle_allocator_set_aba( &mulle_allocator_default, NULL, NULL);
    mulle_aba_done();
 
-   mulle_testallocator_reset();
 
    printf( "OK\n");
    return( 0);

@@ -1,5 +1,4 @@
 #include <mulle-concurrent/mulle-concurrent.h>
-#include <mulle-testallocator/mulle-testallocator.h>
 #include <assert.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -14,7 +13,6 @@ static void   fail( char *s)
 
 int   main( int argc, const char * argv[])
 {
-   struct mulle_concurrent_pointerarrayenumerator   rover;
    struct mulle_concurrent_pointerarray             array;
    unsigned int                                     i, n;
    void                                             *value;

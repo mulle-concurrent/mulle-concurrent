@@ -35,7 +35,6 @@
 //
 #include <mulle-concurrent/mulle-concurrent.h>
 
-#include <mulle-testallocator/mulle-testallocator.h>
 #include <mulle-allocator/mulle-allocator.h>
 #include <assert.h>
 #include <errno.h>
@@ -179,7 +178,6 @@ static void  tester( struct mulle_concurrent_hashmap *map)
 {
    int            todo;
    unsigned int   size;
-   unsigned int   count;
    unsigned int   inserts;
 
    mulle_aba_register();
@@ -190,8 +188,12 @@ static void  tester( struct mulle_concurrent_hashmap *map)
       if( todo == 1)   // 0.1 % chance of enumerate
       {
 #if ENTERTAIN
-         count = mulle_concurrent_hashmap_count( map);
-         fprintf( stderr, "Size %0u of %0u (+%u) enumerate\n", count, size, inserts);
+         {
+            unsigned int   count;
+
+            count = mulle_concurrent_hashmap_count( map);
+            fprintf( stderr, "Size %0u of %0u (+%u) enumerate\n", count, size, inserts);
+         }
 #endif
          enumerate_something( map);
          continue;
@@ -224,13 +226,13 @@ static void  multi_threaded_test( unsigned int n_threads)
 
    assert( n_threads <= 32);
 
-   mulle_aba_init( &mulle_testallocator);
-   mulle_allocator_set_aba( &mulle_testallocator,
+   mulle_aba_init( &mulle_allocator_default);
+   mulle_allocator_set_aba( &mulle_allocator_default,
                             mulle_aba_get_global(),
                             _mulle_aba_free_owned_pointer);
    mulle_aba_register();
 
-   mulle_concurrent_hashmap_init( &map, 0, &mulle_testallocator);
+   mulle_concurrent_hashmap_init( &map, 0, &mulle_allocator_default);
 
    {
       for( i = 0; i < n_threads; i++)
@@ -249,7 +251,7 @@ static void  multi_threaded_test( unsigned int n_threads)
    mulle_concurrent_hashmap_done( &map);
 
    mulle_aba_unregister();
-   mulle_allocator_set_aba( &mulle_testallocator, NULL, NULL);
+   mulle_allocator_set_aba( &mulle_allocator_default, NULL, NULL);
    mulle_aba_done();
 }
 
@@ -261,15 +263,14 @@ static void  single_threaded_test( void)
    struct mulle_concurrent_hashmapenumerator   rover;
    unsigned int                                i;
    void                                        *value;
-   int                                         rval;
 
-   mulle_aba_init( &mulle_testallocator);
-   mulle_allocator_set_aba( &mulle_testallocator,
+   mulle_aba_init( &mulle_allocator_default);
+   mulle_allocator_set_aba( &mulle_allocator_default,
                             mulle_aba_get_global(),
                             _mulle_aba_free_owned_pointer);
    mulle_aba_register();
 
-   mulle_concurrent_hashmap_init( &map, 0, &mulle_testallocator);
+   mulle_concurrent_hashmap_init( &map, 0, &mulle_allocator_default);
    {
       for( i = 1; i <= 100; i++)
       {
@@ -312,32 +313,27 @@ static void  single_threaded_test( void)
    mulle_concurrent_hashmap_done( &map);
 
    mulle_aba_unregister();
-   mulle_allocator_set_aba( &mulle_testallocator, NULL, NULL);
+   mulle_allocator_set_aba( &mulle_allocator_default, NULL, NULL);
    mulle_aba_done();
 }
 
 
 int   main(int argc, const char * argv[])
 {
-   mulle_testallocator_reset();
 
    do
    {
       single_threaded_test();
-      mulle_testallocator_reset();
 
       multi_threaded_test( 1);
-      mulle_testallocator_reset();
 
       multi_threaded_test( 2);
-      mulle_testallocator_reset();
 
       // Under valgrind, 32 threads is prohibitively slow (cooperative
       // single-core scheduling). 2 threads already exercises concurrency.
       if( ! is_slow_environment())
       {
          multi_threaded_test( 32);
-         mulle_testallocator_reset();
       }
    }
    while( FOREVER);
