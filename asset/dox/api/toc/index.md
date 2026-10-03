@@ -15,7 +15,7 @@
 - Wait-free designs: operations aim to complete in a finite number of steps regardless of other threads. Growth and migration are cooperative — any thread observing a migration marker helps finish the move and then retries its own operation.
 - Both hash maps are inspired by Preshing's resizable concurrent map but implemented to be wait-free.
 - **hashmap (legacy):** a slot is claimed by CASing the `hash` word from `MULLE_CONCURRENT_NO_HASH` to the key's hash; once claimed only the claiming thread may CAS that slot's `value`. Migration freezes a slot by overwriting its value with `MULLE_CONCURRENT_INVALID_POINTER` (the REDIRECT marker), which destroys the payload. Removal writes a TOMBSTONE value while keeping the hash claim, so probe chains stay intact; a removed hash cannot be re-inserted in the same storage generation (`EEXIST`) and reuse triggers a same-size migration.
-- **hashtable (redesigned):** freezing marks the `hash` word with a reserved FROZEN bit and leaves the value intact, so a frozen slot still holds its payload and any helper can complete the carry. The value word has exactly two states — empty or live — so NULL is the only reserved payload (`MULLE_CONCURRENT_INVALID_POINTER` and `MULLE_CONCURRENT_TOMBSTONE_POINTER` are ordinary payloads here). Removed slots keep their hash claim (probe chains stay intact) but are immediately reusable by a plain value CAS: no tombstones, no intermediate error state, no migration for re-insert. The price is one reserved bit in the hash space (the topmost bit, or bit 0 in "even" mode), so hashes are folded into the low bits — this is not an identity mapping.
+- **hashtable (redesigned):** freezing marks the `hash` word with a reserved FROZEN bit and leaves the value intact, so a frozen slot still holds its payload and any helper can complete the carry. The value word has exactly two states — empty or live — so NULL is the only reserved payload (`MULLE_CONCURRENT_INVALID_POINTER` and `MULLE_CONCURRENT_TOMBSTONE_POINTER` are ordinary payloads here). Removed slots keep their hash claim (probe chains stay intact) but are immediately reusable by a plain value CAS: no tombstones, no intermediate error state, no migration for re-insert. The price is one reserved bit in the hash space (the topmost bit, or bit 0 in "even" mode), so a legal hash never uses it. Hashes are NOT folded: an out-of-range hash is rejected (insert/register/remove return `EINVAL`, lookup returns NULL), so the caller must know the usable range.
 - The pointer array grows but never shrinks — this limitation simplifies concurrent access.
 - Pointerset uses linear probing with tombstones for removal; tombstones are dropped during migration.
 - Growing/migration is triggered at 50% load. Migration is atomic and non-blocking for callers.
@@ -65,7 +65,7 @@ static inline void
                                   unsigned int size,
                                   struct mulle_allocator *allocator);
 ```
-Initializes `map` with a starting `size`. `allocator` may be `NULL` for the default. `init` returns void; the static inline asserts `map != NULL`. Allocation is fail-fast (success or abort).
+Initializes `map` with a starting `size`. `size` is a hint: it is rounded up to the next power of two and clamped to a minimum of 4; `mulle_concurrent_hashmap_get_size` reports the size actually used. `allocator` may be `NULL` for the default. `init` returns void; the static inline asserts `map != NULL`. Allocation is fail-fast (success or abort).
 
 ```c
 void  _mulle_concurrent_hashmap_done( struct mulle_concurrent_hashmap *map);
@@ -84,7 +84,7 @@ void   *mulle_concurrent_hashmap_register( struct mulle_concurrent_hashmap *map,
                                            intptr_t hash,
                                            void *value);
 ```
-Insert-or-get. Returns `MULLE_CONCURRENT_NO_POINTER` if it inserted, `MULLE_CONCURRENT_INVALID_POINTER` on error (check `errno`, which is `EINVAL` or `EEXIST`), or the value that was already registered. Do not use `hash == 0`, `value == NULL`, or `value == INTPTR_MIN`.
+Insert-or-get. Returns `MULLE_CONCURRENT_NO_POINTER` if it inserted, `MULLE_CONCURRENT_INVALID_POINTER` on error (check `errno`, which is `EINVAL`), or the value that was already registered. Do not use `hash == 0`, `value == NULL`, or `value == INTPTR_MIN`.
 
 ```c
 int  _mulle_concurrent_hashmap_insert( struct mulle_concurrent_hashmap *map,
@@ -160,7 +160,7 @@ static inline int
                                            intptr_t *hash,
                                            void **value)
 ```
-Enumeration return codes: `1` OK, `0` nothing left, `ECANCELLED` mutation alert, `ENOMEM`, `EINVAL`. Enumerating a NULL map produces an empty enumerator. The enumerator is only usable by the calling thread.
+Enumeration return codes: `1` OK, `0` nothing left, `ECANCELLED` mutation alert, `EINVAL`. Enumerating a NULL map produces an empty enumerator. The enumerator is only usable by the calling thread.
 
 ```c
 static inline void
@@ -193,7 +193,7 @@ mulle_concurrent_hashmap_for_rval( name, hash, value, rval)
 - `struct _mulle_concurrent_hashtablepair` — `hash` (intptr_t with FROZEN bit, 0 == unclaimed) and `value` (payload or NULL), both `mulle_atomic_pointer_t`
 - `struct _mulle_concurrent_hashtablestorage` — backing storage with `n_hashs` count and `mask` (capacity-1)
 
-**Hash width restriction (critical):** legal hash range is `[1, INTPTR_MAX]` in the default "positive" mode (topmost bit must be clear, 0 is `NO_HASH`). On LP64 this is 63 usable bits; user-space pointers never set bit 63, so pointer-as-hash is safe. On ILP32 this is 31 usable bits — pointers above `0x80000000` CANNOT be used as hashes (they alias their `& 0x7FFFFFFF` counterpart). Use `mulle_concurrent_hashtable_init_even` for the "even" mode (FROZEN = bit 0, hashes must be even and non-zero, full address range, safe for aligned pointers on any platform).
+**Hash width restriction (critical):** legal hash range is `[1, INTPTR_MAX]` in the default "positive" mode (topmost bit must be clear, 0 is `NO_HASH`). On LP64 this is 63 usable bits; user-space pointers never set bit 63, so pointer-as-hash is safe. On ILP32 this is 31 usable bits — pointers above `0x80000000` CANNOT be used as hashes: they are out of range and rejected (insert/register/remove return `EINVAL`, lookup returns NULL), because since the hash IS the key in this design, two distinct pointers would otherwise collide. Use `mulle_concurrent_hashtable_init_even` for the "even" mode (FROZEN = bit 0, hashes must be even and non-zero, full address range, safe for aligned pointers on any platform).
 
 **Lifecycle Functions (single-threaded only):**
 
@@ -219,7 +219,7 @@ void   mulle_concurrent_hashtable_init_positive( struct mulle_concurrent_hashtab
                                                  size_t size,
                                                  struct mulle_allocator *allocator);
 ```
-`mulle_concurrent_hashtable_init` defaults to "positive" mode. `allocator` may be NULL (default). Allocation is fail-fast.
+`mulle_concurrent_hashtable_init` defaults to "positive" mode. `size` is a hint: rounded up to the next power of two and clamped to a minimum of 4, so any size is accepted; `mulle_concurrent_hashtable_get_size` reports the size actually used. `allocator` may be NULL (default). Allocation is fail-fast.
 
 ```c
 void  mulle_concurrent_hashtable_done( struct mulle_concurrent_hashtable *map);
@@ -251,10 +251,17 @@ int   mulle_concurrent_hashtable_remove( struct mulle_concurrent_hashtable *map,
 Remove the `(hash, value)` pair (both must match). Returns `0` removed, `ENOENT` pair not present, `EINVAL` invalid argument.
 
 ```c
+static inline int
+   mulle_concurrent_hashtable_hash_is_valid( struct mulle_concurrent_hashtable *map,
+                                             intptr_t hash)
+```
+Returns non-zero if `hash` is a legal key for `map`: non-zero and without the mode's FROZEN bit (topmost bit in "positive" mode, bit 0 in "even" mode). The mutating calls reject an illegal hash with `EINVAL`, and `lookup` reports it as NULL, exactly like an absent key. A caller that must tell the two apart should test with this first.
+
+```c
 void  *mulle_concurrent_hashtable_lookup( struct mulle_concurrent_hashtable *map,
                                          intptr_t hash);
 ```
-NULL if absent, otherwise the registered value.
+NULL if absent or if `hash` is not a legal key (see `mulle_concurrent_hashtable_hash_is_valid`), otherwise the registered value.
 
 **Inspection Functions:**
 
@@ -568,14 +575,29 @@ Return codes: `1` OK (`*ptr` filled), `0` done, `ECANCELED` mutation detected, `
 mulle_concurrent_pointerset_for( name, ptr)
 ```
 
-### 3.6. `mulle-concurrent.h`
+### 3.6. `mulle-concurrent-math.h`
 
-Umbrella header including all: `mulle-concurrent-types.h`, `mulle-concurrent-hashmap.h`, `mulle-concurrent-hashtable.h`, `mulle-concurrent-pointerarray.h`, `mulle-concurrent-pointerset.h`, plus the generated version check.
+Bit-twiddling helpers, same idea as `mulle-container-math.h`. They are kept separate and namespaced so they cannot collide if both headers ever meet in one translation unit. `0` counts as a power of two for `_mulle_concurrent_is_pow2`.
 
 ```c
-#define MULLE__CONCURRENT_VERSION  ((4UL << 20) | (0 << 8) | 0)
+static inline int   _mulle_concurrent_is_pow2( size_t x);
+
+static inline uint32_t   _mulle_concurrent_pow2roundup_32( uint32_t v);
+
+static inline uint64_t   _mulle_concurrent_pow2roundup_64( uint64_t v);
+
+static inline size_t   _mulle_concurrent_pow2roundup( size_t v);
 ```
-Encoded version: (major << 20) | (minor << 8) | revision — currently 4.0.0.
+`_mulle_concurrent_is_pow2` returns non-zero if `x` is a power of two. The `_pow2roundup` functions round up to the next power of two, promoting `0` to `1`; the caller guards against overflow (above the largest representable power of two the bit trick wraps to `1`, which the storage allocators route through the allocator's fail vector).
+
+### 3.7. `mulle-concurrent.h`
+
+Umbrella header including all: `mulle-concurrent-types.h`, `mulle-concurrent-hashmap.h`, `mulle-concurrent-hashtable.h`, `mulle-concurrent-math.h`, `mulle-concurrent-pointerarray.h`, `mulle-concurrent-pointerset.h`, plus the generated version check.
+
+```c
+#define MULLE__CONCURRENT_VERSION  ((4UL << 20) | (1 << 8) | 0)
+```
+Encoded version: (major << 20) | (minor << 8) | revision — currently 4.1.0.
 
 ## 4. Performance Characteristics
 
@@ -646,7 +668,7 @@ Encoded version: (major << 20) | (minor << 8) | revision — currently 4.0.0.
 2. **Using zero hash** — treated as invalid sentinel by both hash maps.
 3. **Hashmap: concurrent `patch`/`remove`** — these are single-threaded only; concurrent use is undefined behavior.
 4. **Hashmap: tight remove/reinsert cycles** on the same hash trigger repeated same-size migrations (each is a full table copy).
-5. **Hashtable: hash with the FROZEN bit set** (e.g. pointer on ILP32 `>= 0x80000000`) — aliases silently; debug builds assert.
+5. **Hashtable: hash with the FROZEN bit set** (e.g. pointer on ILP32 `>= 0x80000000`) — rejected as an illegal key: mutating calls return `EINVAL` and `lookup` returns NULL. Test with `mulle_concurrent_hashtable_hash_is_valid` if you must distinguish this from an absent key.
 6. **Storing sentinel pointers** in a structure that reserves them.
 7. **Concurrent init/done** while other threads access the structure.
 8. **Ignoring ECANCELED** during enumeration leads to incomplete iteration.
