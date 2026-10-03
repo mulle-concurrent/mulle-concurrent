@@ -1,3 +1,22 @@
+## 4.1.0
+
+feature: add hashtable hash validity check and math helpers, reject out-of-range hashes
+
+* Add ``mulle_concurrent_hashtable_hash_is_valid`` (and its inline declaration) to test whether a hash is a legal key for a hashtable.
+* Hashtable keys carrying the mode's FROZEN bit are no longer silently aliased: mutating calls return `EINVAL` and `lookup` returns NULL, preserving the "hash is the key" invariant.
+* Add the `mulle-concurrent-math.h` header with ``_mulle_concurrent_is_pow2`` and ``_mulle_concurrent_pow2roundup`/`_pow2roundup_32`/`_pow2roundup_64`` bit helpers.
+* The `size` passed to hashmap/hashtable init is now a hint, rounded up to the next power of two and clamped to a minimum of 4 `(`get_size`` reports the effective size).
+* ``mulle_concurrent_hashmap_register`` no longer reports `EEXIST`, and enumeration no longer returns `ENOMEM`.
+
+
+
+* test suite now allocates through the default mulle allocator instead of the testallocator
+* minimum required mulle-aba version raised to 3.1.7
+
+
+* restore hashmap to former glory, wait-freeness
+
+
 # 4.0.0
 
 
