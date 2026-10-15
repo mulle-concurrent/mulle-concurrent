@@ -240,27 +240,37 @@ static void  mutex_array_add( struct mutex_array *array, void *value)
 //
 static int   is_slow_environment( void)
 {
-   if( getenv( "MULLE_TEST_VALGRIND"))
-      return( 1);
-#ifdef __linux__
-   {
-      FILE   *f;
-      char   line[ 256];
+   // This is called from within hot loops (via write_ops() etc.). The check
+   // must therefore only be done once, otherwise the fopen/read of
+   // /proc/self/maps easily dominates the runtime of the benchmark.
+   static int   is_slow = -1;
 
-      f = fopen( "/proc/self/maps", "r");
-      if( f)
+   if( is_slow < 0)
+   {
+      is_slow = 0;
+      if( getenv( "MULLE_TEST_VALGRIND"))
+         is_slow = 1;
+#ifdef __linux__
+      else
       {
-         while( fgets( line, sizeof( line), f))
-            if( strstr( line, "vgpreload"))
-            {
-               fclose( f);
-               return( 1);
-            }
-         fclose( f);
+         FILE   *f;
+         char   line[ 256];
+
+         f = fopen( "/proc/self/maps", "r");
+         if( f)
+         {
+            while( fgets( line, sizeof( line), f))
+               if( strstr( line, "vgpreload"))
+               {
+                  is_slow = 1;
+                  break;
+               }
+            fclose( f);
+         }
       }
-   }
 #endif
-   return( 0);
+   }
+   return( is_slow);
 }
 
 static int   write_ops( void)
