@@ -1,5 +1,6 @@
 ## 4.1.0
 
+
 feature: add hashtable hash validity check and math helpers, reject out-of-range hashes
 
 * Add ``mulle_concurrent_hashtable_hash_is_valid`` (and its inline declaration) to test whether a hash is a legal key for a hashtable.
