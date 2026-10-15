@@ -9,9 +9,37 @@
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
+#ifdef _WIN32
+# include <windows.h>
+#else
+# include <unistd.h>
+#endif
 
 
 #define N_POINTERS   10
+
+//
+// The tester threads spin on a tiny, heavily contended set, so running more
+// threads than there are CPUs oversubscribes the scheduler and can make the
+// test take orders of magnitude longer. This hurts small CI runners and
+// sanitizer/32-bit builds the most.
+//
+static unsigned int   number_of_cpus( void)
+{
+#ifdef _WIN32
+   SYSTEM_INFO   info;
+
+   GetSystemInfo( &info);
+   return( (unsigned int) info.dwNumberOfProcessors);
+#else
+   long   n;
+
+   n = sysconf( _SC_NPROCESSORS_ONLN);
+   if( n < 1)
+      return( 1);
+   return( (unsigned int) n);
+#endif
+}
 
 static unsigned int   n_iters( void)
 {
@@ -163,11 +191,19 @@ int   main( void)
 
    // Under valgrind, many threads are prohibitively slow (cooperative
    // single-core scheduling). 2 threads already exercises concurrency.
+   // Likewise do not oversubscribe a low-core machine: fewer threads still
+   // contend heavily without the crippling scheduler overhead.
    if( ! slow)
    {
-      multi_threaded_test( 8);
+      unsigned int   cpus;
 
-      multi_threaded_test( 32);
+      cpus = number_of_cpus();
+      if( cpus >= 4)
+         multi_threaded_test( 4);
+      if( cpus >= 8)
+         multi_threaded_test( 8);
+      if( cpus >= 32)
+         multi_threaded_test( 32);
    }
 
    printf( "OK\n");

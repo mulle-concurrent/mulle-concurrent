@@ -11,12 +11,40 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef _WIN32
+# include <windows.h>
+#else
+# include <unistd.h>
+#endif
 
 
 #define N_POINTERS   10
 #define N_THREADS    8
 
 static int   g_is_slow;
+
+//
+// These worker threads spin (insert/remove plus yield), so running more
+// threads than there are CPUs oversubscribes the scheduler and can make the
+// test take orders of magnitude longer. This hurts small CI runners and
+// sanitizer/32-bit builds the most.
+//
+static unsigned int   number_of_cpus( void)
+{
+#ifdef _WIN32
+   SYSTEM_INFO   info;
+
+   GetSystemInfo( &info);
+   return( (unsigned int) info.dwNumberOfProcessors);
+#else
+   long   n;
+
+   n = sysconf( _SC_NPROCESSORS_ONLN);
+   if( n < 1)
+      return( 1);
+   return( (unsigned int) n);
+#endif
+}
 
 static unsigned int   n_rounds( void)
 {
@@ -170,6 +198,13 @@ int   main( void)
    mulle_concurrent_pointerset_init( &set, 4, &mulle_allocator_default);
 
    actual_threads = n_threads();
+   {
+      unsigned int   cpus;
+
+      cpus = number_of_cpus();
+      if( actual_threads > cpus)
+         actual_threads = cpus;
+   }
 
    for( round = 0; round < n_rounds(); round++)
    {
@@ -184,9 +219,11 @@ int   main( void)
          }
       }
 
-      // let threads run briefly
+      // let threads run briefly. A large yield count becomes very
+      // expensive when the workers oversubscribe the CPU, so keep it
+      // modest; 100 rounds is still plenty of interleaving.
       {
-         unsigned int burst = g_is_slow ? 50 : 5000;
+         unsigned int burst = g_is_slow ? 50 : 500;
          mulle_thread_yield();
          for( i = 0; i < burst; i++)
             mulle_thread_yield();
