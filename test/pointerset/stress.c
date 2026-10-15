@@ -18,26 +18,40 @@ static unsigned int   n_iters( void)
    // Under valgrind all threads are serialized (cooperative scheduling).
    // Reduce iterations so the test completes in reasonable time.
    // Auto-detects valgrind on Linux via /proc/self/maps.
-   if( getenv( "MULLE_TEST_VALGRIND"))
-      return( 50);
-#ifdef __linux__
-   {
-      FILE   *f;
-      char   line[ 256];
+   //
+   // This is called from within the hot loop of tester(). The check must
+   // therefore only be done once, otherwise the fopen/read of
+   // /proc/self/maps easily dominates the runtime of the test.
+   static int   is_slow = -1;
 
-      f = fopen( "/proc/self/maps", "r");
-      if( f)
+   if( is_slow < 0)
+   {
+      is_slow = 0;
+      if( getenv( "MULLE_TEST_VALGRIND"))
+         is_slow = 1;
+#ifdef __linux__
+      else
       {
-         while( fgets( line, sizeof( line), f))
-            if( strstr( line, "vgpreload"))
-            {
-               fclose( f);
-               return( 50);
-            }
-         fclose( f);
+         FILE   *f;
+         char   line[ 256];
+
+         f = fopen( "/proc/self/maps", "r");
+         if( f)
+         {
+            while( fgets( line, sizeof( line), f))
+               if( strstr( line, "vgpreload"))
+               {
+                  is_slow = 1;
+                  break;
+               }
+            fclose( f);
+         }
       }
-   }
 #endif
+   }
+
+   if( is_slow)
+      return( 50);
    return( 100000);
 }
 
