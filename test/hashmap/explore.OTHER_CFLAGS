@@ -1,0 +1,3 @@
+# the test #includes the hashmap .c by name, test/ (for explore/explore.h) is on the path already
+# keep all flags on ONE line: mulle-test pastes this file into the cc command
+-I../../src -I../../src/hashmap

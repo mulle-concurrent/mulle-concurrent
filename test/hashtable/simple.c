@@ -35,7 +35,7 @@ static void   insert_lookup_remove_test( void)
    check( mulle_concurrent_hashtable_count( &map) == 1,
           "count" );
 
-   check( mulle_concurrent_hashtable_remove( &map, 1, (void *) 0x99) == ENOENT,
+   check( mulle_concurrent_hashtable_remove( &map, 1, (void *) 0x98) == ENOENT,
           "remove wrong value" );
    check( mulle_concurrent_hashtable_remove( &map, 1, (void *) 0x10) == 0,
           "remove" );
@@ -64,11 +64,11 @@ static void   immediate_reuse_test( void)
 
    for( i = 0; i < 1000; i++)
    {
-      check( mulle_concurrent_hashtable_insert( &map, 7, (void *)(uintptr_t)(i + 1)) == 0,
+      check( mulle_concurrent_hashtable_insert( &map, 7, (void *)(uintptr_t)((i + 1) * 2)) == 0,
              "reuse insert" );
-      check( mulle_concurrent_hashtable_lookup( &map, 7) == (void *)(uintptr_t)(i + 1),
+      check( mulle_concurrent_hashtable_lookup( &map, 7) == (void *)(uintptr_t)((i + 1) * 2),
              "reuse lookup" );
-      check( mulle_concurrent_hashtable_remove( &map, 7, (void *)(uintptr_t)(i + 1)) == 0,
+      check( mulle_concurrent_hashtable_remove( &map, 7, (void *)(uintptr_t)((i + 1) * 2)) == 0,
              "reuse remove" );
       check( mulle_concurrent_hashtable_lookup( &map, 7) == NULL,
              "reuse lookup after remove" );

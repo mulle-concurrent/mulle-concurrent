@@ -217,7 +217,10 @@ static void   run_round( void)
 
    memset( model, 0, sizeof( model));
 
-   mulle_concurrent_hashtable_init( &map, 4, NULL);
+   // integer payloads, so positive values (even values are the default)
+   mulle_concurrent_hashtable_init_with_mode( &map, 4,
+                                              MULLE_CONCURRENT_HASHTABLE_POSITIVE_VALUE,
+                                              NULL);
 
    for( i = 0; i < N_THREADS; i++)
    {

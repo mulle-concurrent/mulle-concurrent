@@ -27,6 +27,13 @@
 
 static int   n_iters( void)
 {
+   char   *s;
+
+   // soak runs: MULLE_TEST_ITERATIONS=100000000 ./remove_migrate_race.exe
+   s = getenv( "MULLE_TEST_ITERATIONS");
+   if( s)
+      return( atoi( s));
+
    // Under valgrind all threads are serialized (cooperative scheduling).
    // Reduce iterations so the test completes in reasonable time.
    // Auto-detects valgrind on Linux via /proc/self/maps.
@@ -59,7 +66,7 @@ static volatile int                       g_stop;
 static int                                g_failed;
 
 static void   *V1 = (void *) 0xAAAA;
-static void   *V2 = (void *) 0xBBBB;
+static void   *V2 = (void *) 0xBBB0;
 
 
 static void  *migrator( void *unused)
@@ -77,13 +84,14 @@ static void  *migrator( void *unused)
    {
       _mulle_concurrent_hashtable_migrate_same_size( &g_map);
 
+      // every migration abafrees a storage, so check in each time, or the
+      // backlog grows until the other thread checks in too
+      mulle_aba_checkin();
+
       // Yield periodically so that under cooperative schedulers (valgrind)
       // other threads get a chance to run.
       if( (i & 0x3F) == 0)
-      {
-         mulle_aba_checkin();
          mulle_thread_yield();
-      }
    }
 
    mulle_aba_unregister();
@@ -93,7 +101,7 @@ static void  *migrator( void *unused)
 
 static void  *registrant( void *unused)
 {
-   int    i;
+   int    i, n;
    int    rval;
    void   *old;
 
@@ -104,7 +112,7 @@ static void  *registrant( void *unused)
    while( ! g_ready)
       mulle_thread_yield();
 
-   for( i = 0; i < n_iters() && ! g_failed; i++)
+   for( i = 0, n = n_iters(); i < n && ! g_failed; i++)
    {
       old  = (void *) 0xDEAD;
       rval = mulle_concurrent_hashtable_register( &g_map, KEY, V2, &old);
@@ -143,7 +151,7 @@ static void  *registrant( void *unused)
          break;
       }
 
-      if( (i & 0xFF) == 0)
+      if( (i & 0xF) == 0)
          mulle_aba_checkin();
    }
 
@@ -182,8 +190,17 @@ int   main( void)
    // signal both threads to go
    g_ready = 1;
 
+   //
+   // A registered thread that never checks in blocks all reclamation, and
+   // every same-size migration abafrees a storage. Waiting registered in
+   // join would pile up gigabytes, so main steps out while it waits.
+   //
+   mulle_aba_unregister();
+
    mulle_thread_join( threads[ 0]);
    mulle_thread_join( threads[ 1]);
+
+   mulle_aba_register();
 
    // V1 must still be retrievable (or V2 if registrant won the last round)
    {

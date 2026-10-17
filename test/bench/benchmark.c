@@ -434,7 +434,10 @@ int   main( void)
    mulle_aba_register();
 
    mutex_map_init( &g_mutex_map, N_KEYS);
-   mulle_concurrent_hashtable_init( &g_mulle_map, 1024, NULL);
+   // integer payloads, so positive values (even values are the default)
+   mulle_concurrent_hashtable_init_with_mode( &g_mulle_map, 1024,
+                                              MULLE_CONCURRENT_HASHTABLE_POSITIVE_VALUE,
+                                              NULL);
 
    // write-heavy
    mutex_elapsed = run_phase( 0, 0);

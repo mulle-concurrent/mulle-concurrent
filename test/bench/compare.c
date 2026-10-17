@@ -335,8 +335,13 @@ int   main( void)
    //
    // mixed: insert / lookup / remove with recycled keys
    //
-   mulle_concurrent_hashtable_init( &g_map1, 1024, NULL);
-   mulle_concurrent_hashtable_init( &g_map2, 1024, NULL);
+   // integer payloads, so positive values (even values are the default)
+   mulle_concurrent_hashtable_init_with_mode( &g_map1, 1024,
+                                              MULLE_CONCURRENT_HASHTABLE_POSITIVE_VALUE,
+                                              NULL);
+   mulle_concurrent_hashtable_init_with_mode( &g_map2, 1024,
+                                              MULLE_CONCURRENT_HASHTABLE_POSITIVE_VALUE,
+                                              NULL);
 
    elapsed1 = run_phase( 0, 0);
    elapsed2 = run_phase( 1, 0);
@@ -355,8 +360,13 @@ int   main( void)
    //
    // read-heavy: fill once, then lookups only
    //
-   mulle_concurrent_hashtable_init( &g_map1, 1024, NULL);
-   mulle_concurrent_hashtable_init( &g_map2, 1024, NULL);
+   // integer payloads, so positive values (even values are the default)
+   mulle_concurrent_hashtable_init_with_mode( &g_map1, 1024,
+                                              MULLE_CONCURRENT_HASHTABLE_POSITIVE_VALUE,
+                                              NULL);
+   mulle_concurrent_hashtable_init_with_mode( &g_map2, 1024,
+                                              MULLE_CONCURRENT_HASHTABLE_POSITIVE_VALUE,
+                                              NULL);
 
    for( t = 0; t < N_THREADS; t++)
       for( i = 0; i < KEYS_PER_THREAD; i++)
@@ -379,8 +389,13 @@ int   main( void)
    //
    // grow: insert only, from a deliberately small initial size
    //
-   mulle_concurrent_hashtable_init( &g_map1, 4, NULL);
-   mulle_concurrent_hashtable_init( &g_map2, 4, NULL);
+   // integer payloads, so positive values (even values are the default)
+   mulle_concurrent_hashtable_init_with_mode( &g_map1, 4,
+                                              MULLE_CONCURRENT_HASHTABLE_POSITIVE_VALUE,
+                                              NULL);
+   mulle_concurrent_hashtable_init_with_mode( &g_map2, 4,
+                                              MULLE_CONCURRENT_HASHTABLE_POSITIVE_VALUE,
+                                              NULL);
 
    elapsed1 = run_phase( 0, 2);
    elapsed2 = run_phase( 1, 2);

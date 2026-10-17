@@ -3,7 +3,7 @@
 | Data Structure                                    | Description
 | --------------------------------------------------|-----------------------------------
 | [`mulle-concurrent-hashmap`](dox/API_HASHMAP.md)  | A wait- and lock-free hashmap, full-width `intptr_t` hash, insert-only
-| [`mulle-concurrent-hashtable`](dox/HASHTABLE.md)  | A wait- and lock-free hashmap with a concurrent `remove`, for one reserved hash bit
+| [`mulle-concurrent-hashtable`](dox/HASHTABLE.md)  | **EXPERIMENTAL** A wait- and lock-free hashmap with a concurrent `remove`, for one reserved hash bit and one reserved value bit
 | [`mulle-concurrent-pointerarray`](dox/API_POINTERARRAY.md)  | A wait- and lock-free array
 | [`mulle-concurrent-pointerset`](dox/API_POINTERSET.md)  | A wait- and lock-free set of pointers
 

@@ -81,7 +81,10 @@ static void   probe_hashtable( size_t size)
    void                                *found;
    int                                 rval;
 
-   mulle_concurrent_hashtable_init( &map, size, NULL);
+   // integer payloads, so positive values (even values are the default)
+   mulle_concurrent_hashtable_init_with_mode( &map, size,
+                                              MULLE_CONCURRENT_HASHTABLE_POSITIVE_VALUE,
+                                              NULL);
 
    actual = mulle_concurrent_hashtable_get_size( &map);
    check( is_pow2( actual), "hashtable size is a power of two");

@@ -21,7 +21,7 @@ in multi-threaded environments.
 | Data Structure                                    | Description
 | --------------------------------------------------|-----------------------------------
 | [`mulle-concurrent-hashmap`](dox/API_HASHMAP.md)  | A wait- and lock-free hashmap, full-width `intptr_t` hash, insert-only
-| [`mulle-concurrent-hashtable`](dox/HASHTABLE.md)  | A wait- and lock-free hashmap with a concurrent `remove`, for one reserved hash bit
+| [`mulle-concurrent-hashtable`](dox/HASHTABLE.md)  | **EXPERIMENTAL** A wait- and lock-free hashmap with a concurrent `remove`, for one reserved hash bit and one reserved value bit
 | [`mulle-concurrent-pointerarray`](dox/API_POINTERARRAY.md)  | A wait- and lock-free array
 | [`mulle-concurrent-pointerset`](dox/API_POINTERSET.md)  | A wait- and lock-free set of pointers
 
@@ -173,21 +173,27 @@ crash.
   [Remove misery](dox/REMOVE-MISERY-HASHMAP.md).
   `_mulle_concurrent_hashmap_patch` and `_mulle_concurrent_hashmap_remove`
   exist but are **single-threaded only**, for setup and teardown phases.
-* **Use the hashtable if you need `remove`** — it moves the freeze marker into
-  the *hash* word, so a frozen slot keeps its payload and a removal can never be
-  resurrected. A removed slot keeps its hash claim, so probe chains stay intact,
-  and it is immediately reusable. The price is one reserved hash bit: legal
-  hashes are `[1, INTPTR_MAX]`, and an out-of-range hash is rejected rather than
-  silently truncated. See [hashtable](dox/HASHTABLE.md).
+* **Use the hashtable if you need `remove`** — it is **EXPERIMENTAL**:
+  several migration-race bugs have been found and fixed in it. It is
+  soak-tested and its small scenarios are checked under every thread
+  interleaving (`test/explore`), but not under weak memory ordering. Migration freezes the *hash*
+  word and seals the *value* word with reserved bits, so a migrating slot keeps
+  its payload and a removal can never be resurrected. A removed slot keeps its
+  hash claim (probe chains stay intact) and is immediately reusable. The price
+  is one reserved bit in the hash and one in the value, plus one reserved
+  "removed" value. Each bit is either the top bit ("positive") or bit 0
+  ("even"), chosen at `init`. Out-of-range hashes or values are rejected with
+  `EINVAL`, never truncated. See [hashtable](dox/HASHTABLE.md).
 * **Hashmap `register`/`insert` never return a foreign key's value** — a
   slot is claimed by CASing its hash, and only operations with that matching
   hash may write its value, so two different keys can never collide on one
   slot's value.
-* **Only the pointerset uses tombstones** — a removed pointer leaves a
-  tombstone so probe chains are not broken, and tombstones are not reused
-  within a storage generation. Migration drops them while strictly growing the
-  storage. For remove-heavy workloads `mulle_concurrent_pointerset_reset()` can
-  reclaim them explicitly. Neither the hashmap nor the hashtable has tombstones.
+* **Tombstones** — the pointerset leaves a tombstone for a removed pointer so
+  probe chains are not broken; tombstones are not reused within a storage
+  generation. Migration drops them while strictly growing the storage. For
+  remove-heavy workloads `mulle_concurrent_pointerset_reset()` can reclaim them
+  explicitly. The hashtable marks a removed value with a TOMB value too, but
+  that slot *is* immediately reusable. The hashmap has no tombstones.
 * **`init` and `done` are single-threaded** — no other thread may access the
   structure while either runs. See the *Lifecycle checklist*.
 
@@ -201,8 +207,9 @@ use. **Never store a value as payload in a container that reserves it.**
 |-----------------------|-------------------------------------|-----------------------------------|-------------------
 | `0` (hash)            | `MULLE_CONCURRENT_NO_HASH`          | unclaimed slot / invalid hash     | hashmap, hashtable
 | `NULL`                | `MULLE_CONCURRENT_NO_POINTER`       | "no value" sentinel / empty slot  | all structures
-| `(void *) INTPTR_MIN` | `MULLE_CONCURRENT_INVALID_POINTER`  | hashmap REDIRECT freeze marker    | hashmap, pointerarray, pointerset
-| `(void *) INTPTR_MAX` | `MULLE_CONCURRENT_TOMBSTONE_POINTER`| pointerset tombstone              | pointerset
+| `(void *) INTPTR_MIN` | `MULLE_CONCURRENT_INVALID_POINTER`  | hashmap REDIRECT freeze marker, hashtable TOMB (even values) | hashmap, pointerarray, pointerset, hashtable (even values)
+| `(void *) INTPTR_MAX` | `MULLE_CONCURRENT_TOMBSTONE_POINTER`| pointerset tombstone, hashtable TOMB (positive values)        | pointerset, hashtable (positive values)
+| odd / top bit set     | —                                   | hashtable SEALED bit              | hashtable (even / positive values)
 
 The values are defined in `src/mulle-concurrent-types.h`. They are
 compile-time constants derived from the platform's `intptr_t`, so the
@@ -211,10 +218,15 @@ operation that rejects it returns `EINVAL`.
 
 Two per-container notes:
 
-* The **hashtable** reserves only `NULL` as a payload, because its value word
-  has just two states. `INVALID_POINTER` and `TOMBSTONE_POINTER` are ordinary
-  storable values there. Its *hash* space is the restricted one: `[1,
-  INTPTR_MAX]`, since the topmost bit is the freeze flag.
+* The **hashtable** restricts values by its value mode. In **even** mode (the
+  default) values must be even, which is the right mode for pointers, and
+  `INVALID_POINTER` is reserved. In **positive** mode values must be in
+  `[1, INTPTR_MAX - 1]`, which is the right mode for integers, and
+  `TOMBSTONE_POINTER` is reserved. Hashes are restricted the same way by the
+  hash mode: `[1, INTPTR_MAX]` by default, or even and non-zero. Choose with
+  `mulle_concurrent_hashtable_init_with_mode()` and test with
+  `mulle_concurrent_hashtable_value_is_valid()` and
+  `mulle_concurrent_hashtable_hash_is_valid()`.
 * The **hashmap** no longer has tombstones, so `TOMBSTONE_POINTER` is an
   ordinary storable value for it too. Avoid relying on that if the same
   payloads also go into a pointerset.

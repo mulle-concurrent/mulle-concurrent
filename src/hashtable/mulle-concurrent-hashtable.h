@@ -41,92 +41,89 @@
 #include <errno.h>
 #include <stdint.h>
 
-
+// THIS CODE IS STILL EXPERIMENTAL, THOUGH USED ALREADY IN THE MULLE-OBJC
+// RUNTIME
 //
-// Maps a "hash" to a value. The top bit of the hash will be lost!
-// So you can't use to index with arbitrary intptr_t values.
-// E.g. on 16 bit   0x8001 and 0x0001 return the same stored value.
+// EXPERIMENTAL: the migration protocol has had several race bugs so far
+// The current design is soak-tested and exhaustively schedule-checked on small
+// scenarios (test/hashtable/explore.c), but not under weak memory ordering.
+// Prefer mulle_concurrent_hashmap if you can live without a concurrent remove.
+// Also this is the only "vibecoded" data structure.
 //
-
-// mulle_concurrent_hashtable is a resizable, wait-free hashmap whose migration
-// state lives in the *hash* word instead of the value word. The original
-// hashmap freezes a slot by overwriting its value with a REDIRECT sentinel,
-// which destroys the payload. That forces the copier to install a value into
-// the destination *before* it can validate that the value is still live, and
-// that ordering is what lets a successful remove be silently undone.
+// mulle_concurrent_hashtable is a resizable, wait-free map from a "hash" (the
+// hash IS the key) to a value, with a concurrent remove. It follows the state
+// machine of Cliff Click's NonBlockingHashMap, but marks states with reserved
+// bits instead of boxing every value:
 //
-// Here freezing marks the hash word and leaves the value intact:
+//   * the hash word has a FROZEN bit (top bit or bit 0, see "hash mode")
+//   * the value word has a SEALED bit (top bit or bit 0, see "value mode")
+//     and one reserved TOMB value for "removed"
 //
-//   | hash word      | value word | meaning
-//   |----------------|------------|-----------------------------------------
-//   | NO_HASH        | EMPTY      | virgin
-//   | FROZEN         | EMPTY      | retired virgin, nothing was ever here
-//   | h              | EMPTY      | claimed, empty or removed (reusable!)
-//   | h              | V          | live entry
-//   | h | FROZEN     | V          | frozen, V is final and still readable
-//   | h | FROZEN     | EMPTY      | frozen and drained (or never had a value)
+// Per generation the slot states are:
+//
+//   | hash word   | value word  | meaning
+//   |-------------|-------------|------------------------------------------
+//   | NO_HASH     | EMPTY       | virgin
+//   | FROZEN      | EMPTY       | retired virgin, can not be claimed anymore
+//   | h           | EMPTY       | claimed, never held a value
+//   | h           | V           | live
+//   | h           | TOMB        | removed, reusable by insert/register
+//   | h (|FROZEN) | x | SEALED  | retired, x (EMPTY, V or TOMB) is final
+//
+// Migration copies slot by slot: freeze the hash word (writers that read it
+// frozen stop and help), seal the value word (writers that were already past
+// the hash check now fail their value CAS), then carry a sealed live V into
+// the generation's own successor (storage->next), installing it ONLY if the
+// destination value word is still EMPTY.
 //
 // Consequences:
 //
-//   * Freezing is the commit point. Once the FROZEN bit is set the value is
-//     final, so a copier reads it *after* committing and can never carry a
-//     stale value. A removal either lands before the freeze (value is EMPTY,
-//     nothing is carried) or is rejected and retried in the newer generation.
-//   * A frozen slot still holds its payload, so any helper can complete the
-//     carry. No value needs to be installed speculatively.
-//   * Because a frozen slot preserves its payload, "frozen" cannot double as
-//     "already migrated". So a carried value is *consumed*: set back to EMPTY
-//     once it is safely in the newer generation. Without that, re-running copy
-//     over a stale generation would reinject values that were legitimately
-//     removed in a newer generation. (The original hashmap gets this for free,
-//     because REDIRECT destroys the payload.)
-//   * Per slot, copy performs at most two hash CAS attempts (the hash word
-//     only ever goes NO_HASH -> h -> h|FROZEN), one read and one carry,
-//     regardless of how much the value churns.
-//   * Because copy is bounded without needing a monotonic value word, there
-//     are no tombstones. A removed slot keeps its hash claim, so probe chains
-//     stay intact, and it is immediately reusable by a plain value CAS.
-//   * The value word has exactly two states, empty or live, so NULL is the
-//     only reserved payload. INVALID_POINTER and TOMBSTONE_POINTER are not
-//     reserved here.
+//   * The seal is the commit point. After it no writer can change the value,
+//     so every helper carries the same final value.
+//   * A sealed slot keeps its payload, so lookup simply strips the bit and
+//     never has to retry or help.
+//   * A destination slot that has ever held a value is never EMPTY again
+//     (removal writes TOMB, not EMPTY). So a lagging copier can never reinject
+//     a value that was carried and then removed in the newer generation.
+//   * Every generation links to its own successor, so a thread that stalled
+//     across several migrations helps finish the one right after its
+//     generation instead of skipping ahead.
+//   * Writers do exactly one value CAS per generation. The FROZEN gate on the
+//     hash word means only writers that are already in flight can race the
+//     seal, which bounds the copier's work per slot by the number of threads.
 //
-// The price is one reserved bit in the hash space: the topmost bit is the
-// FROZEN flag, so a legal hash never uses it. Hashes are NOT folded: an
-// out-of-range hash is rejected, so the caller must know the usable range.
+// HASH MODE (FROZEN bit):
 //
-// HASH-WIDTH RESTRICTION:
+//   "positive" (default): FROZEN = top bit, legal hashes are [1, INTPTR_MAX].
+//                         Pointer-as-hash is safe on LP64, UNSAFE on ILP32.
+//   "even":               FROZEN = bit 0, legal hashes are even and non-zero.
+//                         Use for aligned pointer addresses, any platform.
 //
-//   Legal hash range: [1, INTPTR_MAX]  (topmost bit must be clear, 0 is NO_HASH)
+// VALUE MODE (SEALED bit and TOMB):
 //
-//   An invalid hash is rejected: insert/register/remove return EINVAL and
-//   lookup returns NULL. This is deliberate — silently truncating the hash
-//   would alias distinct keys and hide the caller's mistake.
+//   "even" (default):     SEALED = bit 0, TOMB = MULLE_CONCURRENT_INVALID_POINTER.
+//                         Legal values are even, non-NULL and not TOMB.
+//                         Use for (aligned) pointers, any platform.
+//   "positive":           SEALED = top bit, TOMB = MULLE_CONCURRENT_TOMBSTONE_POINTER.
+//                         Legal values are [1, INTPTR_MAX - 1]. Use for
+//                         integers.
 //
-//   On LP64 this is 63 usable bits. User-space pointers never have bit 63 set,
-//   so "pointer identity as hash" remains safe.
-//
-//   On ILP32 this is 31 usable bits. Pointers above 0x80000000 CANNOT be used
-//   as hashes — they are out of range and rejected, and since the hash IS the
-//   key in this design, two distinct pointers would otherwise collide.
-//
-// The remaining subtlety is that a writer reads the hash word and then CASes
-// the value word, so a freeze can slip in between. Writers therefore re-read
-// the hash word after a successful value CAS; if it turned frozen they carry
-// their own value forward (or, for remove, redo the removal in the newer
-// generation). See "post-check" in the implementation.
+// Illegal hashes or values are rejected (EINVAL, lookup returns NULL), never
+// silently folded.
 //
 #include <limits.h>
 
 struct _mulle_concurrent_hashtablepair
 {
-   mulle_atomic_pointer_t   hash;    // intptr_t, 0 == unclaimed, FROZEN bit
-   mulle_atomic_pointer_t   value;   // payload or NULL
+   mulle_atomic_pointer_t   hash;    // 0 == unclaimed, may carry FROZEN
+   mulle_atomic_pointer_t   value;   // EMPTY, V, TOMB, may carry SEALED
 };
 
 
 struct _mulle_concurrent_hashtablestorage
 {
    mulle_atomic_pointer_t   n_hashs;   // claimed slots, live or emptied
+   mulle_atomic_pointer_t   next;      // successor generation, NULL if none
    uintptr_t                mask;
 
    struct _mulle_concurrent_hashtablepair   entries[ 1];
@@ -143,47 +140,52 @@ union mulle_concurrent_atomichashtablestorage_t
 struct mulle_concurrent_hashtable
 {
    union mulle_concurrent_atomichashtablestorage_t   storage;
-   union mulle_concurrent_atomichashtablestorage_t   next_storage;
    mulle_atomic_pointer_t                           allocator;
    uintptr_t                                        frozen_bit;
    uintptr_t                                        hash_mask;
+   uintptr_t                                        sealed_bit;
+   void                                             *tombstone;
 };
 
 
 #pragma mark - single-threaded
 
 //
-// FROZEN bit placement:
+// Mode bits for _mulle_concurrent_hashtable_init_with_mode. Combine one hash
+// mode with one value mode. 0 is the default: positive hashes, even values.
 //
-//   "positive" mode (default): FROZEN = top bit, hashes must be in [1, INTPTR_MAX].
-//                              Use for arbitrary hashes. Pointer-as-hash is safe
-//                              on LP64 (user-space never sets bit 63), UNSAFE on ILP32.
-//
-//   "even" mode:               FROZEN = bit 0, hashes must be even and non-zero.
-//                              Use when hashes are aligned pointer addresses (always even).
-//                              Full address range available, no aliasing on any platform.
-//
+#define MULLE_CONCURRENT_HASHTABLE_POSITIVE_HASH    0x0
+#define MULLE_CONCURRENT_HASHTABLE_EVEN_HASH        0x1
+#define MULLE_CONCURRENT_HASHTABLE_EVEN_VALUE       0x0
+#define MULLE_CONCURRENT_HASHTABLE_POSITIVE_VALUE   0x2
 
 //
 // The size is a hint: it is rounded up to the next power of two and clamped
 // to a minimum of 4, so any size is accepted. mulle_concurrent_hashtable_get_size
 // reports the size that was actually used.
 //
-// Default: top bit is FROZEN ("positive" mode).
-//
+MULLE_C_NONNULL_FIRST
+MULLE__CONCURRENT_GLOBAL
+void   _mulle_concurrent_hashtable_init_with_mode( struct mulle_concurrent_hashtable *map,
+                                                   size_t size,
+                                                   unsigned int mode,
+                                                   struct mulle_allocator *allocator);
+
+// positive hashes, even values
 MULLE_C_NONNULL_FIRST
 MULLE__CONCURRENT_GLOBAL
 void   _mulle_concurrent_hashtable_init_positive( struct mulle_concurrent_hashtable *map,
                                                   size_t size,
                                                   struct mulle_allocator *allocator);
-//
-// Low bit is FROZEN ("even" mode). All hashes must be even (aligned pointers).
-//
+
+// even hashes, even values
 MULLE_C_NONNULL_FIRST
 MULLE__CONCURRENT_GLOBAL
 void   _mulle_concurrent_hashtable_init_even( struct mulle_concurrent_hashtable *map,
                                               size_t size,
                                               struct mulle_allocator *allocator);
+
+
 static inline
 void   mulle_concurrent_hashtable_init( struct mulle_concurrent_hashtable *map,
                                         size_t size,
@@ -211,7 +213,14 @@ void   mulle_concurrent_hashtable_init_positive( struct mulle_concurrent_hashtab
 }
 
 
-
+static inline
+void   mulle_concurrent_hashtable_init_with_mode( struct mulle_concurrent_hashtable *map,
+                                                  size_t size,
+                                                  unsigned int mode,
+                                                  struct mulle_allocator *allocator)
+{
+   _mulle_concurrent_hashtable_init_with_mode( map, size, mode, allocator);
+}
 
 
 MULLE__CONCURRENT_GLOBAL
@@ -271,6 +280,22 @@ static inline int
    return( map &&
            (uintptr_t) hash != MULLE_CONCURRENT_NO_HASH &&
            ((uintptr_t) hash & ~map->hash_mask) == 0);
+}
+
+//
+// Returns non-zero if 'value' is a legal payload for 'map': non-NULL, without
+// the mode's SEALED bit (bit 0 in even value mode, topmost bit in positive
+// value mode) and not the mode's TOMB value. The mutating calls reject an
+// illegal value with EINVAL.
+//
+static inline int
+   mulle_concurrent_hashtable_value_is_valid( struct mulle_concurrent_hashtable *map,
+                                              void *value)
+{
+   return( map &&
+           value != MULLE_CONCURRENT_NO_POINTER &&
+           ((uintptr_t) value & map->sealed_bit) == 0 &&
+           value != map->tombstone);
 }
 
 //

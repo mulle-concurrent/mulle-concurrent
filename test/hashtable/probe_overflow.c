@@ -120,7 +120,10 @@ int   main( void)
    mulle_aba_init( NULL);
    mulle_aba_register();
 
-   mulle_concurrent_hashtable_init( &g_map, INIT_SIZE, NULL);
+   // integer payloads, so positive values (even values are the default)
+   mulle_concurrent_hashtable_init_with_mode( &g_map, INIT_SIZE,
+                                              MULLE_CONCURRENT_HASHTABLE_POSITIVE_VALUE,
+                                              NULL);
 
    for( i = 0; i < N_THREADS; i++)
    {

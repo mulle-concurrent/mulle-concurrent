@@ -1,363 +1,167 @@
-# hashtable: migration state in the hash word
+# hashtable: freeze the hash, seal the value
 
-An experimental resizable concurrent hashmap in `src/hashtable/`, written to see
-whether the problems in [REMOVE-MISERY-HASHMAP.md](REMOVE-MISERY-HASHMAP.md)
-are inherent or an artifact of one design decision.
+> **EXPERIMENTAL.** The migration protocol has had several race bugs so far,
+> The current design is soak-tested and exhaustively schedule-checked on small
+> scenarios (see *Test status*), but not under weak memory ordering. Prefer
+> the hashmap if you can live without a concurrent `remove`.
 
-They are an artifact. The original hashmap freezes a slot by overwriting its
-**value** with `REDIRECT`, which destroys the payload. A helper therefore cannot
-finish someone else's carry, so the copier is forced to install the value into
-the destination *before* it can validate that the value is still live, and that
-ordering is what allows a successful `remove` to be silently undone.
+A resizable, wait-free concurrent hashmap with a concurrent `remove`, in
+`src/hashtable/`. The hash *is* the key. It exists because the original hashmap
+cannot support `remove` (see [REMOVE-MISERY-HASHMAP.md](REMOVE-MISERY-HASHMAP.md)):
+it freezes a slot by overwriting the value with `REDIRECT`, which destroys the
+payload and forces a speculative install that a concurrent `remove` can undo.
 
-hashtable puts the migration state in the **hash** word instead, so freezing
-marks a slot without erasing it. Single-word CAS only, no double-width CAS, no
-allocation, no tombstones.
+The design follows the state machine of Cliff Click's NonBlockingHashMap, but
+marks states with reserved bits instead of boxing every value, so there is no
+allocation per write, and only single-word CAS is used.
 
-
-## Slot encoding
-
-The topmost bit of the hash word is the `FROZEN` flag, so a legal hash never
-uses it. `0` stays reserved as the unclaimed token. Hashes are **not** folded:
-an out-of-range hash is rejected, so the caller must know the usable range.
-
-### Hash-width restriction
-
-Legal hash range: **`[1, INTPTR_MAX]`** — the topmost bit must be clear and
-zero is `NO_HASH`.
-
-An invalid hash is rejected: `insert`/`register`/`remove` return `EINVAL` and
-`lookup` returns `NULL`. This is deliberate — silently truncating the hash
-would alias distinct keys and hide the caller's mistake.
-
-Because `lookup` returns `NULL` for both an absent key and a refused hash, a
-caller that must tell the two apart validates first with
-`mulle_concurrent_hashtable_hash_is_valid( map, hash)`. That predicate is the
-single place the mode rule lives; there is no `lookup_ex`.
-
-| platform | usable bits | pointer-as-hash safe? |
-|----------|-------------|----------------------|
-| LP64     | 63          | yes — user-space pointers never set bit 63 |
-| ILP32    | 31          | **no** — addresses ≥ 0x80000000 are out of range and rejected |
-
-Because the hash IS the key (no separate key comparator), aliasing would be
-**identity collision**: two distinct logical keys mapping to the same slot. On
-32-bit, any hash function whose output can set bit 31 is unusable as-is.
-
-The original hashmap does not have this restriction — it stores the full
-`intptr_t` with only 0 reserved.
-
-| hash word    | value word | meaning
-|--------------|------------|------------------------------------------------
-| `NO_HASH`    | `EMPTY`    | virgin
-| `FROZEN`     | `EMPTY`    | retired virgin, nothing was ever here
-| `h`          | `EMPTY`    | claimed, empty or removed — **immediately reusable**
-| `h`          | `V`        | live entry
-| `h\|FROZEN`  | `V`        | frozen, `V` is final and still readable
-| `h\|FROZEN`  | `EMPTY`    | frozen and drained
-
-No transition ever touches both words, so nothing needs to be atomic across
-them:
-
-| transition               | word  | operation
-|--------------------------|-------|-------------------------------------
-| claim                    | hash  | `CAS(hash, h, NO_HASH)`
-| insert / register / fill | value | `CAS(value, V, EMPTY)`
-| remove                   | value | `CAS(value, EMPTY, V)`
-| freeze                   | hash  | `CAS(hash, w\|FROZEN, w)`
-| consume (after carry)    | value | `CAS(value, EMPTY, V)`
-
-The value word has exactly two states, empty or live, so `NULL` is the only
-reserved payload. `MULLE_CONCURRENT_INVALID_POINTER` and
-`MULLE_CONCURRENT_TOMBSTONE_POINTER` are ordinary values here, which
-`test/hashtable/validation.c` checks.
+> **History.** An earlier version froze only the hash word and let writers
+> "post-check" afterwards. That was wrong: a writer that read the hash before
+> the freeze could still change the value after the copier read it, and a single
+> global `next_storage` let a stalled writer skip a generation. Values were lost,
+> removals resurrected and `register` misreported `*p_old`. See
+> `BUGREPORT-hashtable-migration-races.md` and the deterministic reproducer
+> `test/hashtable/migration_stall.c`.
 
 
-## The five rules
+## Modes and reserved values
 
-Three of these were not in the original sketch. They were forced by
-`test/hashtable/model.c` failing, or found by reading the code afterwards.
+Both words reserve one bit. Where that bit sits is chosen at `init`, separately
+for hashes and for values:
 
-1. **Freeze before reading the value.** The freeze CAS is the commit point.
-   After it, no writer may modify the value, so the copier reads a value that
-   is provably final. There is no speculative install, so a removal can never
-   be undone. This is the whole point.
+| | positive | even |
+|---|---|---|
+| **hash** (FROZEN bit) | top bit; legal hashes `[1, INTPTR_MAX]` (**default**) | bit 0; legal hashes even, non-zero |
+| **value** (SEALED bit, TOMB) | top bit, TOMB = `MULLE_CONCURRENT_TOMBSTONE_POINTER`; legal values `[1, INTPTR_MAX - 1]` | bit 0, TOMB = `MULLE_CONCURRENT_INVALID_POINTER`; legal values even, non-NULL, not TOMB (**default**) |
 
-2. **Consume the value after carrying it.** Because a frozen slot *preserves*
-   its payload, "frozen" cannot also mean "already migrated". So after a carry
-   succeeds the source value is CASed back to `EMPTY`, giving the drained state
-   an explicit representation. Without this, re-running `copy` over a stale
-   generation reinjects every value that was legitimately removed in a newer
-   generation. The original gets this for free precisely because `REDIRECT`
-   destroys the payload. *This is what `model.c` caught.*
-
-3. **Never chase forward with a value the destination already holds.** If
-   `carry`'s CAS fails because the destination slot is occupied, stop. Chasing
-   on would push a stale value past a newer removal in an even newer
-   generation.
-
-4. **Post-check after every value write.** A writer reads the hash word and
-   then CASes the value word, so a freeze can slip in between. After a
-   successful value CAS the writer re-reads the hash word; if it turned frozen
-   it carries its own value forward and consumes it.
-
-5. **Re-check the gate when a reader observes `EMPTY`.** Rule 2 makes `EMPTY`
-   ambiguous: genuinely absent, or drained by a migration. `lookup` and
-   `remove` therefore re-read the hash word on `EMPTY` and treat frozen as
-   "retry in the newer generation".
-
-
-## Scenarios: competing inserts and removes on the same key
-
-### Without a migration in flight
-
-**S1 — insert vs insert.** Both threads end up seeing `h` in the slot (one
-claimed it, the other observed the claim). Both then CAS the value from
-`EMPTY`. Exactly one wins and returns 0; the loser sees a live value and
-returns `EEXIST`. Sequentially equivalent.
-
-**S2 — insert vs remove.** `remove` CASes `V -> EMPTY`, `insert` CASes
-`EMPTY -> V`. Both are single-word CASes on the *same* location, so they
-serialize and the outcomes are exactly the sequential ones. Note this makes the
-value word **cyclic** (`live -> empty -> live -> ...`), which the original
-design had to forbid. It is safe here because `copy`'s per-slot work no longer
-depends on the value word at all.
-
-**S3 — remove vs remove.** One CAS wins and returns 0. The other observes
-`EMPTY`, re-reads the gate (rule 5), finds it unfrozen, and returns `ENOENT`.
-
-**S4 — remove then insert (reuse).** The slot keeps its hash claim, so probe
-chains through it still work, and the insert is a plain `CAS(value, V, EMPTY)`.
-No migration, no tombstone, no intermediate error state, and `n_hashs` is
-unchanged. `test/hashtable/simple.c` runs 1000 such cycles on one key and
-asserts the table does not grow at all.
-
-### With a migration in flight
-
-**S5 — insert racing the freeze.** The two-word hazard.
-
-```
-writer: read hash -> h, unfrozen, proceed
-copier: CAS( hash, h|FROZEN, h )   -> ok      freeze commits
-copier: read value -> EMPTY                  nothing to carry
-writer: CAS( value, V, EMPTY )     -> ok      lands in a retired slot
-writer: post-check: hash is frozen -> carry V into next_storage, then consume
+```c
+mulle_concurrent_hashtable_init( &map, size, allocator);        // positive hash, even value
+mulle_concurrent_hashtable_init_even( &map, size, allocator);   // even hash, even value
+mulle_concurrent_hashtable_init_with_mode( &map, size,
+      MULLE_CONCURRENT_HASHTABLE_EVEN_HASH | MULLE_CONCURRENT_HASHTABLE_POSITIVE_VALUE,
+      allocator);
 ```
 
-Nothing is lost. In the other order the copier reads `V`, carries and consumes
-it, and the writer's post-check carries again — idempotent, because `carry`
-never overwrites — and its consume CAS simply fails.
+Use even mode for aligned pointers (full address range on every platform) and
+positive mode for integers. In positive hash mode, pointer-as-hash is safe on
+LP64 (user space never sets bit 63) but **not** on ILP32.
 
-**S6 — remove racing the freeze.** This is the original's resurrection
-scenario, and it cannot happen here.
-
-```
-remover: read hash -> h, unfrozen
-copier:  CAS( hash, h|FROZEN, h )  -> ok      freeze commits
-copier:  read value -> V, carry V to dst, consume  (src value -> EMPTY)
-remover: CAS( value, EMPTY, V )    -> fails, old == EMPTY
-remover: re-read gate -> frozen -> EBUSY -> migrate, retry, remove V in dst
-```
-
-And in the other order:
-
-```
-remover: CAS( value, EMPTY, V )    -> ok      removed
-copier:  CAS( hash, h|FROZEN, h )  -> ok
-copier:  read value -> EMPTY                 nothing to carry, nothing carried
-remover: post-check -> frozen -> EAGAIN -> migrate, retry
-         retry finds the key absent in dst -> ENOENT, but the "removed" flag
-         makes the call return 0
-```
-
-Both converge on "removed". The copier can never carry a value it read before
-the removal, because it only reads after committing the freeze.
-
-**S7 — lookup racing freeze, carry and consume.**
-
-```
-reader: read hash -> h, unfrozen
-copier: freeze, carry V to dst, consume  (src value -> EMPTY)
-reader: read value -> EMPTY
-reader: re-read gate -> frozen -> EBUSY -> migrate, retry, finds V in dst
-```
-
-Without rule 5 this reports "absent" for a live entry. **This is the invariant
-the whole design rests on, and it is the price of deleting tombstones**, so it
-deserves to be stated as a trade rather than a free win: a tombstone made
-`EMPTY` unambiguous, consuming carried values made it ambiguous again, and rule
-5 buys the distinction back with a second read on the empty branch.
-
-It is reproducible. Defining `MULLE_CONCURRENT_HASHTABLE_RACE_YIELD` widens the
-window, after which `test/hashtable/lookup_race.c` fails at around iteration 88
-against a deliberately unfixed lookup, and passes with the fix. See *Reproducing
-the races* below.
-
-**S8 — carry vs a live insert in the destination.** The destination becomes
-live storage as soon as *one* thread completes a pass, so a lagging copier can
-still be carrying into a generation that live threads are already writing.
-`carry` CASes from `EMPTY` only, so a live insert that got there first wins and
-the carry does nothing, which is correct because the live insert is newer. Rule
-3 is what stops the carry from chasing on with its stale value.
-
-**S9 — re-scanning a stale generation.** A thread may call `migrate` with a
-stale `p`, in which case `copy` runs over a generation that was drained long
-ago. Every slot is already frozen and every value already consumed, so the pass
-is a genuine no-op. Rule 2 is what makes this true.
-
-**S10 — two copiers on one slot.** Only one freeze CAS wins, but both read the
-same final value and both carry it. Carrying is idempotent, and one of the two
-consume CASes fails harmlessly.
+Illegal hashes and values are rejected, never folded: `insert`, `register`
+and `remove` return `EINVAL`, and `lookup` returns `NULL`. Because `NULL` also
+means "absent", use `mulle_concurrent_hashtable_hash_is_valid()` and
+`mulle_concurrent_hashtable_value_is_valid()` when the difference matters.
 
 
-**S11 — a writer's value loses to an already-carried one.** This was a
-linearizability violation, not a cosmetic wart, and it is now fixed.
+## Slot states
 
-If the copier has already carried and consumed a value `V`, a writer that read
-the hash word before the freeze can still CAS its own `V2` into the retired
-slot. Its post-check then carries `V2` and finds the destination already holds
-`V`, so `V2` is correctly dropped — but the call used to report success anyway:
+Per generation:
+
+| hash word | value word | meaning |
+|---|---|---|
+| `NO_HASH` | `EMPTY` | virgin |
+| `FROZEN` | `EMPTY` | retired virgin, can no longer be claimed |
+| `h` | `EMPTY` | claimed, never held a value |
+| `h` | `V` | live |
+| `h` | `TOMB` | removed, reusable by `insert`/`register` |
+| `h(\|FROZEN)` | `x\|SEALED` | retired, `x` (`EMPTY`, `V` or `TOMB`) is final and readable |
+
+| transition | word | operation |
+|---|---|---|
+| claim | hash | `CAS( hash, h, NO_HASH)` |
+| insert / register | value | `CAS( value, V, EMPTY or TOMB)` |
+| remove | value | `CAS( value, TOMB, V)` |
+| freeze | hash | `CAS( hash, w\|FROZEN, w)` |
+| seal | value | `CAS( value, x\|SEALED, x)` |
+| carry | value of the successor | `CAS( value, V, EMPTY)`, only from `EMPTY` |
+
+Each generation has its own `next` pointer to its successor. There is no
+map-wide "next storage".
+
+
+## The rules
+
+1. **Freeze, then seal.** The copier freezes the hash word first. A writer that
+   reads a frozen hash helps migrate and retries, so after the freeze only
+   writers that are already in flight can touch the value. Then the copier
+   seals the value word. That makes every later writer CAS fail.
+2. **The seal is the commit point.** After it, the value is final. Every helper
+   reads the same value and carries the same value.
+3. **Carry only into `EMPTY`.** A destination value word that has ever held a
+   value is never `EMPTY` again, because removal writes `TOMB`. So a lagging
+   copier cannot reinject a value that was carried and then removed or
+   replaced. Re-running `copy` over a stale generation is therefore harmless.
+4. **Follow `p->next`, never "the newest".** A thread that stalls across
+   several migrations helps finish the migration right after its own
+   generation. It never skips a generation that readers are still using.
+5. **One value CAS settles a write.** If it fails because the slot is sealed,
+   the operation has not happened: return `EBUSY`, migrate and retry. If it
+   succeeds, the slot was not yet sealed, so the copier will carry the result
+   (or the `TOMB`). There is no post-check and no "redo the remove".
+6. **Lookup strips the seal.** A sealed slot still holds its value, so a
+   lookup never retries and never helps migrate. It returns `NULL` for `EMPTY`
+   and for `TOMB`.
+
+
+## Scenarios
+
+**Insert or remove racing the copy of the same slot.** The writer's value CAS
+and the copier's seal CAS target the same word, so they serialize:
 
 ```
-insert( h, V2) -> 0        while lookup( h) == V     // no valid sequential history
-register( h, V2, &old) -> *old == NULL ("I inserted") while V stays registered
+writer CAS first  -> copier seals the new state and carries it (or nothing for TOMB)
+seal first        -> writer CAS fails on SEALED -> EBUSY -> migrate -> retry in q
 ```
 
-Both broke their documented contracts. The fix makes `carry` return the value
-that is registered afterwards, `post_check` propagate it, and the callers honour
-it: `insert` returns `EEXIST`, `register` reports the real `*p_old`.
+Either way, the result is the sequential one.
 
-Note the returned value is the occupant **observed at the failing CAS**, not a
-fresh re-read. That matters: `insert` linearizes at that observation, so
-`EEXIST` is sound even if `V` is removed immediately afterwards — that removal
-simply linearizes after our insert. A re-read would have needed its own
-post-check; returning the observed occupant does not.
+**A writer stalled across two migrations** (the old lost-insert / S11 bug).
+The writer claims a slot in p and stalls. p→q completes and q→r starts. The
+writer's value CAS fails, because p's slot is sealed. It then helps
+`p->next == q`, which is already done, and retries in the current storage. It
+never writes into r behind q's back.
 
-Untested until now. `test/hashtable/register_race.c` covers it: V1 is inserted
-once and never removed, a migrator forces same-size migrations, and a registrant
-calls `register(KEY, V2)` in a loop. With the fix reverted, it reports
-`*p_old == NULL` at iteration ~50 — a clear linearizability violation. With the
-fix, it passes 200k iterations. The window is easy to hit because the consumed
-slot is EMPTY for the full duration of the copier's carry-to-next-gen phase.
+**A stale copier** (the old resurrection / S6 bug). Copier A seals V in p and
+stalls before carrying it. A helper finishes p→q, and the owner removes V in q
+(`V → TOMB`). A then carries into q, finds `TOMB` rather than `EMPTY`, and does
+nothing.
+
+**Two copiers on one slot.** Only one seal wins, but both read the same sealed
+value. Only one carry can succeed against `EMPTY`. The other is a no-op.
+
+**Reuse after remove.** The slot keeps its hash claim and its value word is
+`TOMB`, so a plain `CAS( value, V, TOMB)` reuses it. There is no migration and
+`n_hashs` does not change. `test/hashtable/simple.c` runs 1000 cycles on one key
+and checks the table does not grow.
 
 
-## Wait-freedom
-
-Every step bound below is independent of contention.
+## Progress
 
 | step | bound |
 |---|---|
-| probe within a generation | `<= mask + 1`, but **conditionally** — see below |
-| claim | 1 read, `<= 1` CAS, 1 increment |
-| freeze one slot | `<= 2` CAS attempts — the hash word only ever goes `NO_HASH -> h -> h\|FROZEN`, so at most two forward transitions can beat us |
-| copy one slot | freeze + 1 read + 1 carry + 1 consume CAS = `O(1)` |
-| copy one generation | `O(size)`, with no dependence on value churn |
-| carry | probe + `<= 1` CAS per generation hop, hops strictly forward |
-| operation retries | one generation transition per retry |
+| freeze one slot | `<= 2` CAS: the hash word only goes `NO_HASH -> h -> h\|FROZEN` |
+| seal one slot | `<= 1 +` number of in-flight writers. After the freeze no new writer starts on the slot, and each in-flight writer does at most one value CAS |
+| carry | probe + 1 CAS per generation, following `next` strictly forward |
+| lookup | one probe, no retries |
+| insert / remove | one value CAS per generation; retries only on a generation change |
+| register | as insert, but on a lost CAS it re-reads in order to report the winner. Concurrent insert/remove churn on the *same* key can repeat that, so register is lock-free rather than wait-free under that churn |
 
-**The probe bound is not unconditional.** Migration starts at half claimed
-capacity and the unused half is the reserve for threads that passed the
-occupancy check concurrently, which is what normally guarantees a virgin slot
-and therefore a terminating probe. But the check (`n_hashs >= max`) and the
-claim's increment are *not* atomic, so with more than about `size/2` threads in
-flight past the check, `n_hashs` overshoots, the table can fill completely, and
-a probe for an absent hash finds neither its own hash nor a virgin slot. The
-bound is then thread-count dependent, and in the worst case a thread makes no
-progress at all.
+Retries are triggered only by a generation change. That costs peers `Ω(size)`
+work, or happens through the explicit `_mulle_concurrent_hashtable_migrate_same_size()`
+test hook. The probe caveats (the occupancy check and the claim are not atomic,
+so a table can overshoot) are unchanged from the earlier design. `insert`
+recovers with `EBUSY`; the other probe loops still `assert`.
 
-This gate is inherited from the original hashmap, which has the same
-read-then-increment shape, so it is not a hashtable regression — but it means the
-"bounded by word width, not by thread count" claim below holds only while
-`size/2` comfortably exceeds the number of concurrent writers. Small tables with
-many threads are the danger zone.
+**Memory ordering.** All atomics used here are seq_cst: `_mulle_atomic_pointer_read`
+and `__mulle_atomic_pointer_cas` under the C11 backend. The protocol needs no
+cross-word ordering for correctness of the value. Freeze, seal, writer CAS and
+carry are each single-word, and the seal plus the writer CAS on the same word
+decide the outcome. The hash freeze only limits how many writers can race the
+seal. Relaxing anything still needs the analysis in
+[MEMORY-ORDER-RELAXED.md](MEMORY-ORDER-RELAXED.md).
 
-The hashmap has since closed its half of this: every one of its probe loops
-returns a value on exhaustion (`REDIRECT` from `lookup`, `EBUSY` from
-`insert`/`put`) and the caller migrates and retries, so a release build grows the
-table instead of spinning. See
-[WAIT-FREE-LOCK-FREE.md](WAIT-FREE-LOCK-FREE.md) §6. Here only
-`_hashtablestorage_insert` does that (`return EBUSY`); `register`, `lookup`,
-`remove` and `carry` still carry a bare `assert( index != sentinel)`, so they
-fail diagnosably in debug builds rather than recovering. Mirroring the hashmap's
-returns in those four is outstanding work.
-
-In practice the overshoot is **self-healing**: the next operation by any thread
-reads `n >= max` and triggers migration, which doubles the table. So the probe
-only deadlocks in the degenerate case where a `lookup` for an *absent* key hits
-a table whose every slot is claimed and no writer is around to trigger growth.
-`test/hashtable/probe_overflow.c` hammers a 4-slot table with 8 threads (50k
-inserts each) and never triggers the assert — cooperative migration rescues the
-overshoot every time. The conditional bound is therefore a theoretical concern,
-not an observed failure mode, but the assert stays because a pure-reader
-scenario with a nearly-full table and no writers remains vulnerable.
-
-The important improvement is the "copy one slot" row. In the original, the
-freeze is a CAS on the *value* word, so a peer churning that value can make the
-freeze lose repeatedly — scenario D of the misery document — which is why the
-original needs tombstones to keep the value word monotonic. Here the freeze
-targets the hash word, which has only two forward transitions ever, so value
-churn cannot extend copy's work. Copy is `O(source_size)` **without** requiring
-a monotonic value word, and that is precisely what allows tombstones and their
-blocked reuse to be deleted.
-
-Retries in `insert`, `register`, `remove` and `lookup` are triggered by only
-two things: the claimed-slot threshold, or encountering a frozen slot. Both mean
-a generation transition, and a generation transition requires peers to fill half
-a table — `Ω(size)` work at a geometrically increasing price. So each retry is
-peer-funded, and the number of generations is capped by the size classes: at
-most **29 doublings**, from the minimum size of `2^2` up to the `2^31` ceiling
-where `_mulle_concurrent_hashtablestorage_get_migration_size` aborts.
-
-**There is no tombstone-triggered retry, and that is the point.** The
-same-size-migration workaround bolted onto the original creates an invalidation
-that costs a peer `O(1)` (one insert plus one remove) while costing us `O(size)`
-and consuming no size class, which demotes those paths from bounded wait-free to
-merely lock-free. hashtable has nothing analogous, because reuse is a plain value
-CAS. Every retry here consumes a size class.
-
-So: **bounded wait-free, subject to the probe caveat above**, by the same
-argument as the original, minus the tombstone hole. As with the original, the
-constant comes from the size cap, which is enforced by aborting rather than by
-degrading.
-
-### Memory ordering
-
-The protocol spans two words — the freeze on the hash word must be ordered
-against the value read or write — which the original's single-word protocol does
-not require. That ordering is currently supplied by using the sequentially
-consistent primitives throughout: `_mulle_atomic_pointer_read` is
-`memory_order_seq_cst` and `__mulle_atomic_pointer_cas` is `seq_cst/seq_cst`
-(verified in `mulle-thread/mulle-atomic-c11.h`).
-
-Under a single total order over all seq_cst operations, the ordering the design
-needs follows directly. The copier's freeze precedes its own value read in
-program order and therefore in that total order, so the value it reads is the
-post-freeze one. And a writer's post-check load of the hash word follows the
-freeze in that order whenever the writer's value CAS did — which is exactly the
-case the post-check exists for — so it must observe the freeze. (The post-check
-does not need to be ordered against the copier's *value read*, only against the
-freeze.) No ordering fence is missing, so the remaining risk here is a protocol
-error, not a memory-model error.
-
-Caveat on the evidence: the seq_cst claim rests on `mulle-atomic-c11.h` in
-`mulle-thread`, an external dependency. If a platform backend ever supplies
-weaker primitives under the same names, this argument fails silently.
-
-What is genuinely open is whether these can be *relaxed* the way the rest of the
-library does. That is a performance question — it is where the grow-phase
-deficit lives — and it needs the analysis in
-[MEMORY-ORDER-RELAXED.md](MEMORY-ORDER-RELAXED.md) before anything is loosened,
-because unlike the original, relaxing here can break a cross-word invariant
-rather than just a single-location one.
-
-### Claimed slots never shrink
-
-A removed slot keeps its hash claim, so `n_hashs` never decreases. The tombstone
-cost did not vanish, it moved: from "a removed hash is unusable until migration"
-to "claimed slots grow forever under key churn". A workload cycling through many
-distinct keys therefore still grows the table even when the live count stays
-near zero. The original behaves the same way, since its tombstones also retain
-the claim.
+**Claimed slots never shrink** within a generation, because a removed slot keeps
+its claim. Migration carries live values only, so the claim count collapses to
+the live count on the way out.
 
 
 ## Measurements
@@ -390,42 +194,102 @@ Reading the numbers, with the attribution kept honest:
   ordered atomics. Migration is essentially the whole cost of that phase.
 
 
+
+> These numbers predate the seal redesign (copy now does a seal CAS per slot
+> instead of a consume CAS) and `test/bench/compare.c` currently compares two
+> hashtables, so treat them as historical until re-measured against the hashmap.
+
+
 ## Reproducing the races
 
-The dangerous windows are two adjacent instructions wide — read the hash word,
-then touch the value word — so no test hits them by luck. `hashtable.c` therefore
-carries yield points at each window, in the spirit of
-`MULLE_THREAD_UNPLEASANT_RACE_YIELD`, compiled out unless
-`MULLE_CONCURRENT_HASHTABLE_RACE_YIELD` is defined:
+Each `hashtable_race_point( HASHTABLE_RACE_*)` in the source defaults to
+`hashtable_race_yield()`. That compiles to nothing unless
+`MULLE_CONCURRENT_HASHTABLE_RACE_YIELD` is defined, in which case it becomes
+`MULLE_THREAD_UNPLEASANT_RACE_YIELD()` (a random yield or nanosleep).
 
-| window | scenario |
+| point | where |
 |---|---|
-| `lookup`, between the hash read and the value read | S7 |
-| `insert`, after the claim, before the value CAS | S5 |
-| `register`, after the claim, before the value CAS | S5, S11 |
-| `remove`, after the hash read, before the value CAS | S6 |
-| `copy`, after the freeze and after the carry | lets writers and readers slip in |
+| `LOOKUP` | lookup, between hash read and value read |
+| `INSERT`, `REGISTER` | after the claim, before the value CAS |
+| `REMOVE` | after the hash read, before the value CAS |
+| `COPY_FROZEN` | copy, frozen, not sealed yet |
+| `COPY_READ` | copy, sealed, not carried yet |
+| `COPY_CARRIED` | copy, carried |
 
-The decision is a per-thread xorshift, deliberately **not** `rand()`: glibc's
-`rand()` takes a process-global lock, which would inject a lock and a barrier at
-exactly the window under observation, and would have every thread draw from one
-unseeded shared sequence in lock-acquisition order. Independent lock-free
-decisions perturb the timing far less. (The same criticism applies to
-`MULLE_THREAD_UNPLEASANT_RACE_YIELD` upstream.)
+`test/hashtable/migration_stall.c` `#include`s the source with
+`hashtable_race_point()` redefined, parks threads at exact points, and so forces
+the failing interleavings deterministically, on any number of cores.
 
-With the yields enabled, S7 becomes a hard failure within ~100 iterations
-against an unfixed `lookup`.
+The probabilistic tests force continuous generation changes with
+`_mulle_concurrent_hashtable_migrate_same_size()`. Soak them with
+`MULLE_TEST_ITERATIONS=<n>`. Every thread that stays registered with mulle-aba
+must check in often. A registered thread that only waits (e.g. main in
+`join`) blocks all reclamation, and memory grows by one storage per migration.
 
-**Widening the window is not always the binding constraint.** For S6 it is not:
-migrations there are threshold-driven, so once the table is large they become
-rare and almost never coincide with a removal. Yields alone do not reproduce it.
-`_mulle_concurrent_hashtable_migrate_same_size()` exists for that reason — it
-retires the current generation into a fresh one of the same size, so a probe
-thread can force continuous generation changes at bounded memory cost.
-`test/hashtable/remove_migrate_race.c` uses it and reports a lost removal within
-about 1500 iterations against an unfixed `remove`, which both covers S6 and
-confirms that frequency rather than window width was the obstacle.
 
+## Test status
+
+| test | what it establishes |
+|---|---|
+| `simple.c` | basics, register, 1000 reuse cycles without growth, enumeration |
+| `validation.c` | argument checks, both hash modes, both value modes, reserved values |
+| `model.c` | strict 4-thread model, disjoint key ranges |
+| `migration_stall.c` | the three bug-report interleavings, deterministically (failed on the old design) |
+| `remove_race.c` | removes under threshold-driven migration |
+| `remove_migrate_race.c` | insert/lookup/remove/lookup by an exclusive owner under forced migration |
+| `register_race.c` | `register` never reports `*p_old == NULL` while V1 is live, under forced migration |
+| `lookup_race.c` | lookups under insert/remove churn and migration |
+| `probe_overflow.c` | 8 threads × 50k inserts into a 4-slot table |
+
+Soak on a 64-core box: 4 + 4 processes of `remove_migrate_race` and
+`register_race`.
+
+* **Old design** (`RACE_YIELD`): 50 of 64 processes failed within 60 s.
+* **New design:** clean with `RACE_YIELD` for 300 s, clean on a plain gcc `-O2`
+  build for 2·10⁹ iterations, and clean on tcc (mintomic backend) for 300 s.
+
+### Exhaustive schedule exploration
+
+`test/hashtable/explore.c` (and `test/hashmap/explore.c` for the hashmap) run
+small scenarios, 2–3 threads with a few operations each on a 4 slot table,
+under *every* interleaving of the atomic operations up to a preemption bound.
+The scheduler is `test/explore/explore.h`, a small stateless model checker in
+the style of CHESS: every atomic operation is a scheduling point, only one
+thread runs at a time, and a depth-first search over the scheduling decisions
+replays the scenario until all alternatives are exhausted. After each
+execution it checks that the history of results is linearizable against a
+sequential map, that `count` and the enumerator agree with `lookup` at
+quiescence, and that no block leaked or was freed twice. A failure prints the
+history and the schedule.
+
+| scenario | covers |
+|---|---|
+| `insert_vs_2_migrations`, `register_vs_2_migrations` | RC1: writer stalled across p→q→r |
+| `remove_vs_copier` | RC2: stale copier vs. remove |
+| `remove_reinsert_churn`, `remove_remove_migrate` | remove/insert/register vs. migration |
+| `insert_insert_migrate`, `register_register_remove` | same-key contention |
+| `growth_vs_remove`, `growth_vs_growth` | real growth 4→8(→16) with collisions |
+
+Results (default bound runs in `mulle-sde test`, about 4 s):
+
+* **Old design** (git HEAD before the fix): 7 of 9 scenarios fail, among them
+  RC1 with 2 preemptions and RC2 with 2. `growth_vs_growth` loses a removal
+  with a single preemption.
+* **New design:** all pass at the default bound of 2–3 preemptions (90k executions), with
+  ≤ 3 everywhere (1.4M executions, 53 s), and `remove_vs_copier` with ≤ 5.
+
+`EXPLORE_PREEMPTIONS=n` deepens the search, `EXPLORE_SCENARIO=name` selects
+one scenario.
+
+Known gaps:
+
+1. Exploration assumes sequential consistency. All atomics used are `seq_cst`
+   except the acquire loads in lookup, which no store precedes, so nothing is
+   lost for the current code, but weak memory (GenMC) is not checked and any
+   future relaxation of orders must be.
+2. The scenarios are small and the preemption bound is finite: it is a proof
+   for those scenarios, not for all programs.
+3. `register` is lock-free, not wait-free, under same-key churn (see *Progress*).
 
 ## Enumerator
 
@@ -439,98 +303,6 @@ changes. A recycled allocation at the same address would defeat that, which is
 one reason the enumerator stays "limited multi-threaded".
 
 
-## Test status
-
-| test | what it establishes |
-|---|---|
-| `test/hashtable/simple.c` | basics, plus 1000 reuse cycles that do not grow the table |
-| `test/hashtable/validation.c` | argument checks, and formerly reserved pointers usable as payload |
-| `test/hashtable/model.c` | strict 4-thread model, disjoint key ranges, zero leniency |
-| `test/hashtable/remove_race.c` | S6 under threshold-driven migration, no resurrection |
-| `test/hashtable/remove_migrate_race.c` | S6 under *forced* migration — fails against an unfixed `remove` within ~1500 iterations |
-| `test/hashtable/lookup_race.c` | S7 — with race yields enabled it fails against an unfixed `lookup` within ~100 iterations |
-| `test/hashtable/register_race.c` | S11 — fails against an unfixed `register` at iteration ~50: reports *p_old==NULL while V1 is permanently live |
-| `test/hashtable/probe_overflow.c` | 8 threads × 50k inserts into a 4-slot table — forces continuous threshold overshoot, confirms self-healing migration |
-| `test/bench/compare.c` | the measurements above, with count agreement asserted |
-
-For contrast, `test/hashmap/model.c` used to fail intermittently on
-`model lookup`: the model removed a key and the container still returned its
-value — scenario A of the misery document, observed directly. That test is gone
-along with the hashmap's multi-threaded `remove`; the hashmap's surviving
-migration model test is `test/hashmap/migrate_model.c`, which exercises
-insert/register/lookup only.
-
-Known gaps, in rough order of how much they should bother you:
-
-1. **Relaxed atomics are unexplored**, so the grow-phase cost is unattributed
-   between the extra CAS and the ordering. Correctness currently depends on the
-   seq_cst primitives of an external dependency.
-2. No `pose`/`patch` equivalent, no enumerator stress test, and no
-   single-threaded teardown fuzzing.
-
-
-## Speculative: could the reserved bit go away?
-
-Worth recording because it is the only route that gets multi-threaded `remove`
-on a **full-width** hash, which is otherwise exactly what the reserved bit buys.
-Untested. Treat it as a hypothesis, not a plan.
-
-Replace the per-slot freeze with a single per-storage `retired` flag:
-
-```text
-  migrate(p):  CAS( &p->retired, 1, 0);  then copy   <-- no per-slot freeze CAS
-
-  the invariant shifts:
-     from  "the copier sees a final value"                (what freezing buys)
-     to    "every writer that lands in a retired
-            generation carries its own value forward"     (post-check)
-```
-
-The hashtable already has all of the machinery this needs — `post_check`,
-`carry`, consume, and `EAGAIN` to redo a removal in the newer generation —
-which is what suggests the per-slot marker may be **redundant** given the
-post-check, and the reserved bit with it.
-
-```text
-  copy, per slot:   1 read + 1 carry + 1 consume CAS
-                    no freeze CAS at all, no dependence on value churn
-  value word:       2 states  -> no tombstones -> immediate reuse
-  migration:        always grows -> retry bound = number of doublings
-  hash word:        full intptr_t, only 0 reserved
-  lookup gate:      one load of a read-mostly flag, which subsumes rule 5
-                    (the EMPTY-ambiguity re-read)
-```
-
-Hazards to validate before believing any of it. The tombstone design was also
-plausible and also wrong, so this needs `test/hashtable/model.c` to say so, not
-a reviewer:
-
-1. **Consume is still mandatory** (rule 2). Without it a slow second helper
-   re-reads an unconsumed source value and reinjects something that was
-   legitimately removed in the newer generation. This is the failure `model.c`
-   caught the first time.
-2. **Never overwrite an occupied destination** (rule 3), or a stale value gets
-   pushed past a newer removal.
-3. **Ordering is the sharp edge.** The writer does `CAS(value)` then loads
-   `retired`; the copier stores `retired` then loads values. That is
-   Dekker/store-buffer: if both sides were relaxed, both could miss each other
-   and a value would vanish. The value write being a CAS makes it a full barrier
-   under the library's seq_cst default, so it holds today — but this is exactly
-   where the relaxation programme in
-   [MEMORY-ORDER-RELAXED.md](MEMORY-ORDER-RELAXED.md) would silently break it.
-   It has to be recorded as a requirement, not left as an accident.
-4. **`lookup` must check the flag on the success path too**, not only on
-   `EMPTY`, or it can return a value that a completed `remove` already deleted
-   in the newer generation.
-5. Probe-exhaustion recovery is orthogonal and still needed either way.
-
-Tradeoff against the current design: the flag is a second cache line on the
-lookup path, whereas the freeze bit sits in a slot word that is already loaded.
-The current design probably wins on cache behaviour; this one wins on hash
-width. If it holds up it would collapse the hashmap and the hashtable into one
-structure.
-
-
 
 ## What is the worst case number to exhaustion ?
 ---------------------------
@@ -539,7 +311,7 @@ The number
 
 ~2³⁰ = 1,073,741,824 distinct-key inserts to force the  abort() , arriving after 29 successful migrations (the 30th attempt aborts).
 
-Why distinct keys: migration triggers when  n_hashs >= size/2 , and  n_hashs  only grows when a new hash claims a slot ( claim  CASes  NO_HASH → h , then increments). Re-inserting an already-claimed hash — even after a remove — does not increment, because remove only clears the value word, leaving the hash claim in place. So within any one generation you must feed it fresh hashes to keep growing.
+Why distinct keys: migration triggers when  n_hashs >= size/2 , and  n_hashs  only grows when a new hash claims a slot ( claim  CASes  NO_HASH → h , then increments). Re-inserting an already-claimed hash — even after a remove — does not increment, because remove only sets the value word to TOMB, leaving the hash claim in place. So within any one generation you must feed it fresh hashes to keep growing.
 
 The sequence
 
@@ -557,7 +329,7 @@ The sequence
 - Then the 2³¹ table itself must reach  n_hashs = 2³⁰  before the next migration is attempted — 2²⁹ more distinct hashes.
 - Total: 2³⁰ ≈ 1.07 × 10⁹ distinct-key inserts, then the next insert/register (even a duplicate — it just reads  n >= max  and calls  migrate_storage ) hits  get_migration_size(2³¹)  →  abort() .
 
-The count is a hard floor regardless of strategy: keep keys live or insert/remove churn them, you still need 2³⁰ different hash values, because migration drops removed slots (copy only carries live  value != EMPTY  entries, so a churned generation collapses its claim count back to the live count on the way out — meaning the final 2³¹ table needs 2³⁰ distinct hashes claimed within it, full stop).
+The count is a hard floor regardless of strategy: keep keys live or insert/remove churn them, you still need 2³⁰ different hash values, because migration drops removed slots (copy only carries live values (not EMPTY, not TOMB), so a churned generation collapses its claim count back to the live count on the way out — meaning the final 2³¹ table needs 2³⁰ distinct hashes claimed within it, full stop).
 
 Why this is theoretical, not reachable
 

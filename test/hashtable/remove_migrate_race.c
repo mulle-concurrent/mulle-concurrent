@@ -24,6 +24,13 @@
 
 static int   n_iters( void)
 {
+   char   *s;
+
+   // soak runs: MULLE_TEST_ITERATIONS=100000000 ./remove_migrate_race.exe
+   s = getenv( "MULLE_TEST_ITERATIONS");
+   if( s)
+      return( atoi( s));
+
    // Under valgrind all threads are serialized (cooperative scheduling).
    // Reduce iterations so the test completes in reasonable time.
    // Auto-detects valgrind on Linux via /proc/self/maps.
@@ -68,13 +75,14 @@ static void  *migrator( void *unused)
    {
       _mulle_concurrent_hashtable_migrate_same_size( &g_map);
 
+      // every migration abafrees a storage, so check in each time, or the
+      // backlog grows until the other thread checks in too
+      mulle_aba_checkin();
+
       // Yield periodically so that under cooperative schedulers (valgrind)
       // other threads get a chance to run.
       if( (i & 0x3F) == 0)
-      {
-         mulle_aba_checkin();
          mulle_thread_yield();
-      }
    }
 
    mulle_aba_unregister();
@@ -84,7 +92,7 @@ static void  *migrator( void *unused)
 
 static void  *owner( void *unused)
 {
-   int    i;
+   int    i, n;
    int    rval;
    void   *found;
 
@@ -92,7 +100,7 @@ static void  *owner( void *unused)
 
    mulle_aba_register();
 
-   for( i = 0; i < n_iters() && ! g_failed; i++)
+   for( i = 0, n = n_iters(); i < n && ! g_failed; i++)
    {
       rval = mulle_concurrent_hashtable_insert( &g_map, OWNED_KEY, g_value);
       if( rval != 0)
@@ -128,7 +136,7 @@ static void  *owner( void *unused)
          break;
       }
 
-      if( (i & 0xFF) == 0)
+      if( (i & 0xF) == 0)
          mulle_aba_checkin();
    }
 
@@ -147,7 +155,10 @@ int   main( void)
    mulle_aba_init( NULL);
    mulle_aba_register();
 
-   mulle_concurrent_hashtable_init( &g_map, 256, NULL);
+   // integer payloads, so positive values (even values are the default)
+   mulle_concurrent_hashtable_init_with_mode( &g_map, 256,
+                                              MULLE_CONCURRENT_HASHTABLE_POSITIVE_VALUE,
+                                              NULL);
 
    // some unrelated live entries, so copy has real work to do on every pass
    for( i = 0; i < OTHER_KEYS; i++)
@@ -164,8 +175,17 @@ int   main( void)
       return( 1);
    }
 
+   //
+   // A registered thread that never checks in blocks all reclamation, and
+   // every same-size migration abafrees a storage. Waiting registered in
+   // join would pile up gigabytes, so main steps out while it waits.
+   //
+   mulle_aba_unregister();
+
    mulle_thread_join( threads[ 0]);
    mulle_thread_join( threads[ 1]);
+
+   mulle_aba_register();
 
    // the unrelated entries must have survived every migration
    for( i = 0; i < OTHER_KEYS; i++)
