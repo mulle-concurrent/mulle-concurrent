@@ -3,19 +3,28 @@
 **This project is a component of the [mulle-core](//github.com/mulle-core/mulle-core) library. As such you usually will *not* add or install it individually, unless you specifically do not want to link against `mulle-core`.**
 
 
-### Add as a git submodule
+{% 
+   identifier = [[project.name uppercaseString] stringByReplacingOccurrencesOfString:@"-" withString:@"__"];
+   tag        = [identifier stringByAppendingString:@"_TAG"];
+   tagref     = [@"${" stringByAppendingString:tag];
+   tagref     = [tagref stringByAppendingString:@"}"];
+%}
+### Add as a cmake subproject
 
-{{ project.name }} is intended to be consumed as a git submodule with CMake's `add_subdirectory()` — no mulle tooling is required in the parent build:
-
-``` sh
-git submodule add https://github.com/{{ project.user }}/{{ project.name }}.git \
-   third_party/{{ project.name }}
-```
-
-Add this to your `CMakeLists.txt`:
+{{ project.name }} is intended to be consumed as a cmake subproject with
+[FetchContent](https://cmake.org/cmake/help/latest/module/FetchContent.html) —
+no mulle tooling is required in the parent build:
 
 ``` cmake
-add_subdirectory( third_party/{{ project.name }})
+include( FetchContent)
+
+set( {{ identifier }}_TAG "master" CACHE STRING "branch or tag to fetch {{ project.name }} from")
+
+FetchContent_Declare( {{ identifier }}
+   GIT_REPOSITORY https://github.com/{{ project.user }}/{{ project.name }}.git
+   GIT_TAG        "{{ tagref }}")
+FetchContent_MakeAvailable( {{ identifier }})
+
 target_link_libraries( my_target PRIVATE {{ project.name }})
 ```
 

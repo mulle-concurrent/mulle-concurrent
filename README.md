@@ -13,7 +13,7 @@ in multi-threaded environments.
 
 | Release Version                                       | Release Notes  | AI Documentation
 |-------------------------------------------------------|----------------|---------------
-| ![Mulle kybernetiK tag](https://img.shields.io/github/tag/mulle-concurrent/mulle-concurrent.svg) [![Build Status](https://github.com/mulle-concurrent/mulle-concurrent/workflows/CI/badge.svg)](//github.com/mulle-concurrent/mulle-concurrent/actions) | [RELEASENOTES](RELEASENOTES.md) | [DeepWiki for mulle-concurrent](https://deepwiki.com/mulle-concurrent/mulle-concurrent)
+| ![Mulle kybernetiK tag](https://img.shields.io/github/tag/mulle-concurrent/mulle-concurrent.svg) ![standard: C11](pix/c11.svg) ![apis: ansi](pix/apis-ansi.svg) ![memory: allocator](pix/memory-allocator.svg) ![threads: threadsafe](pix/thread-threadsafe.svg) [![Build Status](https://github.com/mulle-concurrent/mulle-concurrent/workflows/CI/badge.svg)](//github.com/mulle-concurrent/mulle-concurrent/actions) | [RELEASENOTES](RELEASENOTES.md) | [DeepWiki for mulle-concurrent](https://deepwiki.com/mulle-concurrent/mulle-concurrent)
 
 
 ## API
@@ -255,19 +255,22 @@ failure by aborting; do not write code that depends on recovering from it.
 **This project is a component of the [mulle-core](//github.com/mulle-core/mulle-core) library. As such you usually will *not* add or install it individually, unless you specifically do not want to link against `mulle-core`.**
 
 
-### Add as a git submodule
+### Add as a cmake subproject
 
-mulle-concurrent is intended to be consumed as a git submodule with CMake's `add_subdirectory()` — no mulle tooling is required in the parent build:
-
-``` sh
-git submodule add https://github.com/mulle-concurrent/mulle-concurrent.git \
-   third_party/mulle-concurrent
-```
-
-Add this to your `CMakeLists.txt`:
+mulle-concurrent is intended to be consumed as a cmake subproject with
+[FetchContent](https://cmake.org/cmake/help/latest/module/FetchContent.html) —
+no mulle tooling is required in the parent build:
 
 ``` cmake
-add_subdirectory( third_party/mulle-concurrent)
+include( FetchContent)
+
+set( MULLE__CONCURRENT_TAG "master" CACHE STRING "branch or tag to fetch mulle-concurrent from")
+
+FetchContent_Declare( MULLE__CONCURRENT
+   GIT_REPOSITORY https://github.com/mulle-concurrent/mulle-concurrent.git
+   GIT_TAG        "${MULLE__CONCURRENT_TAG}")
+FetchContent_MakeAvailable( MULLE__CONCURRENT)
+
 target_link_libraries( my_target PRIVATE mulle-concurrent)
 ```
 
@@ -306,7 +309,7 @@ mulle-sde install --prefix /usr/local \
    https://github.com/mulle-concurrent/mulle-concurrent/archive/latest.tar.gz
 ```
 
-### Legacy Installation
+### Manual Installation
 
 Install the requirements:
 

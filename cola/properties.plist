@@ -3,8 +3,9 @@
    {
       description="📶 A lock- and wait-free hashtable, pointer array and pointer set, written in C";
       domain="github";
+      language="c";
+      dialect="c";
       name="mulle-concurrent";
-      version="4.1.1";
       user="mulle-concurrent";
       repo="mulle-concurrent";
       homepage="https://github.com/mulle-concurrent/mulle-concurrent";

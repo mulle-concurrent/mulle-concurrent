@@ -2,7 +2,22 @@ cmake_minimum_required( VERSION 3.13...99.99)
 
 project( mulle-concurrent VERSION 4.1.1 LANGUAGES C)
 
-
+#
+# The library advertises ANSI/ISO C (see the "std" and "apis" badges in the
+# README). Compile it as C11 with extensions off, and define no feature test
+# macro at all: strict C mode then offers only the standard declarations, so a
+# POSIX or BSD call is a compile error instead of passing silently. That is what
+# "apis: ansi" claims, so the build checks the claim too.
+#
+# A standard given on the command line wins, so other dialects remain testable
+# with e.g. -DCMAKE_C_STANDARD=23 or CFLAGS=-std=c23.
+#
+if( NOT CMAKE_C_STANDARD
+    AND NOT CMAKE_C_FLAGS MATCHES "(^| )-std="
+    AND NOT "$ENV{CFLAGS}" MATCHES "(^| )-std=")
+   set( CMAKE_C_STANDARD 11)
+   set( CMAKE_C_EXTENSIONS OFF)
+endif()
 
 
 ### mulle-sde environment
