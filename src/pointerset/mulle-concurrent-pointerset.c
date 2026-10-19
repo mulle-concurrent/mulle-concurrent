@@ -322,7 +322,7 @@ int  _mulle_concurrent_pointerset_init( struct mulle_concurrent_pointerset *set,
    if( ! allocator)
       allocator = &mulle_default_allocator;
 
-   assert( allocator->abafree && (int (*)(void)) allocator->abafree != (int (*)(void)) abort);
+   assert( allocator->abafree && (void (*)(void)) allocator->abafree != (void (*)(void)) abort);
 
    _mulle_atomic_pointer_nonatomic_write( &set->allocator, allocator);
 
