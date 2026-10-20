@@ -2,6 +2,8 @@
 // Consistency test: run N threads briefly, stop them, check for duplicates,
 // restart. Repeated N_ROUNDS times on the same set.
 //
+// remove is single-threaded, so the workers only insert and probe.
+//
 // "Consistent" means: enumerating the set yields each live pointer at most once.
 //
 #include <mulle-concurrent/mulle-concurrent.h>
@@ -24,7 +26,7 @@
 static int   g_is_slow;
 
 //
-// These worker threads spin (insert/remove plus yield), so running more
+// These worker threads spin (insert/member plus yield), so running more
 // threads than there are CPUs oversubscribes the scheduler and can make the
 // test take orders of magnitude longer. This hurts small CI runners and
 // sanitizer/32-bit builds the most.
@@ -122,7 +124,7 @@ static void  worker( struct mulle_concurrent_pointerset *set)
       switch( xorshift64star( &rng) % 2)
       {
          case 0: mulle_concurrent_pointerset_insert( set, ptr); break;
-         case 1: mulle_concurrent_pointerset_remove( set, ptr); break;
+         case 1: mulle_concurrent_pointerset_member( set, ptr); break;
       }
 
       // Yield periodically so that under cooperative schedulers (valgrind)

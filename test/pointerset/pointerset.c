@@ -39,22 +39,6 @@ static void   test_basic( void)
       count = mulle_concurrent_pointerset_count( &set);
       assert( count == 2);
 
-      // remove
-      rval = mulle_concurrent_pointerset_remove( &set, p1);
-      assert( rval == 0);
-
-      assert( mulle_concurrent_pointerset_member( &set, p1) == 0);
-      assert( mulle_concurrent_pointerset_member( &set, p2) == 1);
-
-      // remove non-existent
-      rval = mulle_concurrent_pointerset_remove( &set, p3);
-      assert( rval == ENOENT);
-
-      // re-insert after remove (goes into new slot, tombstone stays)
-      rval = mulle_concurrent_pointerset_insert( &set, p1);
-      assert( rval == 0);
-      assert( mulle_concurrent_pointerset_member( &set, p1) == 1);
-
       // enumerate
       count = 0;
       rover = mulle_concurrent_pointerset_enumerate( &set);
@@ -101,13 +85,6 @@ static void   test_grow( void)
 
       for( i = 1; i <= 200; i++)
          assert( mulle_concurrent_pointerset_member( &set, (void *) (base + i * 16)) == 1);
-
-      // remove half
-      for( i = 1; i <= 100; i++)
-         mulle_concurrent_pointerset_remove( &set, (void *) (base + i * 16));
-
-      count = mulle_concurrent_pointerset_count( &set);
-      assert( count == 100);
    }
    mulle_concurrent_pointerset_done( &set);
 }

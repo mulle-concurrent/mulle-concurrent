@@ -35,14 +35,22 @@
 //  mulle-concurrent-pointerset.h
 //  mulle-concurrent
 //
-//  A lock- and wait-free set of void * pointers, built on top of the
-//  hashmap storage but with a single-word-per-slot layout.
+//  EXPERIMENTAL: a wait-free, insert-only set of void * pointers, built on top
+//  of the hashmap storage but with a single-word-per-slot layout.
+//
+//  There is no remove operation. A single-word slot cannot make a concurrent
+//  removal durable across a copy-then-redirect migration, and a single-threaded
+//  remove would need tombstones for the probe chains. Neither is offered here.
+//
+//  Concurrent use: insert/register/member only.
 //
 //  Slot values:
 //    NULL              (MULLE_CONCURRENT_NO_POINTER)      - empty
 //    INTPTR_MIN        (MULLE_CONCURRENT_INVALID_POINTER) - REDIRECT (migration)
-//    INTPTR_MAX        (MULLE_CONCURRENT_TOMBSTONE_POINTER) - removed
 //    anything else                                          - live pointer
+//
+//  INTPTR_MAX (MULLE_CONCURRENT_TOMBSTONE_POINTER) is reserved library-wide and
+//  rejected as user data, but it is not a slot state in the pointerset.
 //
 #ifndef mulle_concurrent_pointerset_h__
 #define mulle_concurrent_pointerset_h__
@@ -55,15 +63,14 @@
 
 #include <stdint.h>
 
-// sentinel for removed slots; must not be a valid user pointer.
-// INTPTR_MAX (high bit clear) is never a valid userspace address on any
-// real architecture, making it safer than (void*)-1 which equals UINTPTR_MAX
-// and could theoretically appear as a kernel/device mapping address.
+// INTPTR_MAX is reserved library-wide and rejected as user data. The
+// pointerset does not use it as a slot state, but keeping it reserved avoids
+// surprises when a value moves between structures.
 
 
 struct _mulle_concurrent_pointersetstorage
 {
-   mulle_atomic_pointer_t   n_used;   // empty + tombstone slots consumed
+   mulle_atomic_pointer_t   n_used;   // live slots consumed (advisory)
    uintptr_t                mask;
 
    mulle_atomic_pointer_t   entries[ 1];
@@ -116,11 +123,6 @@ MULLE__CONCURRENT_GLOBAL
 int  _mulle_concurrent_pointerset_member( struct mulle_concurrent_pointerset *set,
                                           void *ptr);
 
-MULLE__CONCURRENT_GLOBAL
-int  _mulle_concurrent_pointerset_remove( struct mulle_concurrent_pointerset *set,
-                                          void *ptr);
-
-
 #pragma mark - single-threaded
 
 static inline int
@@ -153,7 +155,7 @@ static inline struct mulle_allocator *
    mulle_concurrent_pointerset_get_allocator( struct mulle_concurrent_pointerset *set)
 {
    return( set
-           ? (struct mulle_allocator *) _mulle_atomic_pointer_read_relaxed( &set->allocator)
+           ? (struct mulle_allocator *) _mulle_atomic_pointer_read( &set->allocator)
            : NULL);
 }
 
@@ -206,18 +208,6 @@ static inline int
       return( 0);
    return( _mulle_concurrent_pointerset_member( set, ptr));
 }
-
-// Returns:
-//   0      : removed
-//   ENOENT : not found
-//   EINVAL : invalid argument
-//
-// Allocation is fail-fast (success or abort), see README "Memory allocation".
-//
-MULLE__CONCURRENT_GLOBAL
-int   mulle_concurrent_pointerset_remove( struct mulle_concurrent_pointerset *set,
-                                          void *ptr);
-
 
 #pragma mark - limited multi-threaded (enumerator)
 

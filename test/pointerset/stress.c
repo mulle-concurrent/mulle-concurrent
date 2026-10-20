@@ -1,5 +1,6 @@
 //
-// Stress test: N threads hammering insert/remove/member on pointers 1..10.
+// Stress test: N threads hammering insert/member on pointers 1..10.
+// remove is single-threaded, so it is not exercised concurrently.
 // The set is tiny and heavily contended, forcing lots of CAS retries and
 // migrations.
 //
@@ -113,17 +114,13 @@ static void  tester( struct mulle_concurrent_pointerset *set)
    {
       ptr = ptrs[ xorshift64star( &rng) % N_POINTERS ];
 
-      switch( xorshift64star( &rng) % 3)
+      switch( xorshift64star( &rng) % 2)
       {
          case 0:
             mulle_concurrent_pointerset_insert( set, ptr);
             break;
 
          case 1:
-            mulle_concurrent_pointerset_remove( set, ptr);
-            break;
-
-         case 2:
             mulle_concurrent_pointerset_member( set, ptr);
             break;
       }

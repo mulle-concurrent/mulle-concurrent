@@ -1,0 +1,4 @@
+# the test #includes "mulle-concurrent-pointerarray.c" by name, whose siblings
+# (and the headers it includes) live in src/ and src/pointerarray/
+# keep all flags on ONE line: mulle-test pastes this file into the cc command
+-I../../src -I../../src/pointerarray

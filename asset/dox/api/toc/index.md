@@ -7,7 +7,7 @@
 - Solves contention in multithreaded environments where low-latency, non-blocking operations are required.
 - The **EXPERIMENTAL** `mulle_concurrent_hashtable` adds a concurrent `remove`. Migration freezes the *hash* word (FROZEN bit) and seals the *value* word (SEALED bit) in the style of Cliff Click's NonBlockingHashMap, so a migrating slot keeps its payload, a removal cannot be undone and removed hashes are immediately reusable. It has had several migration-race bugs fixed so far (see `BUGREPORT-hashtable-migration-races.md`); treat it as experimental and prefer the hashmap where insert-only suffices.
 - The older `mulle_concurrent_hashmap` still exists; it freezes slots during migration by overwriting the value with a REDIRECT sentinel and uses tombstones for removal. It has retained only single-threaded value replacement/removal (`_patch`/`_remove`); its former multi-threaded `remove` is gone.
-- Key features: wait-free register/insert/lookup/remove for all structures, lock-free add/get/find and enumerators, optional custom allocator, ABA handling via mulle-aba.
+- Key features: wait-free point operations (insert/register/lookup/member; the hashtable also has a wait-free remove), lock-free add/get/find and enumerators, optional custom allocator, ABA handling via mulle-aba.
 - A component of mulle-core; depends on mulle-aba.
 
 ## 2. Key Concepts & Design Philosophy
@@ -17,7 +17,7 @@
 - **hashmap (legacy):** a slot is claimed by CASing the `hash` word from `MULLE_CONCURRENT_NO_HASH` to the key's hash; once claimed only the claiming thread may CAS that slot's `value`. Migration freezes a slot by overwriting its value with `MULLE_CONCURRENT_INVALID_POINTER` (the REDIRECT marker), which destroys the payload. Removal writes a TOMBSTONE value while keeping the hash claim, so probe chains stay intact; a removed hash cannot be re-inserted in the same storage generation (`EEXIST`) and reuse triggers a same-size migration.
 - **hashtable (EXPERIMENTAL):** migration first freezes the `hash` word (FROZEN bit), so no new writer starts on the slot, then seals the `value` word (SEALED bit), so in-flight writers' CAS fails. The sealed value is final and still readable, and it is carried into the generation's own successor (`storage->next`), but only into a destination value word that is still EMPTY. A removal writes a TOMB value rather than EMPTY, so a lagging copier can never resurrect it, and the removed slot is immediately reusable by a plain value CAS. Reserved: one hash bit (hash mode: top bit = "positive", default, or bit 0 = "even"), one value bit plus a TOMB value (value mode: bit 0 with TOMB = `INVALID_POINTER` = "even", default, or top bit with TOMB = `TOMBSTONE_POINTER` = "positive"). Out-of-range hashes or values are rejected with `EINVAL` (lookup returns NULL), never folded.
 - The pointer array grows but never shrinks — this limitation simplifies concurrent access.
-- Pointerset uses linear probing with tombstones for removal; tombstones are dropped during migration.
+- Pointerset is EXPERIMENTAL and insert-only: linear probing with no remove and no tombstones.
 - Growing/migration is triggered at 50% load. Migration is atomic and non-blocking for callers.
 - ABA problem management via mulle-aba; each thread must register/unregister with the ABA system before accessing structures.
 - Enumerators are "limited multi-threaded": safe for single-threaded use or when no concurrent removals/growth occur; mutation/migration is signaled via error codes (ECANCELED).
@@ -33,7 +33,7 @@ Sentinel values and constants (user code must not store these as payload where n
 | `MULLE_CONCURRENT_NO_HASH`        | `0`                   | Invalid hash sentinel, never use as actual hash
 | `MULLE_CONCURRENT_INVALID_POINTER`| `((void *) INTPTR_MIN)`| REDIRECT marker during hashmap/pointerset migration; hashtable TOMB in even value mode
 | `MULLE_CONCURRENT_NO_POINTER`     | `((void *) 0)`        | Internal "no value" sentinel (NULL)
-| `MULLE_CONCURRENT_TOMBSTONE_POINTER`| `((void *) INTPTR_MAX)`| Removed slot marker in hashmap and pointerset; hashtable TOMB in positive value mode
+| `MULLE_CONCURRENT_TOMBSTONE_POINTER`| `((void *) INTPTR_MAX)`| Removed slot marker in hashmap; hashtable TOMB in positive value mode; reserved but unused in pointerset
 
 Reserved-value rules differ per structure:
 - **hashmap** and **pointerset**: reject NULL, `INTPTR_MIN`, `INTPTR_MAX` as payloads (return `EINVAL`).
@@ -465,7 +465,7 @@ mulle_concurrent_pointerarray_for_reverse( name, n, item)
 
 #### `struct mulle_concurrent_pointerset`
 
-**Purpose:** Wait-free set of `void *` pointers using linear probing with a single-word-per-slot layout. The pointer value itself is the key — it is hashed internally; no separate hash key is needed.
+**Purpose:** **EXPERIMENTAL.** Wait-free, insert-only set of `void *` pointers using linear probing with a single-word-per-slot layout. The pointer value itself is the key — it is hashed internally; no separate hash key is needed. There is no `remove`.
 
 **Key Fields (opaque):**
 - `storage` — current storage
@@ -475,10 +475,9 @@ mulle_concurrent_pointerarray_for_reverse( name, n, item)
 **Slot States (linear probing):**
 - `NULL` (`MULLE_CONCURRENT_NO_POINTER`) — empty; probe chain stops
 - `INTPTR_MIN` (`MULLE_CONCURRENT_INVALID_POINTER`) — REDIRECT, migration in progress, retry
-- `INTPTR_MAX` (`MULLE_CONCURRENT_TOMBSTONE_POINTER`) — removed slot, probe chain continues
 - Anything else — live pointer
 
-**Tombstone rationale:** With linear probing, pointers hashing to the same slot form chains. Removing by writing NULL would break the chain; a tombstone preserves correctness. Tombstones are NOT reused for new inserts (to avoid races) but are dropped during migration.
+**Insert-only:** there is no remove operation and therefore no tombstone state. `INTPTR_MAX` (`MULLE_CONCURRENT_TOMBSTONE_POINTER`) remains reserved library-wide and is rejected as user data, but the pointerset does not use it as a slot state.
 
 **Lifecycle Functions (single-threaded only):**
 
@@ -504,7 +503,7 @@ Frees internal resources; the static inline is safe with NULL.
 static inline void
    mulle_concurrent_pointerset_reset( struct mulle_concurrent_pointerset *set);
 ```
-Clears the set by combining `done` + `init` with the same size and allocator. Efficient way to drop accumulated tombstones.
+Clears the set by combining `done` + `init` with the same size and allocator.
 
 **Core Operations (multi-threaded safe):**
 
@@ -533,13 +532,417 @@ static inline int
 ```
 Returns `1` if `ptr` is in the set, `0` if not. NULL `set`/`ptr` return `0` silently without setting `errno`.
 
+**Inspection Functions:**
+
 ```c
-int  _mulle_concurrent_pointerset_remove( struct mulle_concurrent_pointerset *set,
+unsigned int  _mulle_concurrent_hashmap_get_size( struct mulle_concurrent_hashmap *map);
+static inline unsigned int
+   mulle_concurrent_hashmap_get_size( struct mulle_concurrent_hashmap *map);
+```
+Returns current storage capacity (not count). Snapshot only.
+
+```c
+unsigned int   mulle_concurrent_hashmap_count( struct mulle_concurrent_hashmap *map);
+```
+Counts live entries via enumeration. Expensive. Snapshot only.
+
+```c
+void           *mulle_concurrent_hashmap_lookup_any( struct mulle_concurrent_hashmap *map);
+```
+Returns any value from the map, or NULL if empty.
+
+**Enumeration (limited multi-threaded):**
+
+```c
+struct mulle_concurrent_hashmapenumerator
+{
+   struct mulle_concurrent_hashmap   *map;
+   unsigned int                      index;
+   unsigned int                      mask;
+};
+
+struct mulle_concurrent_hashmapenumerator
+   mulle_concurrent_hashmap_enumerate( struct mulle_concurrent_hashmap *map);
+
+int  _mulle_concurrent_hashmapenumerator_next( struct mulle_concurrent_hashmapenumerator *rover,
+                                               intptr_t *hash,
+                                               void **value);
+static inline int
+  mulle_concurrent_hashmapenumerator_next( struct mulle_concurrent_hashmapenumerator *rover,
+                                           intptr_t *hash,
+                                           void **value)
+```
+Enumeration return codes: `1` OK, `0` nothing left, `ECANCELLED` mutation alert, `EINVAL`. Enumerating a NULL map produces an empty enumerator. The enumerator is only usable by the calling thread.
+
+```c
+static inline void
+   mulle_concurrent_hashmapenumerator_done( struct mulle_concurrent_hashmapenumerator *rover);
+```
+Cleanup (currently no-op, call for forward compatibility).
+
+**Convenience Macros:**
+
+```c
+mulle_concurrent_hashmap_for( name, hash, value)
+mulle_concurrent_hashmap_for_rval( name, hash, value, rval)
+```
+`for`-loop style enumeration; the `_rval` variant exposes the return value of `_next` (e.g. for ECANCELED detection).
+
+### 3.3. `mulle-concurrent-hashtable.h`
+
+#### `struct mulle_concurrent_hashtable`
+
+**EXPERIMENTAL.** Bugs have been found and fixed in its migration protocol repeatedly; the current design is soak-tested and exhaustively schedule-checked on small scenarios (`test/hashtable/explore.c`, sequential consistency, bounded preemptions), but not checked under weak memory ordering.
+
+**Purpose:** Wait-free, resizable hash map with a concurrent `remove`. Migration freezes the *hash* word and seals the *value* word, so values survive migration, a successful remove cannot be undone, and removed hashes are immediately reusable.
+
+**Key Fields (opaque):**
+- `storage` — current storage (`union mulle_concurrent_atomichashtablestorage_t`)
+- `allocator` — memory allocator (`mulle_atomic_pointer_t`)
+- `frozen_bit` — the reserved FROZEN hash bit (top bit in "positive" hash mode, bit 0 in "even" hash mode)
+- `hash_mask` — mask that clears the FROZEN bit to recover the stored hash
+- `sealed_bit` — the reserved SEALED value bit (bit 0 in "even" value mode, top bit in "positive" value mode)
+- `tombstone` — the reserved TOMB value marking a removed slot
+
+**Internal Structures:**
+- `struct _mulle_concurrent_hashtablepair` — `hash` (0 == unclaimed, may carry FROZEN) and `value` (EMPTY, payload or TOMB, may carry SEALED), both `mulle_atomic_pointer_t`
+- `struct _mulle_concurrent_hashtablestorage` — one generation: `n_hashs` count, `next` (successor generation, NULL if none) and `mask` (capacity-1)
+
+**Hash width restriction (critical):** legal hash range is `[1, INTPTR_MAX]` in the default "positive" mode (topmost bit must be clear, 0 is `NO_HASH`). On LP64 this is 63 usable bits; user-space pointers never set bit 63, so pointer-as-hash is safe. On ILP32 this is 31 usable bits — pointers above `0x80000000` CANNOT be used as hashes: they are out of range and rejected (insert/register/remove return `EINVAL`, lookup returns NULL), because since the hash IS the key in this design, two distinct pointers would otherwise collide. Use the "even" hash mode (FROZEN = bit 0, hashes must be even and non-zero, full address range, safe for aligned pointers on any platform) via `mulle_concurrent_hashtable_init_even` or `init_with_mode`.
+
+**Value restriction (critical):** in the default "even" value mode (SEALED = bit 0, TOMB = `MULLE_CONCURRENT_INVALID_POINTER`) values must be even — right for pointers, **odd integers are rejected with `EINVAL`**. For integer payloads use the "positive" value mode (SEALED = top bit, TOMB = `MULLE_CONCURRENT_TOMBSTONE_POINTER`, values in `[1, INTPTR_MAX - 1]`).
+
+**Lifecycle Functions (single-threaded only):**
+
+```c
+MULLE_C_NONNULL_FIRST
+void   _mulle_concurrent_hashtable_init_positive( struct mulle_concurrent_hashtable *map,
+                                                  size_t size,
+                                                  struct mulle_allocator *allocator);
+MULLE_C_NONNULL_FIRST
+void   _mulle_concurrent_hashtable_init_even( struct mulle_concurrent_hashtable *map,
+                                              size_t size,
+                                              struct mulle_allocator *allocator);
+static inline
+void   mulle_concurrent_hashtable_init( struct mulle_concurrent_hashtable *map,
+                                        size_t size,
+                                        struct mulle_allocator *allocator);
+static inline
+void   mulle_concurrent_hashtable_init_even( struct mulle_concurrent_hashtable *map,
+                                             size_t size,
+                                             struct mulle_allocator *allocator);
+static inline
+void   mulle_concurrent_hashtable_init_positive( struct mulle_concurrent_hashtable *map,
+                                                 size_t size,
+                                                 struct mulle_allocator *allocator);
+static inline
+void   mulle_concurrent_hashtable_init_with_mode( struct mulle_concurrent_hashtable *map,
+                                                  size_t size,
+                                                  unsigned int mode,
+                                                  struct mulle_allocator *allocator);
+
+#define MULLE_CONCURRENT_HASHTABLE_POSITIVE_HASH    0x0
+#define MULLE_CONCURRENT_HASHTABLE_EVEN_HASH        0x1
+#define MULLE_CONCURRENT_HASHTABLE_EVEN_VALUE       0x0
+#define MULLE_CONCURRENT_HASHTABLE_POSITIVE_VALUE   0x2
+```
+`mulle_concurrent_hashtable_init` and `init_positive` use positive hashes and even values; `init_even` uses even hashes and even values. `init_with_mode` combines one hash mode with one value mode (e.g. `MULLE_CONCURRENT_HASHTABLE_POSITIVE_VALUE` for integer payloads). `size` is a hint: rounded up to the next power of two and clamped to a minimum of 4, so any size is accepted; `mulle_concurrent_hashtable_get_size` reports the size actually used. `allocator` may be NULL (default). Allocation is fail-fast.
+
+```c
+void  mulle_concurrent_hashtable_done( struct mulle_concurrent_hashtable *map);
+```
+Frees internal resources. `map` must be a valid pointer (no NULL guard).
+
+**Core Operations (multi-threaded safe):**
+
+```c
+int   mulle_concurrent_hashtable_insert( struct mulle_concurrent_hashtable *map,
+                                       intptr_t hash,
+                                       void *value);
+```
+Insert hash/value pair. Returns `0` did insert, `EEXIST` a live value is already registered for `hash`, `EINVAL` invalid argument. A previously removed `hash` is immediately insertable again — no migration and no intermediate error state.
+
+```c
+int   mulle_concurrent_hashtable_register( struct mulle_concurrent_hashtable *map,
+                                         intptr_t hash,
+                                         void *value,
+                                         void **p_old);
+```
+Insert `value` if `hash` is absent. `*p_old` is set to the value registered afterwards: NULL if we inserted, otherwise the pre-existing value (in which case `value` was not stored). `p_old` may be NULL. Returns `0` OK, `EINVAL` invalid argument.
+
+```c
+int   mulle_concurrent_hashtable_remove( struct mulle_concurrent_hashtable *map,
+                                       intptr_t hash,
+                                       void *value);
+```
+Remove the `(hash, value)` pair (both must match). Returns `0` removed, `ENOENT` pair not present, `EINVAL` invalid argument.
+
+```c
+static inline int
+   mulle_concurrent_hashtable_hash_is_valid( struct mulle_concurrent_hashtable *map,
+                                             intptr_t hash)
+```
+Returns non-zero if `hash` is a legal key for `map`: non-zero and without the mode's FROZEN bit (topmost bit in "positive" mode, bit 0 in "even" mode). The mutating calls reject an illegal hash with `EINVAL`, and `lookup` reports it as NULL, exactly like an absent key. A caller that must tell the two apart should test with this first.
+
+```c
+static inline int
+   mulle_concurrent_hashtable_value_is_valid( struct mulle_concurrent_hashtable *map,
+                                              void *value)
+```
+Returns non-zero if `value` is a legal payload for `map`: non-NULL, without the mode's SEALED bit, and not the mode's TOMB value. The mutating calls reject an illegal value with `EINVAL`.
+
+```c
+void  *mulle_concurrent_hashtable_lookup( struct mulle_concurrent_hashtable *map,
+                                         intptr_t hash);
+```
+NULL if absent or if `hash` is not a legal key (see `mulle_concurrent_hashtable_hash_is_valid`), otherwise the registered value.
+
+**Inspection Functions:**
+
+```c
+size_t   mulle_concurrent_hashtable_get_size( struct mulle_concurrent_hashtable *map);
+```
+Current storage capacity (number of slots). Snapshot only.
+
+```c
+size_t   mulle_concurrent_hashtable_count( struct mulle_concurrent_hashtable *map);
+```
+Number of live entries, counted via enumeration. Expensive; snapshot only.
+
+**Test/Internal Hook:**
+
+```c
+void   _mulle_concurrent_hashtable_migrate_same_size( struct mulle_concurrent_hashtable *map);
+```
+Retires the current generation into a fresh one of the same size. Primarily a test hook to force continuous generation changes without doubling memory (used to reproduce the remove-versus-copy race). Not intended for production use.
+
+**Enumeration (limited multi-threaded):**
+
+```c
+struct mulle_concurrent_hashtableenumerator
+{
+   struct mulle_concurrent_hashtable   *map;
+   void                               *storage;   // compared only, never dereferenced
+   unsigned int                       index;
+};
+
+int   _mulle_concurrent_hashtableenumerator_next( struct mulle_concurrent_hashtableenumerator *rover,
+                                                 intptr_t *p_hash,
+                                                 void **p_value);
+```
+Enumeration return codes: `1` OK, `0` nothing left, `ECANCELED` the storage migrated (restart the enumeration), `EINVAL` wrong parameter value.
+
+```c
+static inline struct mulle_concurrent_hashtableenumerator
+   mulle_concurrent_hashtable_enumerate( struct mulle_concurrent_hashtable *map);
+
+static inline int
+   mulle_concurrent_hashtableenumerator_next( struct mulle_concurrent_hashtableenumerator *rover,
+                                             intptr_t *p_hash,
+                                             void **p_value);
+
+static inline void
+   mulle_concurrent_hashtableenumerator_done( struct mulle_concurrent_hashtableenumerator *rover);
+```
+`enumerate` on a NULL map produces an empty enumerator. Enumerator is only usable by the calling thread.
+
+**Convenience Macros:**
+
+```c
+mulle_concurrent_hashtable_for( name, hash, value)
+mulle_concurrent_hashtable_for_rval( name, hash, value, rval)
+```
+
+### 3.4. `mulle-concurrent-pointerarray.h`
+
+#### `struct mulle_concurrent_pointerarray`
+
+**Purpose:** Wait-free, lock-free, grow-only pointer array. Safe for concurrent reads and appends. Cannot shrink or overwrite elements.
+
+**Key Fields:**
+- `storage` — current array storage
+- `next_storage` — next storage during growth
+- `allocator` — memory allocator (plain pointer, not atomic)
+
+**Lifecycle Functions (single-threaded only):**
+
+```c
+void  _mulle_concurrent_pointerarray_init( struct mulle_concurrent_pointerarray *array,
+                                           unsigned int size,
+                                           struct mulle_allocator *allocator);
+static inline int  mulle_concurrent_pointerarray_init( struct mulle_concurrent_pointerarray *array,
+                                                       unsigned int size,
+                                                       struct mulle_allocator *allocator);
+```
+The static inline returns `0` on success, `EINVAL` for NULL array. Allocation is fail-fast (success or abort).
+
+```c
+void  _mulle_concurrent_pointerarray_done( struct mulle_concurrent_pointerarray *array);
+static inline void  mulle_concurrent_pointerarray_done( struct mulle_concurrent_pointerarray *array);
+```
+Frees internal resources; the static inline is safe with NULL.
+
+**Core Operations (multi-threaded safe):**
+
+```c
+void  _mulle_concurrent_pointerarray_add( struct mulle_concurrent_pointerarray *array,
+                                          void *value);
+static inline int  mulle_concurrent_pointerarray_add( struct mulle_concurrent_pointerarray *array,
+                                                      void *value);
+```
+Append `value` to the end of the array. The static inline returns `0` on success, `EINVAL` if `array` is NULL or `value` is `MULLE_CONCURRENT_NO_POINTER`/`MULLE_CONCURRENT_INVALID_POINTER`.
+
+```c
+void  *_mulle_concurrent_pointerarray_get( struct mulle_concurrent_pointerarray *array,
+                                           unsigned int index);
+static inline void  *mulle_concurrent_pointerarray_get( struct mulle_concurrent_pointerarray *array,
+                                          unsigned int i);
+```
+Get value at index. Returns NULL when `array` is NULL or `i` is outside the current count.
+
+```c
+int   _mulle_concurrent_pointerarray_find( struct mulle_concurrent_pointerarray *array,
+                                           void *search);
+static inline int  mulle_concurrent_pointerarray_find( struct mulle_concurrent_pointerarray *array,
+                                                       void *value);
+```
+Linear search. Returns the index on found, `EINVAL` on error (NULL array / reserved value). An element found at index 0 also returns 0 — treat `>= 0` as found.
+
+**Inspection Functions:**
+
+```c
+unsigned int  _mulle_concurrent_pointerarray_get_size( struct mulle_concurrent_pointerarray *array);
+static inline unsigned int  mulle_concurrent_pointerarray_get_size( struct mulle_concurrent_pointerarray *array);
+```
+Current capacity. Snapshot only.
+
+```c
+unsigned int  _mulle_concurrent_pointerarray_get_count( struct mulle_concurrent_pointerarray *array);
+static inline unsigned int  mulle_concurrent_pointerarray_get_count( struct mulle_concurrent_pointerarray *array);
+```
+Current element count. Reliable because the array is grow-only.
+
+**Mapping:**
+
+```c
+int   mulle_concurrent_pointerarray_map( struct mulle_concurrent_pointerarray *list,
+                                        void (*f)( void *, void *),
+                                        void *userinfo);
+```
+Apply `f(value, userinfo)` to each element.
+
+**Enumeration:**
+
+```c
+struct mulle_concurrent_pointerarrayenumerator
+{
+   struct mulle_concurrent_pointerarray   *array;
+   unsigned int                            index;
+};
+
+struct mulle_concurrent_pointerarrayreverseenumerator
+{
+   struct mulle_concurrent_pointerarray   *array;
+   unsigned int                           index;
+};
+
+void   *_mulle_concurrent_pointerarrayenumerator_next( struct mulle_concurrent_pointerarrayenumerator *rover);
+
+void   *_mulle_concurrent_pointerarrayreverseenumerator_next( struct mulle_concurrent_pointerarrayreverseenumerator *rover);
+
+struct mulle_concurrent_pointerarrayenumerator
+   mulle_concurrent_pointerarray_enumerate( struct mulle_concurrent_pointerarray *array);
+
+struct mulle_concurrent_pointerarrayreverseenumerator
+   mulle_concurrent_pointerarray_reverseenumerate( struct mulle_concurrent_pointerarray *array, unsigned int n);
+
+static inline void  *mulle_concurrent_pointerarrayenumerator_next( struct mulle_concurrent_pointerarrayenumerator *rover);
+
+static inline void  *mulle_concurrent_pointerarrayreverseenumerator_next( struct mulle_concurrent_pointerarrayreverseenumerator *rover);
+
+static inline void  mulle_concurrent_pointerarrayenumerator_done( struct mulle_concurrent_pointerarrayenumerator *rover);
+
+static inline void  mulle_concurrent_pointerarrayreverseenumerator_done( struct mulle_concurrent_pointerarrayreverseenumerator *rover);
+```
+`enumerator_next` returns the next pointer or NULL when exhausted. Safe even if the array grows during iteration (append-only). `reverseenumerate` starts at index `n` and counts down.
+
+**Convenience Macros:**
+
+```c
+mulle_concurrent_pointerarray_for( name, item)
+mulle_concurrent_pointerarray_for_reverse( name, n, item)
+```
+
+### 3.5. `mulle-concurrent-pointerset.h`
+
+#### `struct mulle_concurrent_pointerset`
+
+**Purpose:** **EXPERIMENTAL.** Wait-free, insert-only set of `void *` pointers using linear probing with a single-word-per-slot layout. The pointer value itself is the key — it is hashed internally; no separate hash key is needed. There is no `remove`.
+
+**Key Fields (opaque):**
+- `storage` — current storage
+- `next_storage` — next storage during migration
+- `allocator` — memory allocator (`mulle_atomic_pointer_t`)
+
+**Slot States (linear probing):**
+- `NULL` (`MULLE_CONCURRENT_NO_POINTER`) — empty; probe chain stops
+- `INTPTR_MIN` (`MULLE_CONCURRENT_INVALID_POINTER`) — REDIRECT, migration in progress, retry
+- Anything else — live pointer
+
+**Insert-only:** there is no remove operation and therefore no tombstone state. `INTPTR_MAX` (`MULLE_CONCURRENT_TOMBSTONE_POINTER`) remains reserved library-wide and is rejected as user data, but the pointerset does not use it as a slot state.
+
+**Lifecycle Functions (single-threaded only):**
+
+```c
+int  _mulle_concurrent_pointerset_init( struct mulle_concurrent_pointerset *set,
+                                        size_t size,
+                                        struct mulle_allocator *allocator);
+static inline int
+   mulle_concurrent_pointerset_init( struct mulle_concurrent_pointerset *set,
+                                     size_t size,
+                                     struct mulle_allocator *allocator);
+```
+Returns `0` on success, `EINVAL` for NULL set. Allocation is fail-fast.
+
+```c
+void  _mulle_concurrent_pointerset_done( struct mulle_concurrent_pointerset *set);
+static inline void
+   mulle_concurrent_pointerset_done( struct mulle_concurrent_pointerset *set);
+```
+Frees internal resources; the static inline is safe with NULL.
+
+```c
+static inline void
+   mulle_concurrent_pointerset_reset( struct mulle_concurrent_pointerset *set);
+```
+Clears the set by combining `done` + `init` with the same size and allocator.
+
+**Core Operations (multi-threaded safe):**
+
+```c
+void  *_mulle_concurrent_pointerset_register( struct mulle_concurrent_pointerset *set,
+                                              void *ptr);
+void  *mulle_concurrent_pointerset_register( struct mulle_concurrent_pointerset *set,
+                                             void *ptr);
+```
+Insert-or-get. Returns `MULLE_CONCURRENT_NO_POINTER` if it inserted, `MULLE_CONCURRENT_INVALID_POINTER` on error (check `errno`), or the pointer if already present. Do not pass NULL, `INTPTR_MIN`, or `(void *) -1`.
+
+```c
+int  _mulle_concurrent_pointerset_insert( struct mulle_concurrent_pointerset *set,
                                           void *ptr);
-int   mulle_concurrent_pointerset_remove( struct mulle_concurrent_pointerset *set,
+int   mulle_concurrent_pointerset_insert( struct mulle_concurrent_pointerset *set,
                                           void *ptr);
 ```
-Remove pointer. Returns `0` removed, `ENOENT` not found, `EINVAL` invalid argument.
+Insert pointer. Returns `0` inserted, `EEXIST` already present, `EINVAL` invalid argument.
+
+```c
+int  _mulle_concurrent_pointerset_member( struct mulle_concurrent_pointerset *set,
+                                          void *ptr);
+static inline int
+   mulle_concurrent_pointerset_member( struct mulle_concurrent_pointerset *set,
+                                       void *ptr);
+```
+Returns `1` if `ptr` is in the set, `0` if not. NULL `set`/`ptr` return `0` silently without setting `errno`.
 
 **Inspection Functions:**
 
@@ -554,7 +957,7 @@ Current storage capacity. Snapshot only.
 static inline struct mulle_allocator *
    mulle_concurrent_pointerset_get_allocator( struct mulle_concurrent_pointerset *set);
 ```
-Returns the allocator used by the set, or NULL if `set` is NULL. Uses a relaxed atomic read, so it is safe to call concurrently.
+Returns the allocator used by the set, or NULL if `set` is NULL. Uses an atomic read, so it is safe to call concurrently.
 
 ```c
 size_t   mulle_concurrent_pointerset_count( struct mulle_concurrent_pointerset *set);
@@ -645,21 +1048,22 @@ Encoded version: (major << 20) | (minor << 8) | revision — currently 4.1.0.
 
 ### mulle_concurrent_pointerarray
 
-- **Add:** O(1) amortized, wait-free with occasional resize.
-- **Get:** O(1), direct index with atomic load.
+- **Add:** O(1) amortized, wait-free with helping publication and occasional resize.
+- **Get:** O(1), direct index with an acquire load of the count.
 - **Find:** O(n), linear search.
 - **Enumeration:** O(count), safe even during concurrent additions.
 - **Map:** O(count).
 - **Space:** O(capacity), capacity >= count, doubles on growth.
-- **Thread-safety:** Wait-free for all operations. No removal operations exist.
+- **Thread-safety:** Wait-free for all operations (assuming wait-free allocation and reclamation for growth). No removal operations exist.
 
 ### mulle_concurrent_pointerset
 
-- **Insert/Register/Member/Remove:** O(1) average, wait-free with linear probing and atomic CAS.
-- **Migration:** Amortized O(n), triggered when (tombstones + live entries) >= 50% capacity.
+- **Insert/Register/Member:** O(1) average, wait-free with linear probing and atomic CAS.
+- **Remove:** none. The set is insert-only.
+- **Migration:** Amortized O(n), triggered at 50% live load; always doubles.
 - **Enumeration/Count:** O(capacity); ECANCELED on mutation.
-- **Space:** O(capacity), capacity >= count + tombstones. Tombstones are dropped during migration; remove-heavy workloads trigger earlier migration.
-- **Thread-safety:** Wait-free for core operations. Enumeration returns ECANCELED on mutation.
+- **Space:** O(capacity), capacity >= count.
+- **Thread-safety:** Wait-free for insert/register/member (assuming wait-free allocation and reclamation for growth). Enumeration returns ECANCELED on mutation.
 
 ### General
 
@@ -681,7 +1085,7 @@ Encoded version: (major << 20) | (minor << 8) | revision — currently 4.1.0.
 7. **Handle enumeration mutations:** check for `ECANCELED` and retry the whole enumeration from the start; retries may duplicate or miss entries changed in between — that is expected.
 8. **Use convenience macros** (`mulle_concurrent_hashtable_for`, `mulle_concurrent_hashmap_for`, `mulle_concurrent_pointerarray_for`, `mulle_concurrent_pointerset_for`) for correct enumerator lifecycle; use `_rval` variants when you need to detect `ECANCELED`.
 9. **Accept snapshot semantics:** `count`, `get_size`, `get_count` and `lookup_any` return potentially-stale snapshots. Use them for diagnostics/heuristics, not correctness decisions.
-10. **Pointerset reset for tombstone cleanup:** use `mulle_concurrent_pointerset_reset()` in remove-heavy workloads.
+10. **Pointerset reset:** use `mulle_concurrent_pointerset_reset()` to empty the set.
 11. **Connect a custom allocator to ABA:** use `mulle_allocator_set_aba()` so retired storage is freed safely.
 12. **Use `_prefixed` functions for hot paths** only when parameters are guaranteed valid — they skip NULL checks.
 
@@ -697,7 +1101,7 @@ Encoded version: (major << 20) | (minor << 8) | revision — currently 4.1.0.
 8. **Ignoring ECANCELED** during enumeration leads to incomplete iteration.
 9. **Sharing enumerators** between threads — each thread must create its own.
 10. **Pointerset member with NULL** returns 0 silently without setting errno.
-11. **Pointerset tombstone accumulation** — heavy remove usage triggers early migration; use `reset`.
+11. **Pointerset is insert-only** — it has no remove and no tombstones; use `reset` to empty it.
 
 ### Idiomatic Usage
 
@@ -831,7 +1235,7 @@ int   main( int argc, char *argv[])
 }
 ```
 
-### Example 4: Pointerset — Insert, Member, Remove, Reset
+### Example 4: Pointerset — Insert, Member, Register, Reset
 
 ```c
 #include <mulle-concurrent/mulle-concurrent.h>
@@ -865,10 +1269,7 @@ int   main( int argc, char *argv[])
    result = mulle_concurrent_pointerset_register( &set, p3);
    assert( result == p3);
 
-   assert( mulle_concurrent_pointerset_remove( &set, p1) == 0);
-   assert( mulle_concurrent_pointerset_remove( &set, p1) == ENOENT);
-
-   // heavy remove workload: drop tombstones explicitly
+   // insert-only: reset empties the set and keeps the capacity
    for( i = 0x4000; i <= 0x6000; i += 0x10)
       mulle_concurrent_pointerset_insert( &set, (void *) (uintptr_t) i);
    mulle_concurrent_pointerset_reset( &set);

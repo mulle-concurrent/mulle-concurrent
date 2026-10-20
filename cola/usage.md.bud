@@ -114,6 +114,8 @@ crash.
   that observes a frozen slot helps finish the migration and then retries
   its own operation. For the hashmap the bound is worked out step by step in
   [Wait-free status of the hashmap point operations](dox/WAIT-FREE-LOCK-FREE.md).
+  The hashtable's `register` is lock-free, not wait-free, under same-key
+  insert/remove churn.
 * **`count`, `get_size`, `get_count` and `lookup_any` are snapshots** — they
   return a value from some point in time during the call and may be stale if
   the structure is mutated concurrently. Use them for diagnostics and
@@ -121,7 +123,8 @@ crash.
   restarts its enumeration when a concurrent mutation cancels it.
 * **Enumeration is "limited multi-threaded"** — an enumerator is only usable
   by the calling thread. For the hashmap, hashtable and pointerset, concurrent
-  mutation (insert/remove/growth) may interrupt the enumeration; the enumerator
+  mutation (insert, remove where supported, or growth) may interrupt the
+  enumeration; the enumerator
   then returns `ECANCELED` and you retry the whole enumeration from the start.
   Retrying may yield duplicates or miss entries that changed in between —
   that is expected. The pointerarray is append-only, so its enumerators work
@@ -150,12 +153,10 @@ crash.
   slot is claimed by CASing its hash, and only operations with that matching
   hash may write its value, so two different keys can never collide on one
   slot's value.
-* **Tombstones** — the pointerset leaves a tombstone for a removed pointer so
-  probe chains are not broken; tombstones are not reused within a storage
-  generation. Migration drops them while strictly growing the storage. For
-  remove-heavy workloads `mulle_concurrent_pointerset_reset()` can reclaim them
-  explicitly. The hashtable marks a removed value with a TOMB value too, but
-  that slot *is* immediately reusable. The hashmap has no tombstones.
+* **Tombstones** — the pointerset is EXPERIMENTAL and insert-only: it has no
+  remove and no tombstones. The hashtable marks a removed value with a TOMB
+  value, but that slot *is* immediately reusable. The hashmap has no
+  tombstones either; its removal is single-threaded.
 * **`init` and `done` are single-threaded** — no other thread may access the
   structure while either runs. See the *Lifecycle checklist*.
 
@@ -170,7 +171,7 @@ use. **Never store a value as payload in a container that reserves it.**
 | `0` (hash)            | `MULLE_CONCURRENT_NO_HASH`          | unclaimed slot / invalid hash     | hashmap, hashtable
 | `NULL`                | `MULLE_CONCURRENT_NO_POINTER`       | "no value" sentinel / empty slot  | all structures
 | `(void *) INTPTR_MIN` | `MULLE_CONCURRENT_INVALID_POINTER`  | hashmap REDIRECT freeze marker, hashtable TOMB (even values) | hashmap, pointerarray, pointerset, hashtable (even values)
-| `(void *) INTPTR_MAX` | `MULLE_CONCURRENT_TOMBSTONE_POINTER`| pointerset tombstone, hashtable TOMB (positive values)        | pointerset, hashtable (positive values)
+| `(void *) INTPTR_MAX` | `MULLE_CONCURRENT_TOMBSTONE_POINTER`| hashtable TOMB (positive values)                              | hashtable (positive values)
 | odd / top bit set     | —                                   | hashtable SEALED bit              | hashtable (even / positive values)
 
 The values are defined in `src/mulle-concurrent-types.h`. They are

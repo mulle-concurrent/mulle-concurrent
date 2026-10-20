@@ -1,4 +1,7 @@
-# Wait-free status of the hashmap point operations
+# Wait-free status of the concurrent structures
+
+This document covers the hashmap first, then the pointerset and pointerarray
+sections at the end.
 
 `mulle_concurrent_hashmap_lookup`, `_insert` and `_register` are **wait-free**:
 each completes in a bounded number of its own steps, and the bound does not
@@ -310,3 +313,59 @@ process, so a failed allocation never produces retries.
 Both satisfy the freeze-word law of §2; they differ only in which word carries
 the marker, and therefore in what they can offer on top. See
 [HASHTABLE.md](HASHTABLE.md).
+
+
+# Pointerset (EXPERIMENTAL, insert/register/member only)
+
+`mulle_concurrent_pointerset_insert`, `_register` and `_member` are
+wait-free under the same allocation/reclamation assumption as above.
+
+- **Probe loops have a real exit.** The occupancy gate is not atomic with the
+  slot claim, so an arbitrary number of in-flight claimers can fill the storage
+  while `n_used` is still below the threshold. Every probe loop is bounded by
+  `mask + 1`: absent `member` returns 0, full `register` returns
+  `INVALID_POINTER` (migrate and retry). There is no `assert` used for
+  termination.
+- **Copy freezes virgin slots.** An insert holding a retired storage observes
+  `REDIRECT`, returns `EBUSY` and retries in the newer generation. A copy pass
+  is one scan of `size` slots with a bounded inner loop.
+- **Retries advance a generation.** Migration always doubles (`assert` plus an
+  explicit overflow abort) and a stale `migrate_storage(set, p)` returns
+  immediately when `storage != p`. Every `EBUSY` or load-threshold retry
+  therefore observes a strictly newer, strictly larger generation; the retry
+  count is bounded by the number of size classes.
+- **Memory order.** Pointers are published with the seq_cst pointer primitives
+  for slot claims, carries, redirects, slot reads and for
+  `next_storage`/`storage`. Publication of a successor therefore orders every
+  helper's slot write before a reader that acquire-loads `storage`. A tuned
+  release/acquire chain is possible but must keep that property.
+
+The set is **insert-only**: there is no `remove` and no tombstone state.
+`count`/enumeration are snapshots outside the guarantee; `init`/`done`/`reset`
+are single-threaded.
+
+
+# Pointerarray
+
+`mulle_concurrent_pointerarray_add`, `_get` and `_get_count` are wait-free
+under the allocation/reclamation assumption.
+
+- **Helping publication.** A writer claims `entries[i]` and then publishes the
+  count. A peer that finds the slot occupied advances the count itself
+  (`_publish()` advances over the whole contiguous filled prefix). The count
+  CAS is the gate, so it is never bumped twice. Each `add` iteration either
+  returns or leaves `n` strictly higher, bounding the loop by capacity.
+- **Copy** processes source slots in increasing order, freezes each one,
+  carries live values, and publishes the destination prefix before the
+  `storage` CAS. A stale `migrate_storage(array, p)` returns immediately when
+  `storage != p`, and migration always doubles with an explicit overflow
+  abort, so retries are bounded by the size classes.
+- **Destination retirement.** `put` follows `next_storage` if the destination
+  slot is frozen, so a slow copier cannot write into a dead generation.
+- **Memory order.** Slot and `n` CASes are seq_cst; `_publish` and the
+  destination observations in `copy` acquire the values they publish; `get`
+  and `get_count` acquire-load `n` before reading entries; storage publication
+  and consumption are release/acquire.
+
+The in-table algorithm is wait-free; growth is wait-free only if allocation and
+reclamation are. Pre-size the array to avoid growth if that matters.

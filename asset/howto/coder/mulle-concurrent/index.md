@@ -22,7 +22,7 @@ mulle-sde howto show --role coder --topic mulle-concurrent
 |---|---|---|
 | `mulle_concurrent_hashmap` | `src/hashmap/mulle-concurrent-hashmap.h` | Wait-free hash-table mapping `intptr_t` hash → `void *` value |
 | `mulle_concurrent_pointerarray` | `src/pointerarray/mulle-concurrent-pointerarray.h` | Wait-free grow-only pointer array |
-| `mulle_concurrent_pointerset` | `src/pointerset/mulle-concurrent-pointerset.h` | Wait-free pointer set with linear probing |
+| `mulle_concurrent_pointerset` | `src/pointerset/mulle-concurrent-pointerset.h` | EXPERIMENTAL wait-free insert-only pointer set with linear probing |
 | Types / sentinels | `src/mulle-concurrent-types.h` | `MULLE_CONCURRENT_NO_HASH`, `*_INVALID_POINTER`, `*_NO_POINTER`, `*_TOMBSTONE_POINTER` |
 
 ## Scenario to API map

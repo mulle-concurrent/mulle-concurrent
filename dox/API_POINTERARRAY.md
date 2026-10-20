@@ -22,10 +22,17 @@ The following operations are fine in multi-threaded environments:
 * `mulle_concurrent_pointerarray_get_count`
 * `mulle_concurrent_pointerarray_get_size`
 
-
+`add` is wait-free: a writer that stalls after claiming a slot cannot block
+others, because a peer publishes the count prefix for it. `get` and
+`get_count` acquire-load the count before reading entries. The in-table
+algorithm is wait-free; growth is wait-free only if allocation and reclamation
+are, so pre-size the array (or use a wait-free allocator) if that matters.
 
 All allocation is **fail-fast**: the mulle allocator contract is *success or
-abort*, so `init` and `add` never return an allocation error.### `mulle_concurrent_pointerarray_init`
+abort*, so `init` and `add` never return an allocation error. Growth aborts at
+the maximum representable capacity instead of wrapping the size.
+
+### `mulle_concurrent_pointerarray_init`
 
 ```
 int   mulle_concurrent_pointerarray_init( struct mulle_concurrent_pointerarray *array,

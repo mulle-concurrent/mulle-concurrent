@@ -75,35 +75,6 @@ static void  load_threshold_test( void)
 }
 
 
-static void  tombstone_growth_test( void)
-{
-   struct mulle_concurrent_pointerset   set;
-   unsigned int                         i;
-
-   mulle_concurrent_pointerset_init( &set, 8, NULL);
-
-   for( i = 1; i <= 4; i++)
-      check( mulle_concurrent_pointerset_insert( &set, (void *)(uintptr_t) i) == 0,
-             "tombstone insert" );
-
-   // removing leaves tombstones; the slots stay consumed, so the next
-   // insert has to grow the set even though the live count is small
-   for( i = 1; i <= 3; i++)
-      check( mulle_concurrent_pointerset_remove( &set, (void *)(uintptr_t) i) == 0,
-             "tombstone remove" );
-   check( mulle_concurrent_pointerset_get_size( &set) == 8, "tombstone no grow yet" );
-   check( mulle_concurrent_pointerset_count( &set) == 1, "tombstone live count" );
-
-   check( mulle_concurrent_pointerset_insert( &set, (void *) 0x9999) == 0,
-          "tombstone insert grows" );
-   check( mulle_concurrent_pointerset_get_size( &set) == 16, "tombstone grew" );
-   check( mulle_concurrent_pointerset_count( &set) == 2, "tombstone count after grow" );
-   check( mulle_concurrent_pointerset_member( &set, (void *) 4) == 1, "tombstone survivor" );
-
-   mulle_concurrent_pointerset_done( &set);
-}
-
-
 static void  reset_test( void)
 {
    struct mulle_concurrent_pointerset   set;
@@ -116,11 +87,7 @@ static void  reset_test( void)
       check( mulle_concurrent_pointerset_insert( &set, (void *)(uintptr_t)(i * 16 + 1)) == 0,
              "reset insert" );
    check( mulle_concurrent_pointerset_get_size( &set) >= 128, "reset grew" );
-
-   for( i = 1; i <= 100; i += 2)
-      check( mulle_concurrent_pointerset_remove( &set, (void *)(uintptr_t)(i * 16 + 1)) == 0,
-             "reset remove" );
-   check( mulle_concurrent_pointerset_count( &set) == 50, "reset count" );
+   check( mulle_concurrent_pointerset_count( &set) == 100, "reset count" );
 
    size = mulle_concurrent_pointerset_get_size( &set);
    mulle_concurrent_pointerset_reset( &set);
@@ -166,7 +133,6 @@ int   main( void)
 
    init_size_test();
    load_threshold_test();
-   tombstone_growth_test();
    reset_test();
    large_capacity_test();
 

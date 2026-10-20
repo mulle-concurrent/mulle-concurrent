@@ -20,8 +20,8 @@
 - `MULLE_CONCURRENT_INVALID_POINTER` (INTPTR_MIN) — never store as a value.
   Used internally as a REDIRECT marker during migration.
 - `MULLE_CONCURRENT_TOMBSTONE_POINTER` (INTPTR_MAX) — never store as a value.
-  Used in pointerset as a removal marker; including it as user data corrupts
-  the set.
+  Used as the hashtable TOMB in positive value mode and as the hashmap removal
+  marker. The pointerset does not use it as a slot state but still rejects it.
 
 These values are defined in `src/mulle-concurrent-types.h:44-48`. You
 **can** redefine them before including the header if your use-case requires
@@ -109,16 +109,14 @@ int rval = mulle_concurrent_hashmap_remove( &map, hash, value);
 
 ## Pointerset: linear probing with tombstones
 
-- Pointerset uses linear probing with single-word-per-slot storage.
+- Pointerset is EXPERIMENTAL and insert-only: linear probing with
+  single-word-per-slot storage.
 - Slot states: `NULL` = empty (probe chain stops), `INTPTR_MIN` = REDIRECT
-  (migration underway, retry), `INTPTR_MAX` = TOMBSTONE (removed, probe
-  continues), anything else = live pointer.
-- Tombstones are **never reused** for new inserts — they accumulate until
-  migration drops them.
-- A remove-heavy workload triggers earlier migration because tombstones
-  count toward the 50% load threshold (tombstones + live >= 50% capacity).
-- Use `mulle_concurrent_pointerset_reset` to clear tombstone accumulation
-  in remove-heavy scenarios.
+  (migration underway, retry), anything else = live pointer.
+- There is no remove and no tombstone state. `INTPTR_MAX` is reserved
+  library-wide and rejected, but unused internally.
+- Use `mulle_concurrent_pointerset_reset` to empty the set while keeping its
+  capacity.
 
 ## Pointerset: `member` with NULL returns 0 silently
 

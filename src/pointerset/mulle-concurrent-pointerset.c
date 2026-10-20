@@ -46,37 +46,45 @@
 // Slot states:
 //   NULL       (MULLE_CONCURRENT_NO_POINTER)      = empty, probe chain stops here
 //   INTPTR_MIN (MULLE_CONCURRENT_INVALID_POINTER) = REDIRECT (migration in progress)
-//   INTPTR_MAX (MULLE_CONCURRENT_TOMBSTONE)       = removed, probe chain continues
 //   other                                         = live pointer
 //
-// Why tombstones instead of NULL on removal:
-//   With linear probing, pointers that hash to the same slot form a chain.
-//   If ptr_A, ptr_B, ptr_C all hash to slot 5, they land at slots 5, 6, 7.
-//   Removing ptr_A by writing NULL breaks the chain: a lookup for ptr_C
-//   stops at slot 5 (NULL = "nothing here, stop") and returns "not found"
-//   even though ptr_C is at slot 7. A tombstone says "something was here,
-//   keep probing" and preserves correctness.
-//
-// Why we do NOT reuse tombstone slots for new inserts:
-//   Reuse would require: remember the first tombstone seen, scan forward to
-//   confirm no duplicate exists, then go back and CAS the tombstone slot.
-//   The scan and the CAS are not atomic, so another thread can insert the
-//   same pointer in between, causing a duplicate. Making this race-free
-//   requires a two-phase protocol nearly as complex as a lock.
-//
-//   Note: if two threads race to insert the same ptr_Q into a tombstone slot,
-//   the CAS loser re-reads the slot, sees ptr_Q already there, and correctly
-//   returns EEXIST — no duplicate. The problem is only with the forward scan
-//   for pre-existing duplicates, not the CAS itself.
-//
-//   So we skip tombstones during insert (probe past them, claim a fresh NULL
-//   slot instead). Tombstones accumulate but are dropped for free at migration
-//   time — they are simply not copied to the new storage. The only cost is
-//   that n_used fills up faster, triggering migrations sooner in remove-heavy
-//   workloads.
+// The set is insert-only: there is no remove, so no tombstones are needed and
+// a NULL is always the true end of a probe chain. INTPTR_MAX remains reserved
+// library-wide and is rejected as user data, but it is not a slot state here.
 
 #define REDIRECT_VALUE   MULLE_CONCURRENT_INVALID_POINTER
-#define TOMBSTONE_VALUE  MULLE_CONCURRENT_TOMBSTONE_POINTER
+
+
+//
+// Test scaffolding, same idea as MULLE_CONCURRENT_HASHTABLE_RACE_YIELD.
+// Defining MULLE_CONCURRENT_POINTERSET_RACE_YIELD widens the migration race
+// windows so that the stochastic tests can hit them. Compiles to nothing
+// otherwise.
+//
+#ifdef MULLE_CONCURRENT_POINTERSET_RACE_YIELD
+
+#define  pointerset_race_yield( void)   MULLE_THREAD_UNPLEASANT_RACE_YIELD()
+#else
+# define pointerset_race_yield()   do {} while( 0)
+#endif
+
+//
+// Named race points. By default each one is just pointerset_race_yield().
+// A test can #define pointerset_race_point( site) and #include this file to
+// park a thread at an exact point, which turns a probabilistic race into a
+// deterministic interleaving (see test/pointerset/migration_stall.c).
+//
+#define POINTERSET_RACE_INSERT         1   // insert: storage read, slot CAS not yet
+#define POINTERSET_RACE_REGISTER       2   // register: storage read, slot CAS not yet
+#define POINTERSET_RACE_MEMBER         4   // member: storage read, probe not started
+#define POINTERSET_RACE_CLAIMED        5   // register: slot CAS won, n_used not bumped yet
+#define POINTERSET_RACE_COPY_EMPTY     6   // copy: empty slot seen, not frozen yet
+#define POINTERSET_RACE_COPY_READ      7   // copy: value read, not registered yet
+#define POINTERSET_RACE_COPY_CARRIED   8   // copy: carried into successor, not redirected
+
+#ifndef pointerset_race_point
+# define pointerset_race_point( site)   pointerset_race_yield()
+#endif
 
 
 static inline uintptr_t   mulle_pointer_hash( void *ptr)
@@ -107,6 +115,10 @@ static struct _mulle_concurrent_pointersetstorage *
 
    assert( (n & (n - 1)) == 0);  // power of 2
 
+   if( n - 1 > (SIZE_MAX - sizeof( struct _mulle_concurrent_pointersetstorage)) /
+               sizeof( mulle_atomic_pointer_t))
+      _mulle_allocator_abort( allocator, NULL, (size_t) -1);
+
    p = _mulle_allocator_calloc( allocator, 1,
          sizeof( struct _mulle_concurrent_pointersetstorage) +
          sizeof( mulle_atomic_pointer_t) * (n - 1));
@@ -134,24 +146,22 @@ static int
 {
    void          *found;
    uintptr_t     index;
-
-#ifndef NDEBUG
-   uintptr_t   sentinel;
-
-   sentinel = mulle_pointer_hash( ptr) + (uintptr_t) p->mask + 1;
-#endif
+   uintptr_t     probes;
 
    index = mulle_pointer_hash( ptr);
-   for(;;)
+   for( probes = 0;; probes++)
    {
-      found = _mulle_atomic_pointer_read_relaxed( &p->entries[ index & (uintptr_t) p->mask]);
+      found = _mulle_atomic_pointer_read( &p->entries[ index & (uintptr_t) p->mask]);
       if( found == MULLE_CONCURRENT_NO_POINTER)
          return( 0);
       if( found == ptr)
          return( 1);
-      // tombstone or other pointer: keep probing
+      if( MULLE_C_UNLIKELY( found == REDIRECT_VALUE))
+         return( EBUSY);
+      // other pointer: keep probing
+      if( MULLE_C_UNLIKELY( probes >= p->mask))
+         return( 0);       // full cycle without a match or a redirect
       ++index;
-      assert( index != sentinel);
    }
 }
 
@@ -167,19 +177,16 @@ static void *
 {
    void          *found;
    uintptr_t     index;
-#ifndef NDEBUG
-   uintptr_t   sentinel;
-   sentinel = mulle_pointer_hash( ptr) + (uintptr_t) p->mask + 1;
-#endif
+   uintptr_t     probes;
 
    assert( ptr != MULLE_CONCURRENT_NO_POINTER);
    assert( ptr != MULLE_CONCURRENT_INVALID_POINTER);
-   assert( ptr != TOMBSTONE_VALUE);
+   assert( ptr != MULLE_CONCURRENT_TOMBSTONE_POINTER);
 
    index = mulle_pointer_hash( ptr);
-   for(;;)
+   for( probes = 0;; probes++)
    {
-      found = _mulle_atomic_pointer_read_relaxed( &p->entries[ index & (uintptr_t) p->mask]);
+      found = _mulle_atomic_pointer_read( &p->entries[ index & (uintptr_t) p->mask]);
 
       if( found == ptr)
          return( ptr);   // already present
@@ -187,13 +194,15 @@ static void *
       if( found == MULLE_CONCURRENT_NO_POINTER)
       {
          // try to claim this empty slot
-         found = __mulle_atomic_pointer_cas_relaxed( &p->entries[ index & (uintptr_t) p->mask],
+         found = __mulle_atomic_pointer_cas( &p->entries[ index & (uintptr_t) p->mask],
                                              ptr,
                                              MULLE_CONCURRENT_NO_POINTER);
          if( found == MULLE_CONCURRENT_NO_POINTER)
          {
-            // claimed: bump n_used
-            _mulle_atomic_pointer_increment_relaxed( &p->n_used);
+            pointerset_race_point( POINTERSET_RACE_CLAIMED);
+            // claimed: bump n_used. A stalled increment only makes the load
+            // threshold advisory; it must never be a probe-loop exit.
+            _mulle_atomic_pointer_increment( &p->n_used);
             return( MULLE_CONCURRENT_NO_POINTER);  // inserted
          }
          // lost the CAS — re-examine what's there now
@@ -205,11 +214,11 @@ static void *
       }
       else if( MULLE_C_UNLIKELY( found == REDIRECT_VALUE))
          return( MULLE_CONCURRENT_INVALID_POINTER);
-      // tombstone or collision: probe on
-      // (we never reuse tombstone slots — see comment at top of file)
+      // collision: probe on
 
+      if( MULLE_C_UNLIKELY( probes >= p->mask))
+         return( MULLE_CONCURRENT_INVALID_POINTER);  // full cycle: migrate
       ++index;
-      assert( index != sentinel);
    }
 }
 
@@ -229,49 +238,14 @@ static int
 }
 
 
-static int
-   _mulle_concurrent_pointersetstorage_remove( struct _mulle_concurrent_pointersetstorage *p,
-                                               void *ptr)
-{
-   void          *found;
-   uintptr_t     index;
-#ifndef NDEBUG
-   uintptr_t     sentinel;
-   sentinel = mulle_pointer_hash( ptr) + (uintptr_t) p->mask + 1;
-#endif
-
-   index = mulle_pointer_hash( ptr);
-   for(;;)
-   {
-      found = _mulle_atomic_pointer_read_relaxed( &p->entries[ index & (uintptr_t) p->mask]);
-
-      if( found == MULLE_CONCURRENT_NO_POINTER)
-         return( ENOENT);
-
-      if( MULLE_C_UNLIKELY( found == REDIRECT_VALUE))
-         return( EBUSY);
-
-      if( found == ptr)
-      {
-         found = __mulle_atomic_pointer_cas_relaxed( &p->entries[ index & (uintptr_t) p->mask],
-                                             TOMBSTONE_VALUE,
-                                             ptr);
-         if( found == ptr)
-            return( 0);
-         if( MULLE_C_UNLIKELY( found == REDIRECT_VALUE))
-            return( EBUSY);
-         // someone else removed it already
-         return( ENOENT);
-      }
-      // tombstone or other pointer: keep probing
-      ++index;
-      assert( index != sentinel);
-   }
-}
-
-
-// Copy live entries from src to dst; mark src slots as REDIRECT.
-// Tombstones are dropped (not copied) — that's the cleanup.
+// Copy live entries from src to dst; freeze the src slots, set them to REDIRECT
+// once their value has been carried. Tombstones are dropped (not copied).
+//
+// Ignoring the result of register() is safe here: every value this pass can
+// still see in src was either frozen-and-carried by the pass that retired src
+// (then it is already in dst or in dst's successor), or this pass is the one
+// that freezes it. If dst is itself being migrated, INVALID means "already in
+// a newer generation", not "lost".
 static void
    _mulle_concurrent_pointersetstorage_copy( struct _mulle_concurrent_pointersetstorage *dst,
                                              struct _mulle_concurrent_pointersetstorage *src)
@@ -281,24 +255,46 @@ static void
    void                     *value;
    void                     *actual;
 
+   // the shared empty storage has one entry (mask == 0) and is const, so a
+   // copy pass would write REDIRECT into .rodata. Never touch it.
+   if( _mulle_concurrent_pointersetstorage_is_const( src))
+      return;
+
    entry    = src->entries;
    sentinel = &src->entries[ src->mask + 1];
 
    for( ; entry < sentinel; entry++)
    {
-      value = _mulle_atomic_pointer_read_relaxed( entry);
+      value = _mulle_atomic_pointer_read( entry);
       for(;;)
       {
-         if( value == MULLE_CONCURRENT_NO_POINTER || value == TOMBSTONE_VALUE)
-            break;   // empty or tombstone: skip — tombstones are dropped here,
-                     // which is the free cleanup promised in the design
+         if( value == MULLE_CONCURRENT_NO_POINTER)
+         {
+            pointerset_race_point( POINTERSET_RACE_COPY_EMPTY);
+
+            // Freeze the virgin slot so a writer holding this retired storage
+            // cannot claim it after the pass. If we lose, the writer's value
+            // is visible and is carried below.
+            actual = __mulle_atomic_pointer_cas( entry,
+                                                 REDIRECT_VALUE,
+                                                 MULLE_CONCURRENT_NO_POINTER);
+            if( actual == MULLE_CONCURRENT_NO_POINTER ||
+                actual == REDIRECT_VALUE)
+               break;
+            value = actual;
+            continue;
+         }
          if( MULLE_C_UNLIKELY( value == REDIRECT_VALUE))
             break;
+
+         pointerset_race_point( POINTERSET_RACE_COPY_READ);
 
          // copy first, then redirect
          _mulle_concurrent_pointersetstorage_register( dst, value);
 
-         actual = __mulle_atomic_pointer_cas_relaxed( entry, REDIRECT_VALUE, value);
+         pointerset_race_point( POINTERSET_RACE_COPY_CARRIED);
+
+         actual = __mulle_atomic_pointer_cas( entry, REDIRECT_VALUE, value);
          if( actual == value)
             break;
          value = actual;
@@ -359,7 +355,7 @@ size_t  _mulle_concurrent_pointerset_get_size( struct mulle_concurrent_pointerse
 {
    struct _mulle_concurrent_pointersetstorage   *p;
 
-   p = _mulle_atomic_pointer_read_relaxed( &set->storage.pointer);
+   p = _mulle_atomic_pointer_read( &set->storage.pointer);
    return( (size_t) p->mask + 1);
 }
 
@@ -372,16 +368,33 @@ static void
    struct _mulle_concurrent_pointersetstorage   *alloced;
    struct _mulle_concurrent_pointersetstorage   *previous;
    struct mulle_allocator                       *allocator;
+   size_t                                       old_size;
+   size_t                                       new_size;
 
-   allocator = _mulle_atomic_pointer_read_relaxed( &set->allocator);
+   // A stale source must not trigger a copy pass. The load-bearing property is
+   // that a retry after EBUSY/load-threshold always observes a strictly newer
+   // generation; this fast path is what makes the retry chain finite.
+   if( _mulle_atomic_pointer_read( &set->storage.pointer) != p)
+      return;
+
+   allocator = _mulle_atomic_pointer_read( &set->allocator);
 
    alloced = NULL;
-   q       = _mulle_atomic_pointer_read_relaxed( &set->next_storage.pointer);
+   q       = _mulle_atomic_pointer_read( &set->next_storage.pointer);
    if( q == p)
    {
-      alloced = _mulle_concurrent_alloc_pointersetstorage( ((size_t) p->mask + 1) * 2,
-                                                           allocator);
-      q = __mulle_atomic_pointer_cas_relaxed( &set->next_storage.pointer, alloced, p);
+      old_size = (size_t) p->mask + 1;
+      if( old_size > (SIZE_MAX / 2))
+         _mulle_allocator_abort( allocator, NULL, (size_t) -1);
+
+      new_size = old_size * 2;
+      // Migration must at least double. The wait-free retry bound relies on a
+      // strictly larger generation per retry. The only exception is the const
+      // empty storage (size 1), which the allocator clamps to 4.
+      assert( new_size == old_size * 2 || old_size < 4);
+
+      alloced = _mulle_concurrent_alloc_pointersetstorage( new_size, allocator);
+      q = __mulle_atomic_pointer_cas( &set->next_storage.pointer, alloced, p);
       if( q != p)
       {
          _mulle_allocator_abafree( allocator, alloced);
@@ -393,7 +406,7 @@ static void
 
    _mulle_concurrent_pointersetstorage_copy( q, p);
 
-   previous = __mulle_atomic_pointer_cas_relaxed( &set->storage.pointer, q, p);
+   previous = __mulle_atomic_pointer_cas( &set->storage.pointer, q, p);
    if( previous == p && ! _mulle_concurrent_pointersetstorage_is_const( previous))
       _mulle_allocator_abafree( allocator, previous);
 }
@@ -410,15 +423,17 @@ void  *_mulle_concurrent_pointerset_register( struct mulle_concurrent_pointerset
    void                                         *result;
 
 retry:
-   p   = _mulle_atomic_pointer_read_relaxed( &set->storage.pointer);
+   p   = _mulle_atomic_pointer_read( &set->storage.pointer);
    max = _mulle_concurrent_pointersetstorage_get_max_n_used( p);
-   n   = (size_t) (uintptr_t) _mulle_atomic_pointer_read_relaxed( &p->n_used);
+   n   = (size_t) (uintptr_t) _mulle_atomic_pointer_read( &p->n_used);
 
    if( n >= max)
    {
       _mulle_concurrent_pointerset_migrate_storage( set, p);
       goto retry;
    }
+
+   pointerset_race_point( POINTERSET_RACE_REGISTER);
 
    result = _mulle_concurrent_pointersetstorage_register( p, ptr);
    if( result == MULLE_CONCURRENT_INVALID_POINTER)
@@ -435,7 +450,7 @@ void  *mulle_concurrent_pointerset_register( struct mulle_concurrent_pointerset 
 {
    if( ! set || ! ptr ||
        ptr == MULLE_CONCURRENT_INVALID_POINTER ||
-       ptr == TOMBSTONE_VALUE)
+       ptr == MULLE_CONCURRENT_TOMBSTONE_POINTER)
    {
       errno = EINVAL;
       return( MULLE_CONCURRENT_INVALID_POINTER);
@@ -453,15 +468,17 @@ int  _mulle_concurrent_pointerset_insert( struct mulle_concurrent_pointerset *se
    int                                           rval;
 
 retry:
-   p   = _mulle_atomic_pointer_read_relaxed( &set->storage.pointer);
+   p   = _mulle_atomic_pointer_read( &set->storage.pointer);
    max = _mulle_concurrent_pointersetstorage_get_max_n_used( p);
-   n   = (size_t) (uintptr_t) _mulle_atomic_pointer_read_relaxed( &p->n_used);
+   n   = (size_t) (uintptr_t) _mulle_atomic_pointer_read( &p->n_used);
 
    if( n >= max)
    {
       _mulle_concurrent_pointerset_migrate_storage( set, p);
       goto retry;
    }
+
+   pointerset_race_point( POINTERSET_RACE_INSERT);
 
    rval = _mulle_concurrent_pointersetstorage_insert( p, ptr);
    if( MULLE_C_UNLIKELY( rval == EBUSY))
@@ -478,7 +495,7 @@ int  mulle_concurrent_pointerset_insert( struct mulle_concurrent_pointerset *set
 {
    if( ! set || ! ptr ||
        ptr == MULLE_CONCURRENT_INVALID_POINTER ||
-       ptr == TOMBSTONE_VALUE)
+       ptr == MULLE_CONCURRENT_TOMBSTONE_POINTER)
       return( EINVAL);
    return( _mulle_concurrent_pointerset_insert( set, ptr));
 }
@@ -488,38 +505,18 @@ int  _mulle_concurrent_pointerset_member( struct mulle_concurrent_pointerset *se
                                           void *ptr)
 {
    struct _mulle_concurrent_pointersetstorage   *p;
-
-   p = _mulle_atomic_pointer_read_relaxed( &set->storage.pointer);
-   return( _mulle_concurrent_pointersetstorage_member( p, ptr));
-}
-
-
-int  _mulle_concurrent_pointerset_remove( struct mulle_concurrent_pointerset *set,
-                                          void *ptr)
-{
-   struct _mulle_concurrent_pointersetstorage   *p;
    int                                           rval;
 
 retry:
-   p    = _mulle_atomic_pointer_read_relaxed( &set->storage.pointer);
-   rval = _mulle_concurrent_pointersetstorage_remove( p, ptr);
+   p = _mulle_atomic_pointer_read( &set->storage.pointer);
+   pointerset_race_point( POINTERSET_RACE_MEMBER);
+   rval = _mulle_concurrent_pointersetstorage_member( p, ptr);
    if( MULLE_C_UNLIKELY( rval == EBUSY))
    {
       _mulle_concurrent_pointerset_migrate_storage( set, p);
       goto retry;
    }
    return( rval);
-}
-
-
-int  mulle_concurrent_pointerset_remove( struct mulle_concurrent_pointerset *set,
-                                         void *ptr)
-{
-   if( ! set || ! ptr ||
-       ptr == MULLE_CONCURRENT_INVALID_POINTER ||
-       ptr == TOMBSTONE_VALUE)
-      return( EINVAL);
-   return( _mulle_concurrent_pointerset_remove( set, ptr));
 }
 
 
@@ -535,16 +532,16 @@ static int
    void                                         *value;
 
 retry:
-   p = _mulle_atomic_pointer_read_relaxed( &set->storage.pointer);
+   p = _mulle_atomic_pointer_read( &set->storage.pointer);
    if( *expect_mask && (uintptr_t) p->mask != *expect_mask)
       return( ECANCELED);
 
    while( *index <= (uintptr_t) p->mask)
    {
-      value = _mulle_atomic_pointer_read_relaxed( &p->entries[ *index]);
+      value = _mulle_atomic_pointer_read( &p->entries[ *index]);
       (*index)++;
 
-      if( value == MULLE_CONCURRENT_NO_POINTER || value == TOMBSTONE_VALUE)
+      if( value == MULLE_CONCURRENT_NO_POINTER)
          continue;
 
       if( MULLE_C_UNLIKELY( value == REDIRECT_VALUE))

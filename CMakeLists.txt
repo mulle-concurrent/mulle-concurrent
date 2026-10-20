@@ -1,6 +1,6 @@
 cmake_minimum_required( VERSION 3.13...99.99)
 
-project( mulle-concurrent VERSION 4.1.1 LANGUAGES C)
+project( mulle-concurrent VERSION 4.1.2 LANGUAGES C)
 
 #
 # The library advertises ANSI/ISO C (see the "std" and "apis" badges in the

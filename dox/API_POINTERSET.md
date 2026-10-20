@@ -1,19 +1,21 @@
 # `mulle_concurrent_pointerset`
 
-`mulle_concurrent_pointerset` is a set of pointers. It uses the same storage
+**EXPERIMENTAL.** `mulle_concurrent_pointerset` is a wait-free, insert-only
+set of pointers. It uses the same storage
 strategy as the hashmap, but keeps only a single pointer per slot. The pointer
 itself is hashed internally, so there is no separate hash key to supply.
 
-The set is resizable and uses linear probing with tombstones: a removed
-pointer leaves a tombstone in its slot so that probe chains are not broken.
-Tombstones are never reused for new inserts, but are dropped when the set
-migrates to a larger storage. A remove-heavy workload therefore triggers
-migration earlier, and `mulle_concurrent_pointerset_reset` can be used to
-clear accumulated tombstones.
+The set is resizable and uses linear probing. There is **no remove
+operation**: a single-word slot cannot make a concurrent removal durable across
+a copy-then-redirect migration, and supporting a single-threaded remove would
+require tombstones for the probe chains. The set is therefore insert-only.
 
 Such a set is extremely volatile when shared with multiple threads that are
-inserting and removing pointers. For example, when you get the number of
-elements of such a set it is akin to a fleeting glimpse of a distant past.
+inserting pointers. For example, when you get the number of elements of such a
+set it is akin to a fleeting glimpse of a distant past.
+
+Concurrent use is **insert/register/member only**. Use the hashtable (or a
+future hashtable-backed set) when you need a set with removal.
 
 The following operations should be executed in single-threaded fashion:
 
@@ -26,7 +28,11 @@ The following operations are fine in multi-threaded environments:
 * `mulle_concurrent_pointerset_insert`
 * `mulle_concurrent_pointerset_register`
 * `mulle_concurrent_pointerset_member`
-* `mulle_concurrent_pointerset_remove`
+
+The insert/register/member in-table algorithm is wait-free, provided the
+allocator and ABA reclamation used for a growing set are themselves wait-free.
+Otherwise pre-size the set to avoid growth (`init` with the final size; growth
+starts at 50% load, so size for twice the intended live count).
 
 The following operations work in multi-threaded environments, but should be
 approached with caution:
@@ -76,8 +82,7 @@ thread accesses `set` anymore.
 void  mulle_concurrent_pointerset_reset( struct mulle_concurrent_pointerset *set)
 ```
 
-Empty `set` and reinitialize it with the same size and allocator. Useful to
-clear accumulated tombstones after a remove-heavy workload. Call this in
+Empty `set` and reinitialize it with the same size and allocator. Call this in
 single-threaded fashion.
 
 
@@ -150,23 +155,6 @@ int   mulle_concurrent_pointerset_member( struct mulle_concurrent_pointerset *se
 
 Return 1 if `ptr` is in the set, 0 if not. Passing a `NULL` set or a `NULL`
 pointer returns 0 (silently, without setting `errno`).
-
-
-### `mulle_concurrent_pointerset_remove`
-
-```
-int   mulle_concurrent_pointerset_remove( struct mulle_concurrent_pointerset *set,
-                                          void *ptr)
-```
-
-Remove `ptr` from the set. The slot becomes a tombstone; see the intro for
-what that means for growth.
-
-Return Values:
-
-*   0      : removed
-*   ENOENT : not found
-*   EINVAL : invalid argument
 
 
 ### `mulle_concurrent_pointerset_lookup_any` - get a pointer from the set
@@ -271,7 +259,7 @@ The following values are used internally and must not be stored in the set:
 |---------------------------------|----------------------
 | `NULL`                          | empty slot
 | `(void *) INTPTR_MIN`           | REDIRECT marker during migration
-| `(void *) INTPTR_MAX`           | tombstone of a removed slot
+| `(void *) INTPTR_MAX`           | reserved library-wide; not a pointerset slot state |
 
 See the README section *Reserved pointer values* for the full table.
 
@@ -281,4 +269,5 @@ See the README section *Reserved pointer values* for the full table.
 Allocation is **fail-fast**: the mulle allocator contract is *success or
 abort*. When the default allocator cannot satisfy an allocation it prints an
 error and aborts the process. The functions above therefore never return an
-allocation error.
+allocation error. Migration always doubles the capacity; at the maximum
+representable capacity the process aborts instead of wrapping the size.

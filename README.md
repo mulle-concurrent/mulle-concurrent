@@ -18,12 +18,51 @@ in multi-threaded environments.
 
 ## API
 
-| Data Structure                                    | Description
-| --------------------------------------------------|-----------------------------------
-| [`mulle-concurrent-hashmap`](dox/API_HASHMAP.md)  | A wait- and lock-free hashmap, full-width `intptr_t` hash, insert-only
-| [`mulle-concurrent-hashtable`](dox/HASHTABLE.md)  | **EXPERIMENTAL** A wait- and lock-free hashmap with a concurrent `remove`, for one reserved hash bit and one reserved value bit
-| [`mulle-concurrent-pointerarray`](dox/API_POINTERARRAY.md)  | A wait- and lock-free array
-| [`mulle-concurrent-pointerset`](dox/API_POINTERSET.md)  | A wait- and lock-free set of pointers
+**Executive summary:** all four structures share the same mulle-aba lifecycle and
+allocator contract. Choose by shape and by whether you need concurrent deletion.
+`WF` means wait-free; `WF*` means wait-free assuming wait-free allocation and
+reclamation (the allocator is fail-fast, so pre-size if growth latency matters).
+
+| Structure | Shape | Key | Duplicates | Deletion | Status |
+|-----------|-------|-----|------------|----------|--------|
+| [`mulle-concurrent-hashmap`](dox/API_HASHMAP.md) | hash → value | full-width, nonzero `intptr_t` | one value per key | single-threaded only (`_remove`, `_patch`) | stable |
+| [`mulle-concurrent-hashtable`](dox/HASHTABLE.md) | hash → value | `intptr_t` with one reserved bit | one value per key | **concurrent `remove(hash,value)`, WF** | **EXPERIMENTAL** |
+| [`mulle-concurrent-pointerarray`](dox/API_POINTERARRAY.md) | ordered pointers | `unsigned int` index | allowed | none | stable |
+| [`mulle-concurrent-pointerset`](dox/API_POINTERSET.md) | set of pointers | the value itself | collapsed by the set | none (insert-only) | **EXPERIMENTAL** |
+
+### Operations and progress
+
+| Operation | hashmap | hashtable | pointerarray | pointerset |
+|-----------|---------|-----------|--------------|------------|
+| `init` / `done` | single-threaded | single-threaded | single-threaded | single-threaded |
+| insert | `insert` **WF** | `insert` **WF** | `add` **WF** | `insert` **WF** |
+| register | `register` **WF** | `register` **WF**, **lock-free** under same-key churn | — | `register` **WF** |
+| lookup | `lookup` **WF** | `lookup` **WF** | `get` **WF** | `member` **WF** |
+| delete | `_remove` / `_patch` single-threaded | `remove` **WF** | — | — |
+| reset | — | — | — | single-threaded |
+| count | weak snapshot | weak snapshot | `get_count` **WF** | weak snapshot |
+| iterate | weak snapshot | weak snapshot | weak snapshot | weak snapshot |
+| growth | **WF\*** | **WF\*** | **WF\*** | **WF\*** |
+
+**WF** point operations are safe from any number of registered threads and never
+wait for another thread (they may help complete a migration). **Weak snapshot**
+operations are multi-threaded but may restart or observe a mixture of
+generations; they are not wait-free. **Single-threaded** operations are undefined
+behavior if another thread accesses the structure concurrently.
+
+### Key and value scope
+
+| Structure | Key scope | Value scope | Rejected / reserved |
+|-----------|-----------|-------------|---------------------|
+| hashmap | any nonzero `intptr_t`; full width, so a pointer can be used as the hash on LP64 | any `void *` except `NULL` and `INTPTR_MIN`; `INTPTR_MAX` is allowed | key `0`; value `NULL`, `INTPTR_MIN` |
+| hashtable | mode-dependent: positive nonzero, or even nonzero; one hash bit is reserved | mode-dependent: even non-`NULL` (default), or positive `[1, INTPTR_MAX-1]`; one value bit and a TOMB value are reserved | key `0` and keys with the FROZEN bit; values with the SEALED bit, `NULL`, and the TOMB value |
+| pointerarray | `unsigned int` index in `[0, count)` | any `void *` except `NULL` and `INTPTR_MIN`; duplicates allowed | `NULL`, `INTPTR_MIN` |
+| pointerset | the pointer value itself (hashed internally) | any `void *` except `NULL`, `INTPTR_MIN` and `INTPTR_MAX`; duplicates collapse | `NULL`, `INTPTR_MIN`, `INTPTR_MAX` |
+
+The hashtable's default mode is positive hashes and even values. Even-value mode
+needs 2-byte alignment; use positive values for integers. The pointerset does not
+use `INTPTR_MAX` internally, but keeps it reserved library-wide and rejects it as
+user data.
 
 For the hashmap progress argument, see
 [Wait-free status of the hashmap point operations](dox/WAIT-FREE-LOCK-FREE.md).
@@ -152,6 +191,8 @@ crash.
   that observes a frozen slot helps finish the migration and then retries
   its own operation. For the hashmap the bound is worked out step by step in
   [Wait-free status of the hashmap point operations](dox/WAIT-FREE-LOCK-FREE.md).
+  The hashtable's `register` is lock-free, not wait-free, under same-key
+  insert/remove churn.
 * **`count`, `get_size`, `get_count` and `lookup_any` are snapshots** — they
   return a value from some point in time during the call and may be stale if
   the structure is mutated concurrently. Use them for diagnostics and
@@ -159,7 +200,8 @@ crash.
   restarts its enumeration when a concurrent mutation cancels it.
 * **Enumeration is "limited multi-threaded"** — an enumerator is only usable
   by the calling thread. For the hashmap, hashtable and pointerset, concurrent
-  mutation (insert/remove/growth) may interrupt the enumeration; the enumerator
+  mutation (insert, remove where supported, or growth) may interrupt the
+  enumeration; the enumerator
   then returns `ECANCELED` and you retry the whole enumeration from the start.
   Retrying may yield duplicates or miss entries that changed in between —
   that is expected. The pointerarray is append-only, so its enumerators work
@@ -188,12 +230,10 @@ crash.
   slot is claimed by CASing its hash, and only operations with that matching
   hash may write its value, so two different keys can never collide on one
   slot's value.
-* **Tombstones** — the pointerset leaves a tombstone for a removed pointer so
-  probe chains are not broken; tombstones are not reused within a storage
-  generation. Migration drops them while strictly growing the storage. For
-  remove-heavy workloads `mulle_concurrent_pointerset_reset()` can reclaim them
-  explicitly. The hashtable marks a removed value with a TOMB value too, but
-  that slot *is* immediately reusable. The hashmap has no tombstones.
+* **Tombstones** — the pointerset is EXPERIMENTAL and insert-only: it has no
+  remove and no tombstones. The hashtable marks a removed value with a TOMB
+  value, but that slot *is* immediately reusable. The hashmap has no
+  tombstones either; its removal is single-threaded.
 * **`init` and `done` are single-threaded** — no other thread may access the
   structure while either runs. See the *Lifecycle checklist*.
 
@@ -208,7 +248,7 @@ use. **Never store a value as payload in a container that reserves it.**
 | `0` (hash)            | `MULLE_CONCURRENT_NO_HASH`          | unclaimed slot / invalid hash     | hashmap, hashtable
 | `NULL`                | `MULLE_CONCURRENT_NO_POINTER`       | "no value" sentinel / empty slot  | all structures
 | `(void *) INTPTR_MIN` | `MULLE_CONCURRENT_INVALID_POINTER`  | hashmap REDIRECT freeze marker, hashtable TOMB (even values) | hashmap, pointerarray, pointerset, hashtable (even values)
-| `(void *) INTPTR_MAX` | `MULLE_CONCURRENT_TOMBSTONE_POINTER`| pointerset tombstone, hashtable TOMB (positive values)        | pointerset, hashtable (positive values)
+| `(void *) INTPTR_MAX` | `MULLE_CONCURRENT_TOMBSTONE_POINTER`| hashtable TOMB (positive values)                              | hashtable (positive values)
 | odd / top bit set     | —                                   | hashtable SEALED bit              | hashtable (even / positive values)
 
 The values are defined in `src/mulle-concurrent-types.h`. They are

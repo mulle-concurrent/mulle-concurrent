@@ -56,6 +56,38 @@ static const struct _mulle_concurrent_hashmapstorage   mulle_concurrent_empty_st
 
 #define REDIRECT_VALUE   MULLE_CONCURRENT_INVALID_POINTER
 
+
+//
+// Test scaffolding, same idea as MULLE_CONCURRENT_HASHTABLE_RACE_YIELD.
+// Defining MULLE_CONCURRENT_HASHMAP_RACE_YIELD widens the migration race
+// windows so that the stochastic tests can hit them. Compiles to nothing
+// otherwise.
+//
+#ifdef MULLE_CONCURRENT_HASHMAP_RACE_YIELD
+
+#define  hashmap_race_yield( void)   MULLE_THREAD_UNPLEASANT_RACE_YIELD()
+#else
+# define hashmap_race_yield()   do {} while( 0)
+#endif
+
+//
+// Named race points. By default each one is just hashmap_race_yield().
+// A test can #define hashmap_race_point( site) and #include this file to park
+// a thread at an exact point, which turns a probabilistic race into a
+// deterministic interleaving (see test/hashmap/migration_stall.c).
+//
+#define HASHMAP_RACE_LOOKUP            1   // lookup: storage read, probe not started
+#define HASHMAP_RACE_INSERT            2   // insert: storage read, claim not started
+#define HASHMAP_RACE_REGISTER          3   // register: storage read, claim not started
+#define HASHMAP_RACE_FILL              4   // insert/register: hash claimed, value not filled
+#define HASHMAP_RACE_COPY_VIRGIN       5   // copy: virgin slot seen, not frozen yet
+#define HASHMAP_RACE_COPY_READ         6   // copy: value read, not put into successor
+#define HASHMAP_RACE_COPY_CARRIED      7   // copy: put into successor, source not frozen
+
+#ifndef hashmap_race_point
+# define hashmap_race_point( site)   hashmap_race_yield()
+#endif
+
 #pragma mark - _mulle_concurrent_hashmapstorage
 
 
@@ -111,6 +143,8 @@ static void  *_mulle_concurrent_hashmapstorage_fill( struct _mulle_concurrent_ha
                                                      void *value)
 {
    void   *found;
+
+   hashmap_race_point( HASHMAP_RACE_FILL);
 
    found = __mulle_atomic_pointer_cas( &entry->value, value, MULLE_CONCURRENT_NO_POINTER);
    if( found == MULLE_CONCURRENT_NO_POINTER)
@@ -422,6 +456,8 @@ static void
       hash = _mulle_concurrent_hashvaluepair_get_hash( p);
       if( hash == MULLE_CONCURRENT_NO_HASH)
       {
+         hashmap_race_point( HASHMAP_RACE_COPY_VIRGIN);
+
          // Freeze a virgin slot. If this loses to a racing fill, hash-first
          // publication guarantees that the fill's hash is visible now; carry
          // the returned state into the ordinary copy/freeze path below.
@@ -452,9 +488,13 @@ static void
          if( MULLE_C_UNLIKELY( value == REDIRECT_VALUE))
             break;
 
+         hashmap_race_point( HASHMAP_RACE_COPY_READ);
+
          // it's important that we copy over first so
          // No One Gets Left Behind
          _mulle_concurrent_hashmapstorage_put( map, dst, hash, value);
+
+         hashmap_race_point( HASHMAP_RACE_COPY_CARRIED);
 
          actual = __mulle_atomic_pointer_cas( &p->value, REDIRECT_VALUE, value);
          if( actual == value)
@@ -593,6 +633,7 @@ void  *_mulle_concurrent_hashmap_lookup( struct mulle_concurrent_hashmap *map,
    // won't find invalid hash anyway
 retry:
    p     = _mulle_atomic_pointer_read( &map->storage.pointer);
+   hashmap_race_point( HASHMAP_RACE_LOOKUP);
    value = _mulle_concurrent_hashmapstorage_lookup( p, hash);
    if( MULLE_C_UNLIKELY( value == REDIRECT_VALUE))
    {
@@ -688,6 +729,8 @@ retry:
       goto retry;
    }
 
+   hashmap_race_point( HASHMAP_RACE_REGISTER);
+
    result = _mulle_concurrent_hashmapstorage_register( p, hash, value);
    if( result == MULLE_CONCURRENT_INVALID_POINTER)
    {
@@ -740,6 +783,8 @@ retry:
       _mulle_concurrent_hashmap_migrate_storage( map, p);
       goto retry;
    }
+
+   hashmap_race_point( HASHMAP_RACE_INSERT);
 
    rval = _mulle_concurrent_hashmapstorage_insert( p, hash, value);
    if( MULLE_C_UNLIKELY( rval == EBUSY))

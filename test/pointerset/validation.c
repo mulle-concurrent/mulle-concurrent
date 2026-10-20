@@ -35,15 +35,7 @@ int   main( void)
    check( mulle_concurrent_pointerset_insert( &set, MULLE_CONCURRENT_INVALID_POINTER) == EINVAL,
           "pointerset insert invalid value");
    check( mulle_concurrent_pointerset_insert( &set, MULLE_CONCURRENT_TOMBSTONE_POINTER) == EINVAL,
-          "pointerset insert tombstone value");
-   check( mulle_concurrent_pointerset_remove( NULL, (void *) 1) == EINVAL,
-          "pointerset remove NULL set");
-   check( mulle_concurrent_pointerset_remove( &set, NULL) == EINVAL,
-          "pointerset remove NULL value");
-   check( mulle_concurrent_pointerset_remove( &set, MULLE_CONCURRENT_INVALID_POINTER) == EINVAL,
-          "pointerset remove invalid value");
-   check( mulle_concurrent_pointerset_remove( &set, MULLE_CONCURRENT_TOMBSTONE_POINTER) == EINVAL,
-          "pointerset remove tombstone value");
+          "pointerset insert reserved value");
    check( mulle_concurrent_pointerset_member( NULL, (void *) 1) == 0,
           "pointerset member NULL set");
    check( mulle_concurrent_pointerset_member( &set, NULL) == 0,
@@ -61,7 +53,7 @@ int   main( void)
           "pointerset register invalid value");
    result = mulle_concurrent_pointerset_register( &set, MULLE_CONCURRENT_TOMBSTONE_POINTER);
    check( result == MULLE_CONCURRENT_INVALID_POINTER,
-          "pointerset register tombstone value");
+          "pointerset register reserved value");
 
    rover = mulle_concurrent_pointerset_enumerate( NULL);
    check( mulle_concurrent_pointerset_enumerator_next( &rover, NULL) == 0,
@@ -76,8 +68,6 @@ int   main( void)
    // duplicate / register / convenience semantics
    check( mulle_concurrent_pointerset_insert( &set, (void *) 10) == EEXIST,
           "pointerset duplicate insert");
-   check( mulle_concurrent_pointerset_remove( &set, (void *) 0xDEAD) == ENOENT,
-          "pointerset remove missing");
    check( mulle_concurrent_pointerset_register( &set, (void *) 20) == MULLE_CONCURRENT_NO_POINTER,
           "pointerset register fresh");
    check( mulle_concurrent_pointerset_register( &set, (void *) 20) == (void *) 20,

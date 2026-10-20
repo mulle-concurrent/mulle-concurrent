@@ -1,8 +1,17 @@
+### 4.1.2
+
+* improved tests for all data structures
+* forgot to declare pointerset to be experimental as well (not in use yet)
+
 ### 4.1.1
 
 
 
 
+* pointerset: marked EXPERIMENTAL; it is now insert-only (``insert``/``register``/``member``), with the empty-slot freeze, member retry, bounded probe loops and seq_cst publication
+* pointerset: ``remove`` and the tombstone state are gone; the single-word layout cannot make concurrent removal durable
+* pointerarray: wait-free helping publication for ``add``, corrected growth copy (freeze source slots, dense prefix, follow a retiring destination)
+* tests: deterministic race-point reproducers for hashmap, pointerarray and pointerset
 * fix a race in hashtable
 * improve test framework to catch those races
 

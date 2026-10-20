@@ -188,7 +188,7 @@ operations exist).
 
 ## Pointerset
 
-### Insert, register, member, remove
+### Insert, register, member (insert-only)
 
 ```c
 struct mulle_concurrent_pointerset   set;
@@ -205,8 +205,6 @@ void *result = mulle_concurrent_pointerset_register( &set, (void *) 0x9999);
 // MULLE_CONCURRENT_INVALID_POINTER = error,
 // pointer = already present
 
-mulle_concurrent_pointerset_remove( &set, (void *) 0xAAAA);
-
 mulle_concurrent_pointerset_done( &set);
 ```
 
@@ -218,10 +216,10 @@ mulle_concurrent_pointerset_for( &set, ptr)
    printf( "Found: %p\n", ptr);
 ```
 
-### Reset for tombstone cleanup
+### Reset / clear
 
 ```c
-// after many removes in a tight loop, call reset to drop tombstones
+// empty the set, keeping its capacity
 mulle_concurrent_pointerset_reset( &set);
 ```
 
