@@ -1,6 +1,6 @@
 //
 // Stress test: N threads hammering insert/member on pointers 1..10.
-// remove is single-threaded, so it is not exercised concurrently.
+// The set is insert-only, so remove is not exercised concurrently.
 // The set is tiny and heavily contended, forcing lots of CAS retries and
 // migrations.
 //

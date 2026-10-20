@@ -4,3 +4,8 @@ in multi-threaded environments.
 
 > Many of the ideas are taken from [Preshing on Programming: A Resizable, Concurrent Map](http://preshing.com/20160222/a-resizable-concurrent-map/).
 > The definition of concurrent and wait-free are from [concurrencyfreaks.blogspot.de](http://concurrencyfreaks.blogspot.de/2013/05/lock-free-and-wait-free-definition-and.html)
+
+The mulle-concurrent-hashmap is the rock-solid foundation of this library.
+The mulle-concurrent-pointerarray has been in use w/o problems for years, but recently got a bug fix.
+The mulle-concurrent-hashtable is **EXPERMIMENTAL** but now in use.
+The mulle-concurrent-pointerset is **EXPERIMENTAL** and currently unused.

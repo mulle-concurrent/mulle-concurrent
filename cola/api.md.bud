@@ -1,7 +1,5 @@
 ## API
 
-**Executive summary:** all four structures share the same mulle-aba lifecycle and
-allocator contract. Choose by shape and by whether you need concurrent deletion.
 `WF` means wait-free; `WF*` means wait-free assuming wait-free allocation and
 reclamation (the allocator is fail-fast, so pre-size if growth latency matters).
 

@@ -2,7 +2,7 @@
 // Consistency test: run N threads briefly, stop them, check for duplicates,
 // restart. Repeated N_ROUNDS times on the same set.
 //
-// remove is single-threaded, so the workers only insert and probe.
+// The set is insert-only, so the workers only insert and probe.
 //
 // "Consistent" means: enumerating the set yields each live pointer at most once.
 //
@@ -200,6 +200,9 @@ int   main( void)
    mulle_concurrent_pointerset_init( &set, 4, &mulle_allocator_default);
 
    actual_threads = n_threads();
+   // sysconf() reaches glibc's get_nproc_stat(), whose overlapping memmove
+   // valgrind reports as Memcheck:Overlap. Never call it under valgrind.
+   if( ! g_is_slow)
    {
       unsigned int   cpus;
 

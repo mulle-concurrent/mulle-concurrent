@@ -56,22 +56,55 @@ static mulle_thread_rval_t   adder( void *arg)
 }
 
 
+static int   is_valgrind( void)
+{
+   if( getenv( "MULLE_TEST_VALGRIND"))
+      return( 1);
+#ifdef __linux__
+   {
+      FILE   *f;
+      char   line[ 256];
+
+      f = fopen( "/proc/self/maps", "r");
+      if( f)
+      {
+         while( fgets( line, sizeof( line), f))
+            if( strstr( line, "vgpreload"))
+            {
+               fclose( f);
+               return( 1);
+            }
+         fclose( f);
+      }
+   }
+#endif
+   return( 0);
+}
+
+
 static unsigned int   n_threads( void)
 {
    unsigned int   cpus;
 #ifdef _WIN32
    SYSTEM_INFO    info;
+#endif
 
+   // sysconf() reaches glibc's get_nproc_stat(), whose overlapping memmove
+   // valgrind reports as Memcheck:Overlap. Never call it under valgrind.
+   if( is_valgrind())
+      return( 2);
+
+#ifdef _WIN32
    GetSystemInfo( &info);
    cpus = (unsigned int) info.dwNumberOfProcessors;
 #else
-   long   n;
+   {
+      long   n;
 
-   n = sysconf( _SC_NPROCESSORS_ONLN);
-   cpus = n < 1 ? 1 : (unsigned int) n;
+      n = sysconf( _SC_NPROCESSORS_ONLN);
+      cpus = n < 1 ? 1 : (unsigned int) n;
+   }
 #endif
-   if( getenv( "MULLE_TEST_VALGRIND"))
-      return( 2);
    if( cpus > MAX_THREADS)
       cpus = MAX_THREADS;
    if( cpus < 2)

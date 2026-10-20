@@ -9,6 +9,11 @@ in multi-threaded environments.
 > Many of the ideas are taken from [Preshing on Programming: A Resizable, Concurrent Map](http://preshing.com/20160222/a-resizable-concurrent-map/).
 > The definition of concurrent and wait-free are from [concurrencyfreaks.blogspot.de](http://concurrencyfreaks.blogspot.de/2013/05/lock-free-and-wait-free-definition-and.html)
 
+The mulle-concurrent-hashmap is the rock-solid foundation of this library.
+The mulle-concurrent-pointerarray has been in use w/o problems for years, but recently got a bug fix.
+The mulle-concurrent-hashtable is **EXPERMIMENTAL** but now in use.
+The mulle-concurrent-pointerset is **EXPERIMENTAL** and currently unused.
+
 
 
 | Release Version                                       | Release Notes  | AI Documentation
@@ -18,8 +23,6 @@ in multi-threaded environments.
 
 ## API
 
-**Executive summary:** all four structures share the same mulle-aba lifecycle and
-allocator contract. Choose by shape and by whether you need concurrent deletion.
 `WF` means wait-free; `WF*` means wait-free assuming wait-free allocation and
 reclamation (the allocator is fail-fast, so pre-size if growth latency matters).
 
@@ -155,87 +158,12 @@ static void   *my_worker( void *arg)
 ```
 
 
-## Lifecycle checklist
+## Checklist
 
-`init` and `done` must be externally serialized, and every thread that touches
-a mulle-concurrent data structure must be registered with mulle-aba. The
-complete process looks like this:
-
-1. **Initialize mulle-aba once per process** — `mulle_aba_init( allocator)`.
-2. **Configure the allocator for ABA reclamation** — if you pass a custom
-   allocator, wire it up with `mulle_allocator_set_aba()` so that old storage
-   can be freed safely.
-3. **Register every participating thread** — `mulle_aba_register()` before the
-   first access, `mulle_aba_unregister()` when the thread is done. In a
-   thread pool, use the TSS destructor recipe from *Multi-threaded setup*
-   above to make this automatic.
-4. **`init` your structures** — in a single-threaded context, before any
-   worker threads start.
-5. **Use the structures** — from any registered thread.
-6. **Stop the world** — ensure no thread accesses the structures anymore
-   (join the workers / drain the pool) before you tear anything down.
-7. **`done` your structures** — in a single-threaded context, after the stop.
-8. **Unregister the threads and finish mulle-aba** — `mulle_aba_done()` once
-   per process, after all accesses have ceased.
-
-Destroying a structure while a reader is still active is not recoverable. If
-a thread accesses a structure without being registered, the process will
-crash.
-
-
-## Concurrency semantics
-
-* **Point operations are wait-free** — `register`, `insert`, `lookup`,
-  `remove`, `add`, `get`, `member` complete in a bounded number of steps
-  regardless of contention. Growth and migration are cooperative: any thread
-  that observes a frozen slot helps finish the migration and then retries
-  its own operation. For the hashmap the bound is worked out step by step in
-  [Wait-free status of the hashmap point operations](dox/WAIT-FREE-LOCK-FREE.md).
-  The hashtable's `register` is lock-free, not wait-free, under same-key
-  insert/remove churn.
-* **`count`, `get_size`, `get_count` and `lookup_any` are snapshots** — they
-  return a value from some point in time during the call and may be stale if
-  the structure is mutated concurrently. Use them for diagnostics and
-  heuristics, not for correctness decisions. They are not wait-free: `count`
-  restarts its enumeration when a concurrent mutation cancels it.
-* **Enumeration is "limited multi-threaded"** — an enumerator is only usable
-  by the calling thread. For the hashmap, hashtable and pointerset, concurrent
-  mutation (insert, remove where supported, or growth) may interrupt the
-  enumeration; the enumerator
-  then returns `ECANCELED` and you retry the whole enumeration from the start.
-  Retrying may yield duplicates or miss entries that changed in between —
-  that is expected. The pointerarray is append-only, so its enumerators work
-  reliably even while other threads add values.
-* **The hashmap has no concurrent `remove`** — entries can be added but not
-  taken away while other threads are running. This is not an omission: the
-  hashmap freezes a migrating slot by overwriting its *value*, which destroys
-  the payload, and that forces the copier to install a value into the new
-  generation before it can check whether the value is still live. A concurrent
-  `remove` can therefore be silently undone. The full argument is in
-  [Remove misery](dox/REMOVE-MISERY-HASHMAP.md).
-  `_mulle_concurrent_hashmap_patch` and `_mulle_concurrent_hashmap_remove`
-  exist but are **single-threaded only**, for setup and teardown phases.
-* **Use the hashtable if you need `remove`** — it is **EXPERIMENTAL**:
-  several migration-race bugs have been found and fixed in it. It is
-  soak-tested and its small scenarios are checked under every thread
-  interleaving (`test/explore`), but not under weak memory ordering. Migration freezes the *hash*
-  word and seals the *value* word with reserved bits, so a migrating slot keeps
-  its payload and a removal can never be resurrected. A removed slot keeps its
-  hash claim (probe chains stay intact) and is immediately reusable. The price
-  is one reserved bit in the hash and one in the value, plus one reserved
-  "removed" value. Each bit is either the top bit ("positive") or bit 0
-  ("even"), chosen at `init`. Out-of-range hashes or values are rejected with
-  `EINVAL`, never truncated. See [hashtable](dox/HASHTABLE.md).
-* **Hashmap `register`/`insert` never return a foreign key's value** — a
-  slot is claimed by CASing its hash, and only operations with that matching
-  hash may write its value, so two different keys can never collide on one
-  slot's value.
-* **Tombstones** — the pointerset is EXPERIMENTAL and insert-only: it has no
-  remove and no tombstones. The hashtable marks a removed value with a TOMB
-  value, but that slot *is* immediately reusable. The hashmap has no
-  tombstones either; its removal is single-threaded.
-* **`init` and `done` are single-threaded** — no other thread may access the
-  structure while either runs. See the *Lifecycle checklist*.
+* `init` and `done` operations must be done singlethreaded
+* Every thread that touches a mulle-concurrent data structure must be registered with mulle-aba.
+* Enumeration is only to be used singlethreaded and for debugging purposes
+* `count`, `get_size`, `get_count` return informational values, they may have already changed
 
 
 ## Reserved pointer values
@@ -256,22 +184,7 @@ compile-time constants derived from the platform's `intptr_t`, so the
 reserved set is fixed per architecture. Passing a reserved value to an
 operation that rejects it returns `EINVAL`.
 
-Two per-container notes:
-
-* The **hashtable** restricts values by its value mode. In **even** mode (the
-  default) values must be even, which is the right mode for pointers, and
-  `INVALID_POINTER` is reserved. In **positive** mode values must be in
-  `[1, INTPTR_MAX - 1]`, which is the right mode for integers, and
-  `TOMBSTONE_POINTER` is reserved. Hashes are restricted the same way by the
-  hash mode: `[1, INTPTR_MAX]` by default, or even and non-zero. Choose with
-  `mulle_concurrent_hashtable_init_with_mode()` and test with
-  `mulle_concurrent_hashtable_value_is_valid()` and
-  `mulle_concurrent_hashtable_hash_is_valid()`.
-* The **hashmap** no longer has tombstones, so `TOMBSTONE_POINTER` is an
-  ordinary storable value for it too. Avoid relying on that if the same
-  payloads also go into a pointerset.
-
-
+The **hashtable** restricts keys and values by its key and value modes.
 
 ## Memory allocation
 
@@ -279,6 +192,8 @@ All allocation is **fail-fast**: the mulle allocator contract is *success or
 abort*. When the default allocator cannot satisfy an allocation it prints an
 error and aborts the process. The API therefore only reports allocation
 failure by aborting; do not write code that depends on recovering from it.
+
+Use an arena allocator, to avoid serialization through malloc.
 
 
 
